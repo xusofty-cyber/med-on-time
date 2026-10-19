@@ -1,0 +1,13 @@
+{
+  "name": "med-on-time",
+  "version": "0.1.0",
+  "private": true,
+  "description": "药准时 MedOnTime —— 全平台用药提醒系统",
+  "packageManager": "pnpm@9.0.0",
+  "scripts": {
+    "dev:admin": "pnpm --filter @med-on-time/admin dev",
+    "dev:web": "pnpm --filter @med-on-time/web dev",
+    "dev:api": "pnpm --filter @med-on-time/api dev",
+    "build": "pnpm -r build"
+  }
+}
