@@ -29,10 +29,13 @@
 | 层级 / 领域 | 技术栈与版本 | 说明与关键库 |
 |---|---|---|
 | **包管理 / Monorepo** | pnpm 9 | `apps/*`、`packages/*`、`services/*` |
-| **核心语言 / 运行时** | 待定 | 候选：TypeScript (Node 20) / Python 3.11（后端） |
-| **基础框架与构建** | 待定 | 后台候选 Vue 3 + Element Plus / React + Ant Design；构建工具随选型定 |
-| **持久化与缓存** | PostgreSQL 15+（已定） | 34 张表 / 8 个域；UUIDv7 主键；缓存选型待定 |
-| **接口与中间件** | RESTful over HTTPS（已定） | 各端共用同一套后端 API；OpenAPI 规范、事件总线待定 |
+| **后端** | Node.js 20 LTS + NestJS 10 + Prisma 5 | 模块化单体分层；BullMQ + Redis 7 做提醒延迟队列 |
+| **后台 / Web 前端** | React 18 + Vite；后台 Ant Design 5 + ProComponents，Web 端 Tailwind CSS + Zustand | 后台 React Router v6 + ECharts；Web 响应式同一套代码，PWA 为 P1 |
+| **小程序** | Taro 4（React 写法） | 编译到微信小程序 |
+| **移动端** | Android Kotlin + Jetpack；iOS Swift + SwiftUI | 推送 APNs/FCM；国内安卓极光·JPush 聚合 |
+| **桌面端** | Electron（复用 `apps/web`） | Windows / Linux / macOS |
+| **持久化与缓存** | PostgreSQL 15+（已定）+ Redis 7 | 34 张表 / 8 个域；UUIDv7 主键；大表按月分区 |
+| **接口与中间件** | RESTful over HTTPS（已定），OpenAPI 为唯一契约 | TS 客户端由契约生成（orval）；事件总线待定 |
 
 ---
 
@@ -48,7 +51,7 @@
   - `packages/shared/`：共享类型、枚举（与 DB 枚举速查对齐）、常量、工具函数
   - `packages/api-client/`：各端共用的 API 客户端 SDK
   - `services/api/`：后端 API + 提醒引擎
-  - `docs/`：设计文档索引（需求 `docs/specs/`、架构 `docs/architecture/` 待建）
+  - `docs/`：设计文档索引；架构文档 `docs/architecture/TECH_ARCHITECTURE.md`（V1.0 待评审）
   - `tests/`：待建（随各端脚手架落地）
 
 ---
@@ -86,6 +89,10 @@
 - **2026-10-20**：[提醒实例独立成表]
   - **背景**：多通道降级、重复提醒、漏服判定需要精确状态机。
   - **决策**：`reminder_instance` 独立成表（含状态机与生成幂等键）；依从性按成员按日预聚合，分母只计已到期实例。
+- **2026-10-20**：[技术架构方案 V1.0]
+  - **背景**：各端（后台/Web/小程序/Android/iOS/PC/后端）需冻结技术选型，要求成熟稳定、经大型项目验证。
+  - **决策**：后端 NestJS 10 + Prisma 5 + BullMQ/Redis；后台 React + Ant Design 5；Web 端 React + Tailwind（响应式）；小程序 Taro 4；Android Kotlin + Jetpack；iOS Swift + SwiftUI；桌面端 Electron（复用 Web）；契约优先（OpenAPI → orval 生成客户端）。详见 `docs/architecture/TECH_ARCHITECTURE.md`。
+  - **影响**：AGENTS.md 命令与技术栈表已回填；各端脚手架按此选型生成；选型变更需走 ADR 并同步三文档。
 - **2026-10-20**：[设计文档版本冻结基线]
   - **背景**：需求先行，代码未动。
   - **决策**：后台需求 V1.1、用户端需求 V1.1、数据库设计 V1.0 为当前基线；三份文档末尾的待确认问题（7+10+8）拍板后升级版本。

@@ -14,27 +14,30 @@
 
 ## 常用开发命令
 
-> ⚠️ 技术选型尚未冻结，以下为 workspace 约定占位；各端脚手架落地后回填精确命令，回填后删除本提示。
+> 依据《docs/architecture/TECH_ARCHITECTURE.md》V1.0（待评审）。运行命令前先确认工作目录；必须采用过滤参数防日志刷屏，严禁将全量日志直接倒进上下文。
 
 ```bash
 # 1. 依赖安装
 pnpm install
 
 # 2. 本地开发与构建
-pnpm --filter @med-on-time/admin dev      # 后台管理员管理平台
-pnpm --filter @med-on-time/web dev        # Web 用户门户（响应式）
-pnpm --filter @med-on-time/api dev        # 后端 API + 提醒引擎
+pnpm --filter @med-on-time/admin dev      # 后台（React + Ant Design）
+pnpm --filter @med-on-time/web dev        # Web 用户门户（React + Tailwind）
+pnpm --filter @med-on-time/api dev        # 后端 API（NestJS）
 pnpm -r build                             # 全量构建
 
-# 3. 测试（待定：技术选型后补充，要求改动后必须运行并给出精简输出）
-# <UNIT_TEST_COMMAND>
-# <TARGETED_TEST_COMMAND>
+# 3. 测试（改动后必须运行，输出须精简）
+pnpm --filter @med-on-time/api test       # 后端：jest
+pnpm -r test                              # 全量测试
 
-# 4. Lint / 格式化 / 类型检查（待定：选型后补充）
-# <LINT_COMMAND> / <FORMAT_COMMAND> / <TYPE_CHECK_COMMAND>
+# 4. Lint / 格式化 / 类型检查
+pnpm -r lint                              # eslint
+pnpm -r format                            # prettier --write
+pnpm -r typecheck                         # tsc --noEmit
 
-# 5. 数据迁移（待定：PostgreSQL 迁移工具选型后补充）
-# <MIGRATION_COMMAND>
+# 5. 数据迁移（PostgreSQL，Prisma Migrate）
+pnpm --filter @med-on-time/api prisma migrate dev      # 本地开发建迁移
+pnpm --filter @med-on-time/api prisma migrate deploy   # 部署执行迁移
 ```
 
 ## 技术栈与运行环境
@@ -42,15 +45,16 @@ pnpm -r build                             # 全量构建
 | 类别 | 技术选型与版本 | 补充说明 |
 |---|---|---|
 | **包管理器** | pnpm 9 | monorepo workspace（`apps/*`、`packages/*`、`services/*`） |
-| **语言 & 运行时** | 待定 | 候选：TypeScript (Node 20) / Python 3.11（后端） |
-| **后台框架** | 待定 | 候选：Vue 3 + Element Plus / React + Ant Design |
-| **Web 用户门户** | 待定 | 同一套页面响应式适配 PC + 移动浏览器；PWA 为 P1 |
-| **微信小程序** | 待定 | 候选：原生 / Taro / uni-app；注意订阅消息须用户主动订阅 |
-| **移动端** | 待定 | Android（Kotlin）/ iOS（Swift），原生开发 |
-| **桌面端** | 待定 | 候选：Tauri / Electron（Windows / Linux / macOS），定位为补充提醒 |
-| **持久层** | PostgreSQL 15+（已定） | 见《数据库表结构设计》V1.0：34 张表 / 8 个域；UUIDv7 主键；软删除 |
-| **接口** | RESTful over HTTPS | 各端共用同一套后端 API；OpenAPI 规范待定 |
-| **CI/CD** | 待定 | 候选：GitHub Actions |
+| **后端** | Node.js 20 LTS + NestJS 10 + Prisma 5 | 模块化单体分层；BullMQ + Redis 7 做提醒延迟队列 |
+| **后台管理平台** | React 18 + Vite + Ant Design 5 + ProComponents | React Router v6；图表 ECharts |
+| **Web 用户门户** | React 18 + Vite + Tailwind CSS + Zustand | 同一套代码响应式适配 PC + 移动；PWA（vite-plugin-pwa）为 P1 |
+| **微信小程序** | Taro 4（React 写法） | 编译到微信小程序；订阅消息须用户主动订阅 |
+| **移动端** | Android: Kotlin + Jetpack（Compose/Room/WorkManager/Hilt/Retrofit）；iOS: Swift + SwiftUI | 推送：APNs / FCM；国内安卓用极光·JPush 聚合 |
+| **桌面端** | Electron（复用 `apps/web` 代码） | Windows / Linux / macOS；定位为补充提醒 |
+| **共享包** | TypeScript + dayjs + zod；API 客户端由 OpenAPI 生成（orval） | `packages/shared` 枚举与 DB 枚举速查逐字一致 |
+| **持久层** | PostgreSQL 15+ | 34 张表 / 8 个域；UUIDv7 主键；软删除；大表按月分区 |
+| **接口** | RESTful over HTTPS，OpenAPI 为唯一契约 | 各端共用同一套后端 API |
+| **CI/CD** | GitHub Actions（lint/test/build）；CD 待定 | `main` 受保护，PR 合并 |
 
 ## 架构核心红线
 
