@@ -45,7 +45,7 @@
 
 ## 五、当前断点与后续待执行事项
 
-1. **当前断点（2026-10-23）**：设计阶段评审全部收官（同前）。**开发脚手架已开工并落 `develop` 分支**：pnpm monorepo 全量脚手架（根工作区 + packages/shared 共享枚举 + packages/api-client 生成客户端骨架 + services/api NestJS 16 模块 + Prisma schema 落 56 表 + apps 五端最小脚手架，原生 Android/iOS 仍为 README 占位）与 LICENSE（MIT）已就绪。验证证据（助手 VM，2026-10-23）：`prisma validate` 通过、Prisma Client 生成成功、`pnpm -r build` 7/7 通过、`pnpm -r typecheck` 7/7 通过、api `eslint` 通过。助手 VM 无 Docker/PostgreSQL，API 启动冒烟与首个 migrate 待在有 Docker 的环境执行。
+1. **当前断点（2026-10-23）**：设计阶段评审全部收官（同前）。**开发脚手架已开工并落 `develop` 分支**：pnpm monorepo 全量脚手架（根工作区 + packages/shared 共享枚举 + packages/api-client 生成客户端骨架 + services/api NestJS 16 模块 + Prisma schema 落 56 表 + apps 五端最小脚手架，原生 Android/iOS 仍为 README 占位）与 LICENSE（MIT）已就绪。验证证据（助手 VM，2026-10-23）：`prisma validate` 通过、Prisma Client 生成成功、`pnpm -r build` 7/7 通过、`pnpm -r typecheck` 7/7 通过、api `eslint` 通过。助手 VM 无 Docker/PostgreSQL，迁移实跑与 API 启动冒烟待在有 Docker 的环境执行（迁移脚本已备，见后续下一步）。
 2. **文档现行版本**：用户端需求 V1.8、后台需求 V1.5、数据库设计 V1.2（56 张表）、技术架构 V1.5（已推送 main，commit `c18ba30`）、UI 设计规范 V1.0、技术预研 V1.1（零预算版）。需求/数据库 PDF 为 artifact 构建产物，位于助手侧目标目录，未入仓（待发布到 Releases）。
 3. **POC 状态**：POC-1 已完成（说明书层有条件通过；质检管线已全量运行，报告见 `docs/research/`）；POC-2（模型评测）资产就绪、**经用户指示暂停**，恢复需用户提供智谱 API Key 与讯飞 APIPassword，不得擅自重启；POC-3（相互作用替代打法验证）未启动。
 4. **后续下一步（均待用户发令）**：
@@ -53,7 +53,7 @@
    - [x] 两个可点击原型（用户端/后台）用户走查完成（2026-10-20：无大问题，通过）
    - [x] 按定稿生成各端脚手架代码（2026-10-23 落 develop：services/api NestJS + Prisma 56 表 + 其余各端最小脚手架，build/typecheck 全绿）
    - [x] 建立 `develop` 分支（2026-10-23，自 main 切出）；选 License（MIT，已落仓）
-   - [ ] 落 DDL 迁移脚本（prisma migrate 首迁 + 按月分区/部分索引/CHECK 约束补齐 SQL，见 schema 文件头注记）
+   - [x] 落 DDL 迁移脚本（2026-10-23 落 develop）：`services/api/prisma/migrations/` 两段——基线 `20261023090000_init`（prisma migrate diff 生成，56 表全量建表，372 条语句）+ 补充 `20261023090100_constraints_partitions`（101 条枚举 CHECK、7 处部分唯一索引、drug 名称 trgm GIN 索引、4 张大表按月分区转换并预建 2026-01~2027-12 分区 + DEFAULT 兜底）；两份 SQL 均经 pglast（PostgreSQL 语法）校验通过。分区取舍：reminder_instance 主键改 (id, scheduled_at_utc)、幂等唯一改 (idempotency_key, scheduled_at_utc)，4 条指向分区表的入向 FK 按 PG 限制删除（列与索引保留，完整性由应用保证），细节见补充迁移文件头注记。**迁移尚未在真实 PostgreSQL 上执行验证**（待 Docker 环境）。
    - [ ] 设计 PDF 发布到 GitHub Releases（design-v1.0 标签，5 份 PDF 附件）
    - [ ] 200 药首期队列处理（2 拦截 + 4 复核 + 11 人工补录）
    - [ ] API 启动冒烟（需 Docker 环境起 PostgreSQL 15 + Redis 7）与首批业务接口实现
