@@ -55,7 +55,7 @@
    - [x] 建立 `develop` 分支（2026-10-23，自 main 切出）；选 License（MIT，已落仓）
    - [x] 落 DDL 迁移脚本（2026-10-23 落 develop）：`services/api/prisma/migrations/` 两段——基线 `20261023090000_init`（prisma migrate diff 生成，56 表全量建表，372 条语句）+ 补充 `20261023090100_constraints_partitions`（101 条枚举 CHECK、7 处部分唯一索引、drug 名称 trgm GIN 索引、4 张大表按月分区转换并预建 2026-01~2027-12 分区 + DEFAULT 兜底）；两份 SQL 均经 pglast（PostgreSQL 语法）校验通过。分区取舍：reminder_instance 主键改 (id, scheduled_at_utc)、幂等唯一改 (idempotency_key, scheduled_at_utc)，4 条指向分区表的入向 FK 按 PG 限制删除（列与索引保留，完整性由应用保证），细节见补充迁移文件头注记。**迁移尚未在真实 PostgreSQL 上执行验证**（待 Docker 环境）。
    - [x] 设计 PDF 发布到 GitHub Releases（2026-10-23）：design-v1.0 标签（指向 main@a31d53c），5 份 PDF 附件齐全，地址 https://github.com/xusofty-cyber/med-on-time/releases/tag/design-v1.0
-   - [ ] 200 药首期队列处理（2 拦截 + 4 复核 + 11 人工补录）
+   - [x] 200 药首期队列处理（2026-10-23 落 develop，commit 916ca2c）：最终 seed `services/api/prisma/seeds/drug_seed_200.json` 200 条定版——175 直接入库 + 队列 11 条（4 误报澄清 approved：地屈孕酮/索利那新/噻托溴铵/坦索罗辛，污染源为噻托溴铵记录盗用证号 H20130110，已核证该证号确属地屈孕酮；4 补全后 pending：哌唑嗪/文拉法辛/培哚普利/沙库巴曲缬沙坦；3 别名 approved：替诺福韦/埃索美拉唑/沙美特罗）+ 人工补录稿 13 条（全 pending 待双人核验）+ 维生素D 以 D2 代表挂账 pending。合计 approved 182 / pending_review 18，pending 条目双人核验前不得上线展示。处置报告 `docs/research/POC1_QUEUE_PROCESSING.md`，逐药表 `docs/research/queue/queue_dispositions.csv`，别名表 `docs/research/queue/alias_map.csv`（含噻托溴铵南昌弘益污染记录隔离登记）。遗留人工项：甲基多巴国内注册状态存疑（公开渠道无大陆上市说明书，须 NMPA 核实后裁定剔除或另行建档）；德谷胰岛素/艾塞那肽/地西泮仅骨架稿待持原件补录；维生素D3 待补录后与 D2 拆分。
    - [ ] API 启动冒烟（需 Docker 环境起 PostgreSQL 15 + Redis 7）与首批业务接口实现
 5. **待文档小修（DB 设计 V1.3 候选，Prisma 落表时发现）**：
    - 四表（consent_document、ai_prompt_template、ai_safety_rule、app_version）业务 `version`（VARCHAR 版本号）与通用乐观锁 `version`（int）同名冲突：schema 暂以业务 version 占列名、乐观锁映射 `lock_version` 列，待文档裁定（改列名或豁免四表乐观锁）。
