@@ -15,3 +15,6 @@ Thumbs.db
 .vscode/*
 !.vscode/extensions.json
 coverage/
+
+# Taro/SWC 编译缓存
+.swc/

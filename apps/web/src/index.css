@@ -1,0 +1,11 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * 长辈关怀模式（UI 规范 V1.0）：字号 ≥18pt、对比度 ≥7:1、触控目标 ≥56px。
+ * 以 data 属性挂在 html 上切换，具体组件在迭代中按规范接入。
+ */
+html[data-care-mode='on'] {
+  font-size: 20px;
+}

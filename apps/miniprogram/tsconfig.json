@@ -1,0 +1,1 @@
+{"compilerOptions":{"allowJs":true,"jsx":"react-jsx","module":"ESNext","moduleResolution":"bundler","noEmit":true,"types":["@tarojs/taro","react"]},"extends":"../../tsconfig.base.json","include":["src","config","types"]}

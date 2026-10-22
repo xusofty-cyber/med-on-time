@@ -1,0 +1,1 @@
+{"compilerOptions":{"baseUrl":"./","declaration":false,"emitDecoratorMetadata":true,"experimentalDecorators":true,"module":"CommonJS","moduleResolution":"node","outDir":"./dist","paths":{"@med-on-time/shared":["../../packages/shared/src/index.ts"]},"target":"ES2022"},"extends":"../../tsconfig.base.json","include":["src/**/*","prisma/**/*"]}

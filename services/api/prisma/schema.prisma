@@ -1,0 +1,1788 @@
+// =============================================================================
+// 药准时 MedOnTime —— Prisma Schema
+// 来源：《数据库表结构设计》V1.2（扩展评审 11 项决议 + 语言维度对齐），全库 56 张表。
+// 全局口径（设计文档第 2 章）：
+//   - 主键 UUID 由应用层生成 UUIDv7，Prisma 侧不设 @default；
+//   - 枚举一律 VARCHAR + CHECK（非 PG 原生 enum）：本文件以 String 字段承载，
+//     合法值以注释形式列在字段上方，CHECK 约束由迁移 SQL 补齐；
+//   - 业务表默认含 id / created_at / updated_at / deleted_at（软删除）/ version（乐观锁）；
+//     纯日志/流水表只有 id / created_at（只追加，字段表注明者从之）；
+//   - 软删除部分唯一/部分索引（WHERE deleted_at IS NULL）Prisma 不支持表达，
+//     相关模型上方以注释标明，迁移 SQL 须补齐（清单见第 10 章与附录 A）；
+//   - 大表 reminder_instance / medication_intake_record / reminder_delivery_log /
+//     ai_call_log / audit_log 按月分区由迁移 SQL 实现（reminder_instance 分区版
+//     主键为 (id, scheduled_at_utc)，本文件仍以 id 单列主键建模，迁移时调整）。
+// =============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// =============================================================================
+// 4 账号与成员域（10 张）
+// =============================================================================
+
+/// 4.1 用户账号表（P0）：登录主体；账号本身不直接持有用药数据。
+/// phone / phone_hash 的唯一约束在文档中为全局唯一（密文/哈希列），
+/// 注销脱敏置换后释放；Prisma 侧先按普通 @unique 落，迁移时可按需改部分唯一。
+model UserAccount {
+  id             String    @id @db.Uuid
+  phone          String?   @unique @db.VarChar(512) // 手机号密文（应用层加密）
+  phoneHash      String?   @unique @map("phone_hash") @db.Char(64) // HMAC-SHA256，供登录精确查询
+  passwordHash   String?   @map("password_hash") @db.VarChar(255) // Argon2id；纯第三方登录为空
+  nickname       String    @db.VarChar(100)
+  avatarFileId   String?   @map("avatar_file_id") @db.Uuid
+  // register_channel: wechat_miniapp / android / ios / web / pc
+  registerChannel String   @map("register_channel") @db.VarChar(32)
+  registeredAt   DateTime  @map("registered_at") @db.Timestamptz(6)
+  // status: active / frozen / cancelling / cancelled
+  status         String    @default("active") @db.VarChar(32)
+  lastLoginAt    DateTime? @map("last_login_at") @db.Timestamptz(6)
+  cancelledAt    DateTime? @map("cancelled_at") @db.Timestamptz(6)
+  cancelApplyAt  DateTime? @map("cancel_apply_at") @db.Timestamptz(6) // 注销申请时间，冷静期内可撤销
+  cancelReason   String?   @map("cancel_reason") @db.VarChar(255)
+  timezone       String    @default("Asia/Shanghai") @db.VarChar(64)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt      DateTime? @map("deleted_at") @db.Timestamptz(6)
+  version        Int       @default(1)
+
+  avatar                 FileAttachment?          @relation("AccountAvatar", fields: [avatarFileId], references: [id])
+  members                Member[]
+  oauthBindings          UserOauthBinding[]
+  devices                UserDevice[]
+  ownedAttachments       FileAttachment[]         @relation("AttachmentOwner")
+  createdDrugs           Drug[]                   @relation("DrugCreator")
+  ownedTemplates         PlanTemplate[]           @relation("TemplateOwner")
+  createdPlans           MedicationPlan[]         @relation("PlanCreator")
+  planChangeLogs         MedicationPlanChangeLog[]
+  planChangeHistory      PlanChangeHistory[]
+  operatedIntakeRecords  MedicationIntakeRecord[] @relation("IntakeOperator")
+  operatedPrnRecords     PrnIntakeRecord[]        @relation("PrnOperator")
+  operatedStockLedgers   MedicationStockLedger[]  @relation("LedgerOperator")
+  recordedAdverseRecords IntakeAdverseRecord[]    @relation("AdverseRecorder")
+  caregiverAuths         CaregiverAuthorization[] @relation("AuthCaregiver")
+  grantedAuths           CaregiverAuthorization[] @relation("AuthGrantor")
+  deliveryLogs           ReminderDeliveryLog[]    @relation("DeliveryRecipient")
+  consentRecords         ConsentRecord[]
+  userConsentRecords     UserConsentRecord[]
+  aiConsents             AiConsent[]              @relation("AiConsentAccount")
+  aiConsentsAsGuardian   AiConsent[]              @relation("AiConsentGuardian")
+  initiatedSessions      AiSession[]              @relation("SessionInitiator")
+  initiatedTasks         AiAnalysisTask[]         @relation("TaskInitiator")
+  aiCallLogs             AiCallLog[]
+  aiFeedback             AiFeedback[]
+  confirmedReports       AiReport[]               @relation("ReportConfirmer")
+  feedbackTickets        FeedbackTicket[]
+
+  @@index([status])
+  @@index([registeredAt])
+  @@map("user_account")
+}
+
+/// 4.2 第三方账号绑定表（P0）：(provider, openid) 唯一约束实为部分唯一
+/// （WHERE unbound_at IS NULL），Prisma 不支持，迁移 SQL 补；此处以 @@unique 近似登记。
+model UserOauthBinding {
+  id        String    @id @db.Uuid
+  accountId String    @map("account_id") @db.Uuid
+  // provider: wechat / apple / qq
+  provider  String    @db.VarChar(32)
+  openid    String    @db.VarChar(128)
+  unionid   String?   @db.VarChar(128)
+  boundAt   DateTime  @map("bound_at") @db.Timestamptz(6)
+  unboundAt DateTime? @map("unbound_at") @db.Timestamptz(6) // 解绑保留行备审计，不复用 deleted_at
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+  version   Int       @default(1)
+
+  account UserAccount @relation(fields: [accountId], references: [id])
+
+  @@unique([provider, openid])
+  @@index([accountId])
+  @@index([unionid])
+  @@map("user_oauth_binding")
+}
+
+/// 4.3 用户设备表（P0）：登录设备与推送令牌。
+model UserDevice {
+  id           String    @id @db.Uuid
+  accountId    String    @map("account_id") @db.Uuid
+  // platform: wechat_miniapp / android / ios / windows / linux / macos / web
+  platform     String    @db.VarChar(32)
+  deviceName   String?   @map("device_name") @db.VarChar(100)
+  pushToken    String?   @map("push_token") @db.VarChar(512)
+  pushEnabled  Boolean   @default(true) @map("push_enabled")
+  appVersion   String?   @map("app_version") @db.VarChar(32)
+  lastActiveAt DateTime? @map("last_active_at") @db.Timestamptz(6)
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt    DateTime? @map("deleted_at") @db.Timestamptz(6)
+  version      Int       @default(1)
+
+  account      UserAccount           @relation(fields: [accountId], references: [id])
+  deliveryLogs ReminderDeliveryLog[]
+
+  @@index([accountId])
+  @@index([platform])
+  @@index([lastActiveAt])
+  @@map("user_device")
+}
+
+/// 4.4 成员表（P0，核心表）：实际服药人；账号持有人本人也是一名 member（relationship=self）。
+model Member {
+  id           String    @id @db.Uuid
+  accountId    String    @map("account_id") @db.Uuid
+  displayName  String    @map("display_name") @db.VarChar(100)
+  realNameEnc  String?   @map("real_name_enc") @db.VarChar(512) // 真实姓名密文
+  // relationship: self / father / mother / spouse / child / grandparent / other_family / employer / other
+  relationship String    @db.VarChar(32)
+  // gender: male / female / unknown
+  gender       String?   @db.VarChar(16)
+  birthDate    DateTime? @map("birth_date") @db.Date
+  avatarFileId String?   @map("avatar_file_id") @db.Uuid
+  timezone     String    @default("Asia/Shanghai") @db.VarChar(64)
+  // status: active / archived / removed
+  status       String    @default("active") @db.VarChar(32)
+  sortOrder    Int       @default(0) @map("sort_order")
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt    DateTime? @map("deleted_at") @db.Timestamptz(6)
+  version      Int       @default(1)
+
+  account              UserAccount              @relation(fields: [accountId], references: [id])
+  avatar               FileAttachment?          @relation("MemberAvatar", fields: [avatarFileId], references: [id])
+  attachments          FileAttachment[]         @relation("MemberAttachments")
+  medicalRecord        MemberMedicalRecord?
+  allergies            MemberAllergy[]
+  medicalHistories     MemberMedicalHistory[]
+  authorizations       CaregiverAuthorization[]
+  emergencyContacts    EmergencyContact[]
+  plans                MedicationPlan[]
+  planChangeLogs       MedicationPlanChangeLog[]
+  planChangeHistory    PlanChangeHistory[]
+  reminderInstances    ReminderInstance[]
+  deliveryLogs         ReminderDeliveryLog[]
+  intakeRecords        MedicationIntakeRecord[]
+  prnIntakeRecords     PrnIntakeRecord[]
+  adverseRecords       IntakeAdverseRecord[]
+  inventories          MemberDrugInventory[]
+  memberMedications    MemberMedication[]
+  stockLedgers         MedicationStockLedger[]
+  adherenceDailyStats  MemberAdherenceDailyStat[]
+  consentRecords       ConsentRecord[]
+  userConsentRecords   UserConsentRecord[]
+  aiConsents           AiConsent[]
+  aiSessions           AiSession[]
+  aiConsultations      AiConsultation[]
+  auditLogs            AuditLog[]
+  aiAnalysisTasks      AiAnalysisTask[]
+  aiReports            AiReport[]
+  aiCallLogs           AiCallLog[]
+  aiFeedback           AiFeedback[]
+  feedbackTickets      FeedbackTicket[]
+
+  @@index([accountId, status])
+  @@index([relationship])
+  @@index([status])
+  @@map("member")
+}
+
+/// 4.5 成员病历表（P0）：一人一份持续维护的当前病历摘要。
+/// emergencyContactName / emergencyContactPhoneEnc 自 V1.2 起停止写入
+/// （存量迁移至 emergency_contact，priority=1），原列保留只读至下个大版本。
+model MemberMedicalRecord {
+  id                        String    @id @db.Uuid
+  memberId                  String    @unique @map("member_id") @db.Uuid
+  // blood_type: A / B / AB / O / unknown
+  bloodType                 String?   @map("blood_type") @db.VarChar(16)
+  heightCm                  Decimal?  @map("height_cm") @db.Decimal(5, 1)
+  weightKg                  Decimal?  @map("weight_kg") @db.Decimal(5, 1)
+  primaryHospital           String?   @map("primary_hospital") @db.VarChar(200)
+  summaryEnc                String?   @map("summary_enc") // 病情摘要密文（应用层加密）
+  emergencyContactName      String?   @map("emergency_contact_name") @db.VarChar(100)
+  emergencyContactPhoneEnc  String?   @map("emergency_contact_phone_enc") @db.VarChar(512)
+  createdAt                 DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                 DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt                 DateTime? @map("deleted_at") @db.Timestamptz(6)
+  version                   Int       @default(1)
+
+  member Member @relation(fields: [memberId], references: [id])
+
+  @@map("member_medical_record")
+}
+
+/// 4.6 成员过敏表（P0）：V1.2 补 allergen_type 与结构化引用
+/// （drug_category_id / drug_id 二选一，应用层按类型校验）；命中校验口径为强警告+确认、不硬拦截。
+model MemberAllergy {
+  id             String    @id @db.Uuid
+  memberId       String    @map("member_id") @db.Uuid
+  allergen       String    @db.VarChar(200) // 过敏原名称（展示与存量口径）
+  // severity: mild / moderate / severe
+  severity       String?   @db.VarChar(32)
+  reaction       String?   // 过敏反应描述
+  note           String?
+  // source: self_report / caregiver_report / admin_entry
+  source         String    @default("self_report") @db.VarChar(32)
+  // allergen_type: drug_category / drug / other
+  allergenType   String    @default("other") @map("allergen_type") @db.VarChar(32)
+  drugCategoryId String?   @map("drug_category_id") @db.Uuid
+  drugId         String?   @map("drug_id") @db.Uuid
+  allergenCode   String?   @map("allergen_code") @db.VarChar(64) // 与药品分类 code 同命名空间
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt      DateTime? @map("deleted_at") @db.Timestamptz(6)
+  version        Int       @default(1)
+
+  member       Member       @relation(fields: [memberId], references: [id])
+  drugCategory DrugCategory? @relation(fields: [drugCategoryId], references: [id])
+  drug         Drug?         @relation(fields: [drugId], references: [id])
+
+  @@index([memberId])
+  @@index([allergen])
+  @@index([allergenType])
+  @@index([drugCategoryId])
+  @@index([drugId])
+  @@index([allergenCode])
+  @@map("member_allergy")
+}
+
+/// 4.7 成员病史表（P0）：与过敏表共用结构模式（名称/状态/日期/备注/来源）。
+model MemberMedicalHistory {
+  id            String    @id @db.Uuid
+  memberId      String    @map("member_id") @db.Uuid
+  conditionName String    @map("condition_name") @db.VarChar(200)
+  // status: ongoing / recovered / monitoring
+  status        String?   @db.VarChar(32)
+  diagnosedDate DateTime? @map("diagnosed_date") @db.Date
+  note          String?
+  // source: self_report / caregiver_report / admin_entry
+  source        String    @default("self_report") @db.VarChar(32)
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt     DateTime? @map("deleted_at") @db.Timestamptz(6)
+  version       Int       @default(1)
+
+  member Member @relation(fields: [memberId], references: [id])
+
+  @@index([memberId])
+  @@index([conditionName])
+  @@map("member_medical_history")
+}
+
+/// 4.8 委托照护授权表（P0）：一行 = 某账号对某成员的一份授权。
+/// 部分唯一 uq_auth_active_pair (member_id, caregiver_account_id)
+/// WHERE status IN ('pending_accept','active','suspended') AND deleted_at IS NULL
+/// Prisma 不支持，迁移 SQL 补。
+model CaregiverAuthorization {
+  id                  String    @id @db.Uuid
+  memberId            String    @map("member_id") @db.Uuid
+  caregiverAccountId  String    @map("caregiver_account_id") @db.Uuid
+  grantedByAccountId  String    @map("granted_by_account_id") @db.Uuid
+  // level: L1 / L2 / L3
+  level               String    @db.VarChar(16)
+  permissions         Json      @default("{}") @db.JsonB // 逐项开关，含 ai_data_use / ai_report_view
+  // status: pending_accept / active / suspended / revoked / expired / rejected
+  status              String    @db.VarChar(32)
+  invitedAt           DateTime  @map("invited_at") @db.Timestamptz(6)
+  acceptedAt          DateTime? @map("accepted_at") @db.Timestamptz(6)
+  effectiveAt         DateTime? @map("effective_at") @db.Timestamptz(6)
+  expiresAt           DateTime? @map("expires_at") @db.Timestamptz(6)
+  revokedAt           DateTime? @map("revoked_at") @db.Timestamptz(6)
+  revokedBy           String?   @map("revoked_by") @db.Uuid // 操作者（账号或管理员，两类主体）故不建 FK 关系
+  revokeReason        String?   @map("revoke_reason") @db.VarChar(255)
+  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt           DateTime? @map("deleted_at") @db.Timestamptz(6)
+  version             Int       @default(1)
+
+  member           Member                    @relation(fields: [memberId], references: [id])
+  caregiverAccount UserAccount               @relation("AuthCaregiver", fields: [caregiverAccountId], references: [id])
+  grantedByAccount UserAccount               @relation("AuthGrantor", fields: [grantedByAccountId], references: [id])
+  logs             CaregiverAuthorizationLog[]
+  aiSessions       AiSession[]
+
+  @@index([memberId])
+  @@index([caregiverAccountId])
+  @@index([level])
+  @@index([status])
+  @@index([expiresAt])
+  @@map("caregiver_authorization")
+}
+
+/// 4.8 授权变更日志表（P0，追加型）：仅 id / created_at 两个通用字段。
+model CaregiverAuthorizationLog {
+  id              String   @id @db.Uuid
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  authorizationId String   @map("authorization_id") @db.Uuid
+  // action: invited / accepted / rejected / level_changed / suspended / revoked / expired / reinstated
+  action          String   @db.VarChar(32)
+  // operator_type: account / admin / system
+  operatorType    String   @map("operator_type") @db.VarChar(32)
+  operatorId      String   @map("operator_id") @db.Uuid // 主体随 operator_type 而定（账号/管理员/系统），不建 FK
+  beforeSnapshot  Json?    @map("before_snapshot") @db.JsonB
+  afterSnapshot   Json?    @map("after_snapshot") @db.JsonB
+  reason          String?  @db.VarChar(255)
+
+  authorization CaregiverAuthorization @relation(fields: [authorizationId], references: [id])
+
+  @@index([authorizationId])
+  @@index([action])
+  @@index([operatorType, operatorId])
+  @@map("caregiver_authorization_log")
+}
+
+/// 4.11 紧急联系人表（P0，V1.2 新增）：纯联系记录，不关联 user_account、不要求是 App 用户。
+/// 每位成员上限走 system_config 的 emergency_contact_max（默认 3）。
+model EmergencyContact {
+  id           String    @id @db.Uuid
+  memberId     String    @map("member_id") @db.Uuid
+  contactName  String    @map("contact_name") @db.VarChar(100)
+  phoneEnc     String    @map("phone_enc") @db.VarChar(512) // 电话密文
+  phoneHash    String    @map("phone_hash") @db.Char(64)
+  relationship String    @db.VarChar(64) // 自由文本（邻居/社区医生/长女等），不套成员关系枚举
+  priority     Int       @default(1) // 1 最高
+  note         String?   @db.VarChar(255)
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt    DateTime? @map("deleted_at") @db.Timestamptz(6)
+  version      Int       @default(1)
+
+  member Member @relation(fields: [memberId], references: [id])
+
+  @@index([memberId, priority])
+  @@map("emergency_contact")
+}
+
+// =============================================================================
+// 5 药品与模板域（4 张）
+// =============================================================================
+
+/// 5.1 药品分类表（P0）：自引用成树，层级建议不超过 3 级。
+model DrugCategory {
+  id        String    @id @db.Uuid
+  parentId  String?   @map("parent_id") @db.Uuid
+  name      String    @db.VarChar(100)
+  code      String    @unique @db.VarChar(64)
+  sortOrder Int       @default(0) @map("sort_order")
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+  version   Int       @default(1)
+
+  parent    DrugCategory?   @relation("CategoryTree", fields: [parentId], references: [id])
+  children  DrugCategory[]  @relation("CategoryTree")
+  drugs     Drug[]
+  allergies MemberAllergy[]
+
+  @@index([parentId])
+  @@index([name])
+  @@map("drug_category")
+}
+
+/// 5.2 药品主数据表（P0，核心表）：平台药品字典；用户自建药品同样入本表（source_type 标记）。
+/// generic_name / brand_name 的 pg_trgm GIN 索引由迁移 SQL 建（见第 10 章）。
+model Drug {
+  id                  String    @id @db.Uuid
+  genericName         String    @map("generic_name") @db.VarChar(200)
+  brandName           String?   @map("brand_name") @db.VarChar(200)
+  manufacturer        String?   @db.VarChar(200)
+  approvalNumber      String?   @unique @map("approval_number") @db.VarChar(64)
+  barcode             String?   @unique @db.VarChar(32)
+  categoryId          String?   @map("category_id") @db.Uuid
+  // dosage_form: tablet / capsule / granule / oral_liquid / injection / external / other
+  dosageForm          String    @map("dosage_form") @db.VarChar(32)
+  specification       String    @db.VarChar(100)
+  packageDesc         String?   @map("package_desc") @db.VarChar(100)
+  unit                String    @db.VarChar(32) // 最小计量单位：片 / 粒 / ml / 支 / 贴 等
+  efficacy            String?
+  usageDefault        Json?     @map("usage_default") @db.JsonB
+  contraindications   String?
+  adverseReactions    String?   @map("adverse_reactions")
+  interactions        String?
+  storageCondition    String?   @map("storage_condition") @db.VarChar(200)
+  imageFileId         String?   @map("image_file_id") @db.Uuid
+  isOtc               Boolean   @default(false) @map("is_otc")
+  // source_type: platform / user_custom
+  sourceType          String    @default("platform") @map("source_type") @db.VarChar(32)
+  createdByAccountId  String?   @map("created_by_account_id") @db.Uuid
+  // review_status: draft / pending_review / approved / rejected / off_shelf
+  reviewStatus        String    @default("draft") @map("review_status") @db.VarChar(32)
+  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt           DateTime? @map("deleted_at") @db.Timestamptz(6)
+  version             Int       @default(1)
+
+  category          DrugCategory?         @relation(fields: [categoryId], references: [id])
+  image             FileAttachment?       @relation("DrugImage", fields: [imageFileId], references: [id])
+  createdByAccount  UserAccount?          @relation("DrugCreator", fields: [createdByAccountId], references: [id])
+  planItems         MedicationPlanItem[]
+  templateItems     PlanTemplateItem[]
+  reminderInstances ReminderInstance[]
+  prnIntakeRecords  PrnIntakeRecord[]
+  inventories       MemberDrugInventory[]
+  memberMedications MemberMedication[]
+  stockLedgers      MedicationStockLedger[]
+  allergies         MemberAllergy[]
+
+  @@index([categoryId])
+  @@index([manufacturer])
+  @@index([sourceType])
+  @@index([createdByAccountId])
+  @@index([reviewStatus])
+  @@index([reviewStatus, categoryId])
+  @@map("drug")
+}
+
+/// 5.3 用药方案模板表（P1）：套用时复制为正式计划，之后与计划再无关联。
+model PlanTemplate {
+  id              String    @id @db.Uuid
+  name            String    @db.VarChar(200)
+  scene           String?   @db.VarChar(100)
+  description     String?
+  // owner_type: platform / account
+  ownerType       String    @map("owner_type") @db.VarChar(32)
+  ownerAccountId  String?   @map("owner_account_id") @db.Uuid
+  // review_status: draft / pending_review / approved / rejected / off_shelf
+  reviewStatus    String    @default("approved") @map("review_status") @db.VarChar(32)
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt       DateTime? @map("deleted_at") @db.Timestamptz(6)
+  version         Int       @default(1)
+
+  ownerAccount UserAccount?       @relation("TemplateOwner", fields: [ownerAccountId], references: [id])
+  items        PlanTemplateItem[]
+  sourcedPlans MedicationPlan[]
+
+  @@index([name])
+  @@index([scene])
+  @@index([ownerType])
+  @@index([ownerAccountId])
+  @@index([reviewStatus])
+  @@map("plan_template")
+}
+
+/// 5.3 模板明细表（P1）：结构与计划明细同构，下方为与 6.2 对齐的字段。
+model PlanTemplateItem {
+  id             String   @id @db.Uuid
+  templateId     String   @map("template_id") @db.Uuid
+  drugId         String   @map("drug_id") @db.Uuid
+  doseAmount     Decimal  @map("dose_amount") @db.Decimal(10, 3)
+  doseUnit       String   @map("dose_unit") @db.VarChar(32)
+  // frequency_type: daily / times_per_day / weekly / interval_days / on_demand / course_cycle
+  frequencyType  String   @map("frequency_type") @db.VarChar(32)
+  frequencyRule  Json     @map("frequency_rule") @db.JsonB
+  // meal_relation: before_meal / with_meal / after_meal / before_sleep / none
+  mealRelation   String   @default("none") @map("meal_relation") @db.VarChar(32)
+  sortOrder      Int      @default(0) @map("sort_order")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt      DateTime? @map("deleted_at") @db.Timestamptz(6)
+  version        Int      @default(1)
+
+  template PlanTemplate @relation(fields: [templateId], references: [id])
+  drug     Drug         @relation(fields: [drugId], references: [id])
+
+  @@index([templateId])
+  @@index([drugId])
+  @@map("plan_template_item")
+}
+
+// =============================================================================
+// 6 计划与提醒域（8 张）
+// =============================================================================
+
+/// 6.1 用药计划表（P0，核心表）：计划是容器，具体安排在计划明细。
+/// V1.2：新增 plan_type / PRN 参数 / 处方来源 / 存放位置与附加备注；
+/// 疗程起止复用 start_date / end_date（禁止另造 course_* 列），end_date 次日停生成、置 finished。
+model MedicationPlan {
+  id                       String    @id @db.Uuid
+  memberId                 String    @map("member_id") @db.Uuid
+  name                     String    @db.VarChar(200)
+  createdByAccountId       String    @map("created_by_account_id") @db.Uuid
+  sourceTemplateId         String?   @map("source_template_id") @db.Uuid
+  startDate                DateTime  @map("start_date") @db.Date
+  endDate                  DateTime? @map("end_date") @db.Date
+  // status: active / paused / finished / stopped
+  status                   String    @default("active") @db.VarChar(32)
+  note                     String?
+  // plan_type: scheduled / prn
+  planType                 String    @default("scheduled") @map("plan_type") @db.VarChar(32)
+  prnMinIntervalMinutes    Int?      @map("prn_min_interval_minutes") // plan_type=prn 时必填且 >0（应用层校验）
+  prnMaxPerDay             Int?      @map("prn_max_per_day") // plan_type=prn 时必填且 >0（应用层校验）
+  storageLocation          String?   @map("storage_location") @db.VarChar(200) // R-1 存放位置，展示优先于成员药品级
+  additionalNote           String?   @map("additional_note") // R-1 附加备注
+  prescriptionSourceText   String?   @map("prescription_source_text") @db.VarChar(255)
+  prescriptionAttachmentId String?   @map("prescription_attachment_id") @db.Uuid
+  createdAt                DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt                DateTime? @map("deleted_at") @db.Timestamptz(6)
+  version                  Int       @default(1)
+
+  member                 Member                  @relation(fields: [memberId], references: [id])
+  createdByAccount       UserAccount             @relation("PlanCreator", fields: [createdByAccountId], references: [id])
+  sourceTemplate         PlanTemplate?           @relation(fields: [sourceTemplateId], references: [id])
+  prescriptionAttachment FileAttachment?         @relation("PlanPrescription", fields: [prescriptionAttachmentId], references: [id])
+  items                  MedicationPlanItem[]
+  changeLogs             MedicationPlanChangeLog[]
+  phases                 MedicationPlanPhase[]
+  changeHistory          PlanChangeHistory[]
+  prnIntakeRecords       PrnIntakeRecord[]
+  reminderInstances      ReminderInstance[]
+  adherenceDailyStats    MemberAdherenceDailyStat[]
+
+  @@index([memberId])
+  @@index([createdByAccountId])
+  @@index([startDate])
+  @@index([status])
+  @@index([planType])
+  @@map("medication_plan")
+}
+
+/// 6.2 计划明细表（P0，核心表）：一行 = 一种药在某个计划里的一套服药安排。
+model MedicationPlanItem {
+  id                String    @id @db.Uuid
+  planId            String    @map("plan_id") @db.Uuid
+  drugId            String    @map("drug_id") @db.Uuid
+  drugNameSnapshot  String    @map("drug_name_snapshot") @db.VarChar(200)
+  doseAmount        Decimal   @map("dose_amount") @db.Decimal(10, 3)
+  doseUnit          String    @map("dose_unit") @db.VarChar(32)
+  // frequency_type: daily / times_per_day / weekly / interval_days / on_demand（存量兼容，V1.2 起 PRN 走 plan_type）/ course_cycle
+  frequencyType     String    @map("frequency_type") @db.VarChar(32)
+  frequencyRule     Json      @map("frequency_rule") @db.JsonB
+  // meal_relation: before_meal / with_meal / after_meal / before_sleep / none
+  mealRelation      String    @default("none") @map("meal_relation") @db.VarChar(32)
+  // course_type: long_term / fixed_days / until_finished
+  courseType        String    @default("long_term") @map("course_type") @db.VarChar(32)
+  courseDays        Int?      @map("course_days") // course_type=fixed_days 时必填
+  // status: active / paused / stopped
+  status            String    @default("active") @db.VarChar(32)
+  sortOrder         Int       @default(0) @map("sort_order")
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt         DateTime? @map("deleted_at") @db.Timestamptz(6)
+  version           Int       @default(1)
+
+  plan              MedicationPlan          @relation(fields: [planId], references: [id])
+  drug              Drug                    @relation(fields: [drugId], references: [id])
+  changeLogs        MedicationPlanChangeLog[]
+  changeHistory     PlanChangeHistory[]
+  phases            MedicationPlanPhase[]
+  reminderInstances ReminderInstance[]
+  intakeRecords     MedicationIntakeRecord[]
+  prnIntakeRecords  PrnIntakeRecord[]
+  adverseRecords    IntakeAdverseRecord[]
+
+  @@index([planId])
+  @@index([drugId])
+  @@index([frequencyType])
+  @@index([status])
+  @@map("medication_plan_item")
+}
+
+/// 6.3 计划变更日志表（P0，追加型）：记「事件 + 前后快照」，仅 id / created_at 两个通用字段。
+/// 与 plan_change_history（字段级）在同一次变更事务内双写。
+model MedicationPlanChangeLog {
+  id                String   @id @db.Uuid
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  planId            String   @map("plan_id") @db.Uuid
+  planItemId        String?  @map("plan_item_id") @db.Uuid
+  memberId          String   @map("member_id") @db.Uuid
+  operatorAccountId String   @map("operator_account_id") @db.Uuid
+  // change_type: created / item_added / item_updated / item_removed / paused / resumed / stopped / finished
+  changeType        String   @map("change_type") @db.VarChar(32)
+  beforeSnapshot    Json?    @map("before_snapshot") @db.JsonB
+  afterSnapshot     Json?    @map("after_snapshot") @db.JsonB
+  effectiveFrom     DateTime @map("effective_from") @db.Timestamptz(6)
+
+  plan            MedicationPlan      @relation(fields: [planId], references: [id])
+  planItem        MedicationPlanItem? @relation(fields: [planItemId], references: [id])
+  member          Member              @relation(fields: [memberId], references: [id])
+  operatorAccount UserAccount         @relation(fields: [operatorAccountId], references: [id])
+  fieldHistory    PlanChangeHistory[]
+
+  @@index([planId])
+  @@index([planItemId])
+  @@index([memberId])
+  @@index([operatorAccountId])
+  @@index([changeType])
+  @@map("medication_plan_change_log")
+}
+
+/// 6 V1.2 剂量阶段表（P0）：一行 = 一个阶段；阶段只改剂量、不改服用时刻。
+/// 阶段起止由计划 start_date + 各阶段时长推算，不冗余存日期；
+/// (plan_id, plan_item_id, stage_no) 组合唯一——plan_item_id 可空，PG 中 NULL 不去重，
+/// 全计划阶段（plan_item_id 为空）的去重由应用层/迁移部分唯一索引补齐。
+/// plan_type=prn 的计划禁止挂阶段行（应用层校验）。
+model MedicationPlanPhase {
+  id              String    @id @db.Uuid
+  planId          String    @map("plan_id") @db.Uuid
+  planItemId      String?   @map("plan_item_id") @db.Uuid // 为空 = 作用于计划内全部明细
+  stageNo         Int       @map("stage_no")
+  durationDays    Int       @map("duration_days") // >0
+  dailyDoseAmount Decimal   @map("daily_dose_amount") @db.Decimal(10, 3) // 本阶段每日总剂量
+  dailyDoseUnit   String    @map("daily_dose_unit") @db.VarChar(32)
+  isFinalStop     Boolean   @default(false) @map("is_final_stop")
+  note            String?   @db.VarChar(255)
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt       DateTime? @map("deleted_at") @db.Timestamptz(6)
+  version         Int       @default(1)
+
+  plan     MedicationPlan      @relation(fields: [planId], references: [id])
+  planItem MedicationPlanItem? @relation(fields: [planItemId], references: [id])
+
+  @@unique([planId, planItemId, stageNo])
+  @@index([planItemId])
+  @@map("medication_plan_phase")
+}
+
+/// 6 V1.2 计划变更历史表（P0，只追加）：字段级变更时间线，一行 = 一个字段的一次变更。
+/// 仅 id / created_at 两个通用字段，永不修改、永不软删。
+model PlanChangeHistory {
+  id                String   @id @db.Uuid
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  planId            String   @map("plan_id") @db.Uuid
+  planItemId        String?  @map("plan_item_id") @db.Uuid
+  memberId          String   @map("member_id") @db.Uuid
+  changedField      String   @map("changed_field") @db.VarChar(64) // 与表列同名；阶段变更以 phase. 前缀区分
+  oldValue          String?  @map("old_value")
+  newValue          String?  @map("new_value")
+  operatorAccountId String?  @map("operator_account_id") @db.Uuid // operator_type=system 时为空
+  // operator_type: member_self / caregiver / admin_cs / system
+  operatorType      String   @map("operator_type") @db.VarChar(32)
+  // operator_level: L1 / L2 / L3 / self
+  operatorLevel     String?  @map("operator_level") @db.VarChar(16)
+  changeLogId       String?  @map("change_log_id") @db.Uuid
+
+  plan            MedicationPlan           @relation(fields: [planId], references: [id])
+  planItem        MedicationPlanItem?      @relation(fields: [planItemId], references: [id])
+  member          Member                   @relation(fields: [memberId], references: [id])
+  operatorAccount UserAccount?             @relation(fields: [operatorAccountId], references: [id])
+  changeLog       MedicationPlanChangeLog? @relation(fields: [changeLogId], references: [id])
+
+  @@index([planId, createdAt])
+  @@index([planItemId])
+  @@index([memberId])
+  @@index([changedField])
+  @@index([operatorAccountId])
+  @@map("plan_change_history")
+}
+
+/// 6 V1.2 PRN 服用记录表（P0）：按需服药的服用事件，一行 = 一次实际服用。
+/// PRN 不生成提醒实例（防污染漏服与按时率统计），统计单列、不进按时率分母。
+model PrnIntakeRecord {
+  id                 String    @id @db.Uuid
+  memberId           String    @map("member_id") @db.Uuid
+  planId             String    @map("plan_id") @db.Uuid // plan_type 必须为 prn（应用层校验）
+  planItemId         String    @map("plan_item_id") @db.Uuid
+  drugId             String    @map("drug_id") @db.Uuid
+  drugNameSnapshot   String    @map("drug_name_snapshot") @db.VarChar(200)
+  doseAmount         Decimal   @map("dose_amount") @db.Decimal(10, 3)
+  doseUnit           String    @map("dose_unit") @db.VarChar(32)
+  takenAt            DateTime  @map("taken_at") @db.Timestamptz(6) // 安全校验以此为准
+  recordedAt         DateTime  @map("recorded_at") @db.Timestamptz(6)
+  localDate          DateTime  @map("local_date") @db.Date // 单日上限按此计数
+  timezone           String    @db.VarChar(64)
+  reasonNote         String?   @map("reason_note")
+  // limit_check_result: passed / warned_confirmed
+  limitCheckResult   String    @default("passed") @map("limit_check_result") @db.VarChar(32)
+  operatedByAccountId String   @map("operated_by_account_id") @db.Uuid
+  clientRequestId    String    @unique @map("client_request_id") @db.VarChar(128)
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt          DateTime? @map("deleted_at") @db.Timestamptz(6) // 误记撤销走软删
+  version            Int       @default(1)
+
+  member          Member                @relation(fields: [memberId], references: [id])
+  plan            MedicationPlan        @relation(fields: [planId], references: [id])
+  planItem        MedicationPlanItem    @relation(fields: [planItemId], references: [id])
+  drug            Drug                  @relation(fields: [drugId], references: [id])
+  operatedBy      UserAccount           @relation("PrnOperator", fields: [operatedByAccountId], references: [id])
+  stockLedgers    MedicationStockLedger[]
+  adverseRecords  IntakeAdverseRecord[]
+
+  @@index([memberId, planId])
+  @@index([planItemId])
+  @@index([drugId])
+  @@index([memberId, takenAt])
+  @@index([memberId, localDate])
+  @@map("prn_intake_record")
+}
+
+/// 6.4 提醒实例表（P0，全库最核心、量最大）：一行 = 一次应服药事件。
+/// 状态机只许向前：pending → reminded → taken / snoozed / skipped；超时未确认置 missed；
+/// cancelled 仅由计划/明细停用或成员归档触发。按月分区（迁移 SQL 实现，分区版 PK 含 scheduled_at_utc），
+/// 唯一索引 uq_instance_idem 实为 (idempotency_key, scheduled_at_utc)，迁移时按分区口径调整。
+model ReminderInstance {
+  id               String    @id @db.Uuid
+  memberId         String    @map("member_id") @db.Uuid // 快照冗余，高频过滤列
+  planId           String    @map("plan_id") @db.Uuid
+  planItemId       String    @map("plan_item_id") @db.Uuid
+  drugId           String    @map("drug_id") @db.Uuid
+  drugNameSnapshot String    @map("drug_name_snapshot") @db.VarChar(200)
+  doseAmount       Decimal   @map("dose_amount") @db.Decimal(10, 3)
+  doseUnit         String    @map("dose_unit") @db.VarChar(32)
+  scheduledAtUtc   DateTime  @map("scheduled_at_utc") @db.Timestamptz(6)
+  localDate        DateTime  @map("local_date") @db.Date
+  localTime        DateTime  @map("local_time") @db.Time(6)
+  timezone         String    @db.VarChar(64)
+  // status: pending / reminded / taken / snoozed / skipped / missed / cancelled
+  status           String    @default("pending") @db.VarChar(32)
+  snoozeUntil      DateTime? @map("snooze_until") @db.Timestamptz(6)
+  snoozeCount      Int       @default(0) @map("snooze_count")
+  idempotencyKey   String    @unique @map("idempotency_key") @db.VarChar(128)
+  // source: schedule / manual / makeup
+  source           String    @default("schedule") @db.VarChar(32)
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt        DateTime? @map("deleted_at") @db.Timestamptz(6)
+  version          Int       @default(1) // 多端同时确认靠乐观锁 + 状态机校验防重复打卡
+
+  member        Member                  @relation(fields: [memberId], references: [id])
+  plan          MedicationPlan          @relation(fields: [planId], references: [id])
+  planItem      MedicationPlanItem      @relation(fields: [planItemId], references: [id])
+  drug          Drug                    @relation(fields: [drugId], references: [id])
+  deliveryLogs  ReminderDeliveryLog[]
+  intakeRecord  MedicationIntakeRecord?
+  adverseRecords IntakeAdverseRecord[]
+
+  @@index([memberId, localDate, localTime])
+  @@index([status, scheduledAtUtc])
+  @@index([planId, planItemId])
+  @@map("reminder_instance")
+}
+
+/// 6.5 提醒投递日志表（P0，追加型）：一次投递一行，仅 id / created_at 两个通用字段。按月分区（迁移 SQL）。
+model ReminderDeliveryLog {
+  id                 String    @id @db.Uuid
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  reminderInstanceId String    @map("reminder_instance_id") @db.Uuid
+  memberId           String    @map("member_id") @db.Uuid
+  recipientAccountId String    @map("recipient_account_id") @db.Uuid
+  // channel: app_push / wechat_subscribe / sms / voice_call / in_app / pc_popup / smartwatch（预留未启用）/ smart_speaker（预留未启用）
+  channel            String    @db.VarChar(32)
+  deviceId           String?   @map("device_id") @db.Uuid
+  sentAt             DateTime? @map("sent_at") @db.Timestamptz(6)
+  // result: success / failed / suppressed_dnd / suppressed_dedup
+  result             String    @db.VarChar(32)
+  providerMsgId      String?   @map("provider_msg_id") @db.VarChar(128)
+  errorCode          String?   @map("error_code") @db.VarChar(128)
+
+  reminderInstance ReminderInstance @relation(fields: [reminderInstanceId], references: [id])
+  member           Member           @relation(fields: [memberId], references: [id])
+  recipientAccount UserAccount      @relation("DeliveryRecipient", fields: [recipientAccountId], references: [id])
+  device           UserDevice?      @relation(fields: [deviceId], references: [id])
+
+  @@index([reminderInstanceId])
+  @@index([memberId, recipientAccountId])
+  @@index([result])
+  @@map("reminder_delivery_log")
+}
+
+// =============================================================================
+// 6 打卡与统计域（6 张）
+// =============================================================================
+
+/// 6.6 服药打卡记录表（P0，核心表）：reminder_instance_id 唯一实为部分唯一
+/// （配合 deleted_at，一个实例至多一条有效打卡），Prisma 不支持部分唯一，迁移 SQL 补。
+/// confirmation_method 为 V1.2 新增列（枚举预留 photo / voice，MVP 仅 tap 启用）。
+model MedicationIntakeRecord {
+  id                 String    @id @db.Uuid
+  reminderInstanceId String    @unique @map("reminder_instance_id") @db.Uuid
+  memberId           String    @map("member_id") @db.Uuid
+  planItemId         String    @map("plan_item_id") @db.Uuid
+  // action: taken / skipped
+  action             String    @db.VarChar(32)
+  takenAt            DateTime? @map("taken_at") @db.Timestamptz(6) // action=taken 时必填
+  recordedAt         DateTime  @map("recorded_at") @db.Timestamptz(6)
+  isMakeup           Boolean   @default(false) @map("is_makeup") // 补记（实例已 missed 后补打卡或事后补录）
+  operatedByAccountId String   @map("operated_by_account_id") @db.Uuid // 代打卡须 L2 以上授权
+  skipReason         String?   @map("skip_reason") @db.VarChar(255)
+  clientRequestId    String    @unique @map("client_request_id") @db.VarChar(128)
+  // confirmation_method: tap / photo（预留未启用）/ voice（预留未启用）
+  confirmationMethod String    @default("tap") @map("confirmation_method") @db.VarChar(32)
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt          DateTime? @map("deleted_at") @db.Timestamptz(6) // 打卡撤销走软删 + 状态标记
+  version            Int       @default(1)
+
+  reminderInstance ReminderInstance      @relation(fields: [reminderInstanceId], references: [id])
+  member           Member                @relation(fields: [memberId], references: [id])
+  planItem         MedicationPlanItem    @relation(fields: [planItemId], references: [id])
+  operatedBy       UserAccount           @relation("IntakeOperator", fields: [operatedByAccountId], references: [id])
+  stockLedgers     MedicationStockLedger[]
+  adverseRecords   IntakeAdverseRecord[]
+
+  @@index([memberId, planItemId])
+  @@index([action])
+  @@index([memberId, takenAt])
+  @@map("medication_intake_record")
+}
+
+/// 6.7 成员药品库存表（P0 基础版 / P1 自动扣减）—— V1.2 口径：多批次明细预留表，MVP 不写入。
+/// 当前库存唯一汇总在 member_medication；启用多批次时本表记批次明细、汇总仍归 member_medication，
+/// 严禁两表长期双写同一余额。batch_no 为空时应用层写空字符串再入库（避免 NULL 不去重）。
+model MemberDrugInventory {
+  id              String    @id @db.Uuid
+  memberId        String    @map("member_id") @db.Uuid
+  drugId          String    @map("drug_id") @db.Uuid
+  batchNo         String?   @map("batch_no") @db.VarChar(64)
+  quantity        Decimal   @default(0) @db.Decimal(10, 2)
+  expiryDate      DateTime? @map("expiry_date") @db.Date
+  alertThreshold  Decimal?  @map("alert_threshold") @db.Decimal(10, 2) // 为空时按「不足 7 天用量」推导
+  lastRestockedAt DateTime? @map("last_restocked_at") @db.Timestamptz(6)
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt       DateTime? @map("deleted_at") @db.Timestamptz(6)
+  version         Int       @default(1)
+
+  member Member @relation(fields: [memberId], references: [id])
+  drug   Drug   @relation(fields: [drugId], references: [id])
+
+  @@unique([memberId, drugId, batchNo])
+  @@index([expiryDate])
+  @@map("member_drug_inventory")
+}
+
+/// 6.7 成员依从性日统计表（P0）：预聚合表，报表只查本表。
+/// 本表例外：保留 created_at / updated_at（重算覆盖同日行），不设 deleted_at / version。
+/// (member_id, stat_date, plan_id) 组合唯一兼作查询索引；plan_id 可空（NULL 不去重，应用层须保证汇总行单行）。
+/// 口径冻结：分母只数已到期实例；补记计入 taken 不计 on_time； missed 与 skipped 分开统计。
+model MemberAdherenceDailyStat {
+  id             String   @id @db.Uuid
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  memberId       String   @map("member_id") @db.Uuid
+  statDate       DateTime @map("stat_date") @db.Date // 成员时区自然日
+  planId         String?  @map("plan_id") @db.Uuid // 为空 = 当日全部计划汇总行
+  scheduledCount Int      @default(0) @map("scheduled_count")
+  takenCount     Int      @default(0) @map("taken_count")
+  onTimeCount    Int      @default(0) @map("on_time_count")
+  missedCount    Int      @default(0) @map("missed_count")
+  skippedCount   Int      @default(0) @map("skipped_count")
+  adherenceRate  Decimal? @map("adherence_rate") @db.Decimal(5, 4) // taken / scheduled，分母 0 时为空
+
+  member Member          @relation(fields: [memberId], references: [id])
+  plan   MedicationPlan? @relation(fields: [planId], references: [id])
+
+  @@unique([memberId, statDate, planId])
+  @@map("member_adherence_daily_stat")
+}
+
+/// 6 V1.2 成员药品表（P0）：一行 = 成员 × 药品产品；库存的唯一汇总池（不挂计划）。
+/// stock_quantity 只允许经库存流水同事务更新，禁止业务代码直接改列不写流水。
+/// 低余量阈值不存本表：按全部有效计划日剂量推算可服天数，不足 stock_low_alert_days（默认 7）即提醒。
+model MemberMedication {
+  id                     String    @id @db.Uuid
+  memberId               String    @map("member_id") @db.Uuid
+  drugId                 String    @map("drug_id") @db.Uuid
+  stockQuantity          Decimal   @default(0) @map("stock_quantity") @db.Decimal(10, 2)
+  stockUnit              String    @map("stock_unit") @db.VarChar(32)
+  currentBatchExpiryDate DateTime? @map("current_batch_expiry_date") @db.Date // MVP 单批次口径，换新盒覆盖更新
+  storageLocation        String?   @map("storage_location") @db.VarChar(200) // R-1；计划级有值时以计划级为准
+  lowStockAlertEnabled   Boolean   @default(true) @map("low_stock_alert_enabled")
+  // status: in_use / depleted / expired / archived
+  status                 String    @default("in_use") @db.VarChar(32)
+  createdAt              DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt              DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt              DateTime? @map("deleted_at") @db.Timestamptz(6)
+  version                Int       @default(1) // 余量更新走乐观锁防并发扣减
+
+  member       Member                  @relation(fields: [memberId], references: [id])
+  drug         Drug                    @relation(fields: [drugId], references: [id])
+  stockLedgers MedicationStockLedger[]
+
+  @@unique([memberId, drugId])
+  @@index([currentBatchExpiryDate])
+  @@index([status])
+  @@map("member_medication")
+}
+
+/// 6 V1.2 库存流水表（P0，只追加）：每一次库存变动一行；仅 id / created_at 两个通用字段。
+/// 冲正只能再写一行反向流水，不改原行。
+model MedicationStockLedger {
+  id                 String   @id @db.Uuid
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  memberMedicationId String   @map("member_medication_id") @db.Uuid
+  memberId           String   @map("member_id") @db.Uuid
+  drugId             String   @map("drug_id") @db.Uuid
+  // change_type: intake_deduct / manual_adjust / restock / expiry_writeoff
+  changeType         String   @map("change_type") @db.VarChar(32)
+  changeAmount       Decimal  @map("change_amount") @db.Decimal(10, 2) // 带符号
+  balanceAfter       Decimal  @map("balance_after") @db.Decimal(10, 2)
+  intakeRecordId     String?  @map("intake_record_id") @db.Uuid // 扣减类流水与 prn_intake_id 至少其一非空
+  prnIntakeId        String?  @map("prn_intake_id") @db.Uuid
+  operatorAccountId  String?  @map("operator_account_id") @db.Uuid // 系统自动扣减时为空
+  // operator_type: member_self / caregiver / admin_cs / system
+  operatorType       String   @map("operator_type") @db.VarChar(32)
+  note               String?  @db.VarChar(255) // 手动调整与过期作废必填（应用层校验）
+
+  memberMedication MemberMedication        @relation(fields: [memberMedicationId], references: [id])
+  member           Member                  @relation(fields: [memberId], references: [id])
+  drug             Drug                    @relation(fields: [drugId], references: [id])
+  intakeRecord     MedicationIntakeRecord? @relation(fields: [intakeRecordId], references: [id])
+  prnIntake        PrnIntakeRecord?        @relation(fields: [prnIntakeId], references: [id])
+  operatorAccount  UserAccount?            @relation("LedgerOperator", fields: [operatorAccountId], references: [id])
+
+  @@index([memberMedicationId, createdAt])
+  @@index([memberId, drugId])
+  @@index([changeType])
+  @@map("medication_stock_ledger")
+}
+
+/// 4.10 服药后不适记录表（P0，V1.2 新增，归打卡与统计域清单）：
+/// intake_record_id / reminder_instance_id / prn_intake_id 三者至少其一非空（应用层校验）。
+model IntakeAdverseRecord {
+  id                 String    @id @db.Uuid
+  memberId           String    @map("member_id") @db.Uuid
+  intakeRecordId     String?   @map("intake_record_id") @db.Uuid
+  reminderInstanceId String?   @map("reminder_instance_id") @db.Uuid
+  prnIntakeId        String?   @map("prn_intake_id") @db.Uuid
+  planItemId         String?   @map("plan_item_id") @db.Uuid // 冗余，按药聚合「同药反复不适」
+  // symptom_tags: dizzy / nausea / rash / palpitation / stomachache / sleepiness / other（字典走 system_config）
+  symptomTags        Json      @default("[]") @map("symptom_tags") @db.JsonB
+  description        String?
+  // severity: mild / moderate / severe
+  severity           String    @default("mild") @db.VarChar(32)
+  occurredAt         DateTime  @map("occurred_at") @db.Timestamptz(6)
+  recordedByAccountId String   @map("recorded_by_account_id") @db.Uuid
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt          DateTime? @map("deleted_at") @db.Timestamptz(6)
+  version            Int       @default(1)
+
+  member           Member                  @relation(fields: [memberId], references: [id])
+  intakeRecord     MedicationIntakeRecord? @relation(fields: [intakeRecordId], references: [id])
+  reminderInstance ReminderInstance?       @relation(fields: [reminderInstanceId], references: [id])
+  prnIntake        PrnIntakeRecord?        @relation(fields: [prnIntakeId], references: [id])
+  planItem         MedicationPlanItem?     @relation(fields: [planItemId], references: [id])
+  recordedBy       UserAccount             @relation("AdverseRecorder", fields: [recordedByAccountId], references: [id])
+
+  @@index([memberId, occurredAt])
+  @@index([intakeRecordId])
+  @@index([reminderInstanceId])
+  @@index([prnIntakeId])
+  @@index([planItemId])
+  @@index([severity])
+  @@map("intake_adverse_record")
+}
+
+// =============================================================================
+// 7 通知、同意与文件域（5 张）
+// 内容类表一律带 locale（BCP 47：zh-CN / zh-TW / en）：locale: zh-CN / zh-TW / en
+// =============================================================================
+
+/// 7.1 通知模板表（P0）：唯一约束 V1.2 起为 (code, channel, locale)；
+/// 缺失译文降级口径：用药提醒类永不丢弃（回退既有语言并在投递日志留痕）。
+model NotificationTemplate {
+  id                String    @id @db.Uuid
+  code              String    @db.VarChar(64)
+  // channel: app_push / wechat_subscribe / sms / voice_call / in_app / pc_popup / smartwatch（预留）/ smart_speaker（预留）
+  channel           String    @db.VarChar(32)
+  locale            String    @db.VarChar(12)
+  contentGroupId    String    @map("content_group_id") @db.Uuid // 同组 = 同一内容的多语言版本（逻辑分组，不建 FK）
+  titleTemplate     String    @map("title_template") @db.VarChar(200)
+  bodyTemplate      String    @map("body_template")
+  providerTemplateId String?  @map("provider_template_id") @db.VarChar(128)
+  // status: active / disabled
+  status            String    @default("active") @db.VarChar(32)
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt         DateTime? @map("deleted_at") @db.Timestamptz(6)
+  version           Int       @default(1)
+
+  @@unique([code, channel, locale])
+  @@index([contentGroupId, locale])
+  @@index([status])
+  @@map("notification_template")
+}
+
+/// 7.2 同意记录表（P0，追加型）：每一次「同意」单独一行，仅 id / created_at 两个通用字段；
+/// 撤回另写一行。协议文本类同意自 V1.2 起以 consent_document / user_consent_record 为唯一口径，
+/// 本表继续承担事件型同意（照护授权、敏感信息、AI 摘要 ai_service 同步行）。
+model ConsentRecord {
+  id              String   @id @db.Uuid
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  accountId       String   @map("account_id") @db.Uuid
+  memberId        String?  @map("member_id") @db.Uuid
+  // consent_type: privacy_policy / sensitive_info / caregiver_auth / ai_service / marketing
+  consentType     String   @map("consent_type") @db.VarChar(64)
+  documentVersion String   @map("document_version") @db.VarChar(32)
+  // action: granted / withdrawn
+  action          String   @db.VarChar(32)
+  // channel: wechat_miniapp / android / ios / web / pc
+  channel         String?  @db.VarChar(32)
+  ipAddress       String?  @map("ip_address") @db.VarChar(64)
+
+  account UserAccount @relation(fields: [accountId], references: [id])
+  member  Member?     @relation(fields: [memberId], references: [id])
+
+  @@index([accountId, memberId])
+  @@index([consentType])
+  @@index([action])
+  @@map("consent_record")
+}
+
+/// 7.3 文件附件表（P0）：只存元数据与对象键，下载一律走后端签发的短时签名 URL。
+model FileAttachment {
+  id             String    @id @db.Uuid
+  ownerAccountId String    @map("owner_account_id") @db.Uuid
+  memberId       String?   @map("member_id") @db.Uuid // 病历附件必填成员
+  // biz_type: medical_record / drug_image / avatar / article_image / feedback
+  bizType        String    @map("biz_type") @db.VarChar(32)
+  storageKey     String    @unique @map("storage_key") @db.VarChar(512)
+  originalName   String    @map("original_name") @db.VarChar(255)
+  mimeType       String    @map("mime_type") @db.VarChar(100)
+  sizeBytes      BigInt    @map("size_bytes")
+  sha256         String?   @db.Char(64)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt      DateTime? @map("deleted_at") @db.Timestamptz(6)
+  version        Int       @default(1)
+
+  ownerAccount      UserAccount      @relation("AttachmentOwner", fields: [ownerAccountId], references: [id])
+  member            Member?          @relation("MemberAttachments", fields: [memberId], references: [id])
+  avatarOfAccounts  UserAccount[]    @relation("AccountAvatar")
+  avatarOfMembers   Member[]         @relation("MemberAvatar")
+  drugImages        Drug[]           @relation("DrugImage")
+  planPrescriptions MedicationPlan[] @relation("PlanPrescription")
+  messageAttachments AiMessage[]
+
+  @@index([ownerAccountId, memberId])
+  @@index([bizType])
+  @@index([sha256])
+  @@map("file_attachment")
+}
+
+/// 7.4 同意文本表（P0，V1.2 新增）：已生效版本禁止改内容，修订一律新建版本行。
+/// 法律与同意类文案永不降级回退：目标语言版本未生效时，该语言下不得开放对应确认流程。
+model ConsentDocument {
+  id               String    @id @db.Uuid
+  // doc_type: user_agreement / privacy_policy / ai_data_use / health_data_processing
+  docType          String    @map("doc_type") @db.VarChar(64)
+  // 文本版本号。注意：文档本表 version 列（VARCHAR）与 2.2 通用乐观锁 version 列（int）同名冲突，
+  // 此处文本版本号保留列名 version，乐观锁暂映射 lock_version 列，最终口径待文档升版裁定。
+  docVersion       String    @map("version") @db.VarChar(32)
+  // locale: zh-CN / zh-TW / en
+  locale           String    @db.VarChar(12)
+  title            String    @db.VarChar(200)
+  contentRef       String    @map("content_ref") @db.VarChar(512) // 对象存储键或内容 ID，正文不存本表
+  contentSha256    String?   @map("content_sha256") @db.Char(64)
+  effectiveDate    DateTime  @map("effective_date") @db.Date
+  isMaterialChange Boolean   @default(false) @map("is_material_change") // 实质变更须用户重新确认
+  // status: draft / effective / superseded
+  status           String    @default("draft") @db.VarChar(32)
+  publishedBy      String?   @map("published_by") @db.Uuid
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt        DateTime? @map("deleted_at") @db.Timestamptz(6)
+  lockVersion      Int       @default(1) @map("lock_version") // 通用乐观锁（列名避让，见 docVersion 处注释）
+
+  publisher   AdminUser?          @relation(fields: [publishedBy], references: [id])
+  userRecords UserConsentRecord[]
+
+  @@unique([docType, locale, docVersion])
+  @@index([effectiveDate])
+  @@index([status])
+  @@map("consent_document")
+}
+
+/// 7.5 用户同意确认记录表（P0，V1.2 新增，只追加）：仅 id / created_at 两个通用字段。
+/// 当前效力取该账号对该文本类型的最新一行；注销后保留去标识举证行不少于 3 年（11.2）。
+model UserConsentRecord {
+  id              String   @id @db.Uuid
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  accountId       String   @map("account_id") @db.Uuid
+  memberId        String?  @map("member_id") @db.Uuid // 账号级文本（协议/隐私）为空
+  documentId      String   @map("document_id") @db.Uuid
+  // doc_type: user_agreement / privacy_policy / ai_data_use / health_data_processing（冗余快照）
+  docType         String   @map("doc_type") @db.VarChar(64)
+  documentVersion String   @map("document_version") @db.VarChar(32) // 冗余快照
+  // locale: zh-CN / zh-TW / en（冗余快照）
+  locale          String   @db.VarChar(12)
+  // action: confirmed / withdrawn
+  action          String   @db.VarChar(32)
+  confirmedAt     DateTime @map("confirmed_at") @db.Timestamptz(6)
+  // channel: web / wechat_miniapp / android / ios / pc
+  channel         String   @db.VarChar(32)
+  ipAddress       String?  @map("ip_address") @db.VarChar(64)
+
+  account  UserAccount     @relation(fields: [accountId], references: [id])
+  member   Member?         @relation(fields: [memberId], references: [id])
+  document ConsentDocument @relation(fields: [documentId], references: [id])
+
+  @@index([accountId, documentId, confirmedAt])
+  @@index([memberId])
+  @@index([docType, locale])
+  @@map("user_consent_record")
+}
+
+// =============================================================================
+// 9 AI 智能服务域（13 张，全域 P1，依从洞察类 P2）
+// 口径：只经统一 AI 网关访问；AI 永不反向写计划与打卡主链；正文一律密文（*_enc）。
+// capability 合法值（附录 B「六项」+ 9.1 scopes + 9.9 task_type 汇总）：
+//   medical_record_analysis / lab_report_interpretation / symptom_analysis /
+//   health_qa / timeline_summary（P2）/ adherence_insight（P2）
+// =============================================================================
+
+/// 9.1 AI 单独同意表（P1，追加型）：仅 id / created_at 两个通用字段；
+/// 当前效力取该成员最新一行；无有效同意网关拒绝一切 AI 请求。
+/// 同时向 consent_record 同步写一行 consent_type=ai_service 的摘要（应用层）。
+model AiConsent {
+  id                String   @id @db.Uuid
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  accountId         String   @map("account_id") @db.Uuid
+  memberId          String   @map("member_id") @db.Uuid
+  // action: granted / withdrawn
+  action            String   @db.VarChar(32)
+  consentVersion    String   @map("consent_version") @db.VarChar(32)
+  // scopes 逐项开关：medical_record_analysis / lab_report_interpretation / symptom_analysis / health_qa
+  scopes            Json     @db.JsonB
+  guardianAccountId String?  @map("guardian_account_id") @db.Uuid // 未成年成员必填（应用层按 birth_date 校验）
+  // channel: wechat_miniapp / android / ios / web / pc
+  channel           String?  @db.VarChar(32)
+  ipAddress         String?  @map("ip_address") @db.VarChar(64)
+
+  account  UserAccount      @relation("AiConsentAccount", fields: [accountId], references: [id])
+  member   Member           @relation(fields: [memberId], references: [id])
+  guardian UserAccount?     @relation("AiConsentGuardian", fields: [guardianAccountId], references: [id])
+  sessions AiSession[]
+  tasks    AiAnalysisTask[]
+
+  @@index([accountId, memberId])
+  @@index([action])
+  @@map("ai_consent")
+}
+
+/// 9.2 模型接入配置表（P1）：按能力分别指定模型，主备切换、灰度与一键停用。
+/// 同一能力有且仅一个主模型：部分唯一索引（capability WHERE is_primary）由迁移 SQL 补。
+model AiModelConfig {
+  id             String    @id @db.Uuid
+  // capability: medical_record_analysis / lab_report_interpretation / symptom_analysis / health_qa / timeline_summary / adherence_insight
+  capability     String    @db.VarChar(48)
+  provider       String    @db.VarChar(100)
+  modelName      String    @map("model_name") @db.VarChar(100)
+  modelVersion   String    @map("model_version") @db.VarChar(100)
+  endpointRef    String    @map("endpoint_ref") @db.VarChar(255) // 只存托管引用，不落明文
+  secretRef      String    @map("secret_ref") @db.VarChar(255)
+  // deployment_mode: third_party_api / private_deployment
+  deploymentMode String    @map("deployment_mode") @db.VarChar(32)
+  isPrimary      Boolean   @default(false) @map("is_primary")
+  fallbackConfigId String? @map("fallback_config_id") @db.Uuid
+  timeoutMs      Int       @map("timeout_ms")
+  maxRetries     Int       @map("max_retries")
+  grayScope      Json?     @map("gray_scope") @db.JsonB // 为空表示全量
+  // status: enabled / disabled / emergency_stopped
+  status         String    @default("disabled") @db.VarChar(32)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt      DateTime? @map("deleted_at") @db.Timestamptz(6)
+  version        Int       @default(1)
+
+  fallback  AiModelConfig?  @relation("ModelFallback", fields: [fallbackConfigId], references: [id])
+  primaryOf AiModelConfig[] @relation("ModelFallback")
+  sessions  AiSession[]
+  tasks     AiAnalysisTask[]
+  reports   AiReport[]
+
+  @@index([capability])
+  @@index([provider, modelName, modelVersion])
+  @@index([status])
+  @@map("ai_model_config")
+}
+
+/// 9.3 提示词模板表（P1）：已发布版本禁止原地改内容，改动一律新建版本行；回滚 = 旧版重发布。
+/// V1.2：locale 列加入唯一口径，(capability, version, locale) 组合唯一。
+model AiPromptTemplate {
+  id             String    @id @db.Uuid
+  // capability: 同 ai_model_config.capability
+  capability     String    @db.VarChar(48)
+  name           String    @db.VarChar(200)
+  version        String    @db.VarChar(32)
+  content        String    // 系统提示词正文（敏感内容，后台查看留痕）
+  redlineVersion String    @map("redline_version") @db.VarChar(32) // 锁定红线段落版本，运行时强制注入、不可删改
+  // locale: zh-CN / zh-TW / en
+  locale         String    @default("zh-CN") @db.VarChar(12)
+  // status: draft / pending_review / published / retired
+  status         String    @default("draft") @db.VarChar(32)
+  createdBy      String    @map("created_by") @db.Uuid
+  reviewedBy     String?   @map("reviewed_by") @db.Uuid // 编辑人与审核人不得为同一人（应用层校验）
+  effectiveAt    DateTime? @map("effective_at") @db.Timestamptz(6)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt      DateTime? @map("deleted_at") @db.Timestamptz(6)
+  lockVersion    Int       @default(1) @map("lock_version") // 通用乐观锁（本表 version 列为提示词版本号，同名冲突，字段/列名避让）
+
+  creator  AdminUser  @relation("PromptCreatedBy", fields: [createdBy], references: [id])
+  reviewer AdminUser? @relation("PromptReviewedBy", fields: [reviewedBy], references: [id])
+
+  @@unique([capability, version, locale])
+  @@index([capability, name])
+  @@index([status])
+  @@map("ai_prompt_template")
+}
+
+/// 9.4 知识库条目表（P1）：与 drug / content_article 等同源维护，禁止在 AI 侧另改一份。
+/// V1.2：加 locale + content_group_id；仅 approved 且未过期的本语言行可被同语言会话引用，禁止跨语言机翻呈现。
+model AiKnowledgeEntry {
+  id             String    @id @db.Uuid
+  // source_type: drug_label / popular_science / disease_dict / department_dict / indicator_dict
+  sourceType     String    @map("source_type") @db.VarChar(32)
+  sourceRefId    String?   @map("source_ref_id") @db.Uuid // 同源条目 ID（多态，随 source_type 而定，不建 FK）
+  title          String    @db.VarChar(200)
+  content        String
+  // locale: zh-CN / zh-TW / en
+  locale         String    @db.VarChar(12)
+  contentGroupId String    @map("content_group_id") @db.Uuid // 逻辑分组，不建 FK
+  // review_status: draft / pending_review / approved / rejected / off_shelf
+  reviewStatus   String    @map("review_status") @db.VarChar(32)
+  reviewedBy     String?   @map("reviewed_by") @db.Uuid
+  expiresAt      DateTime? @map("expires_at") @db.Timestamptz(6) // 过期自动下线，不得再被引用
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt      DateTime? @map("deleted_at") @db.Timestamptz(6)
+  version        Int       @default(1)
+
+  reviewer AdminUser? @relation(fields: [reviewedBy], references: [id])
+
+  @@index([sourceType])
+  @@index([reviewStatus])
+  @@index([contentGroupId, locale])
+  @@map("ai_knowledge_entry")
+}
+
+/// 9.5 内容安全与急症规则表（P1）：版本化发布；命中处置在服务端前置执行，优先级高于模型输出。
+model AiSafetyRule {
+  id              String    @id @db.Uuid
+  // rule_type: emergency_term / forbidden_output / sensitive_pattern
+  ruleType        String    @map("rule_type") @db.VarChar(32)
+  pattern         String    // 关键词或模式串
+  // match_mode: keyword / regex / classifier
+  matchMode       String    @map("match_mode") @db.VarChar(32)
+  // action: interrupt_emergency / block / rewrite / flag_review
+  action          String    @db.VarChar(32)
+  capabilityScope Json?     @map("capability_scope") @db.JsonB // 为空 = 全部 AI 能力
+  version         String    @db.VarChar(32)
+  // status: draft / published / retired
+  status          String    @db.VarChar(32)
+  reviewedBy      String?   @map("reviewed_by") @db.Uuid // 急症与违规类必填（应用层校验）
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt       DateTime? @map("deleted_at") @db.Timestamptz(6)
+  lockVersion     Int       @default(1) @map("lock_version") // 通用乐观锁（本表 version 列为词表版本号，同名冲突，字段/列名避让）
+
+  reviewer AdminUser? @relation(fields: [reviewedBy], references: [id])
+
+  @@index([ruleType])
+  @@index([action])
+  @@index([version])
+  @@index([status])
+  @@map("ai_safety_rule")
+}
+
+/// 9.6 AI 会话表（P1，核心表）：一次症状分析或健康问答 = 一行；上下文只装配该成员本人数据。
+/// 用户删除走 status=deleted 流程（正文清除），不直接软删掩盖。
+model AiSession {
+  id                 String    @id @db.Uuid
+  memberId           String    @map("member_id") @db.Uuid
+  initiatorAccountId String    @map("initiator_account_id") @db.Uuid
+  authorizationId    String?   @map("authorization_id") @db.Uuid // 代发起所依据的照护授权快照引用
+  consentId          String    @map("consent_id") @db.Uuid // 无有效同意不得建会话
+  // capability: 同 ai_model_config.capability；一个会话只对应一种能力
+  capability         String    @db.VarChar(48)
+  // channel: web / wechat_miniapp / android / ios / pc
+  channel            String    @db.VarChar(32)
+  modelConfigId      String    @map("model_config_id") @db.Uuid
+  promptVersion      String    @map("prompt_version") @db.VarChar(32) // 版本快照
+  safetyRuleVersion  String    @map("safety_rule_version") @db.VarChar(32) // 版本快照
+  emergencyHit       Boolean   @default(false) @map("emergency_hit") // 为 true 时 status 必须为 blocked_emergency
+  // status: active / completed / closed / blocked_emergency / frozen / deleted
+  status             String    @default("active") @db.VarChar(32)
+  startedAt          DateTime  @map("started_at") @db.Timestamptz(6)
+  endedAt            DateTime? @map("ended_at") @db.Timestamptz(6)
+  title              String?   @db.VarChar(200) // 只由症状摘要生成，不得写入诊断式结论
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt          DateTime? @map("deleted_at") @db.Timestamptz(6)
+  version            Int       @default(1)
+
+  member        Member                 @relation(fields: [memberId], references: [id])
+  initiator     UserAccount            @relation("SessionInitiator", fields: [initiatorAccountId], references: [id])
+  authorization CaregiverAuthorization? @relation(fields: [authorizationId], references: [id])
+  consent       AiConsent              @relation(fields: [consentId], references: [id])
+  modelConfig   AiModelConfig          @relation(fields: [modelConfigId], references: [id])
+  messages      AiMessage[]
+  consultation  AiConsultation?
+  reports       AiReport[]
+  callLogs      AiCallLog[]
+
+  @@index([memberId, startedAt])
+  @@index([initiatorAccountId])
+  @@index([consentId])
+  @@index([capability])
+  @@index([emergencyHit])
+  @@index([status])
+  @@map("ai_session")
+}
+
+/// 9.7 会话消息表（P1，追加型）：仅 id / created_at 两个通用字段；流式完整落库后才占序号。
+/// 正文清除走所属会话删除流程并置空 content_enc（故该列在库层可空，Prisma 侧以可空表达清除后状态，应用层写入时必填）。
+model AiMessage {
+  id              String   @id @db.Uuid
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  sessionId       String   @map("session_id") @db.Uuid
+  seq             Int
+  // role: user / assistant / system
+  role            String   @db.VarChar(16)
+  contentEnc      String?  @map("content_enc") // 正文密文，禁止明文落库
+  // content_type: text / voice_transcript / image_ref / disclaimer / emergency_notice
+  contentType     String   @default("text") @map("content_type") @db.VarChar(32)
+  attachmentFileId String? @map("attachment_file_id") @db.Uuid
+  // safety_action: pass / blocked / rewritten
+  safetyAction    String   @default("pass") @map("safety_action") @db.VarChar(32)
+  callLogId       String?  @map("call_log_id") @db.Uuid // user 消息为空
+
+  session    AiSession       @relation(fields: [sessionId], references: [id])
+  attachment FileAttachment? @relation(fields: [attachmentFileId], references: [id])
+  callLog    AiCallLog?      @relation(fields: [callLogId], references: [id])
+
+  @@unique([sessionId, seq])
+  @@index([safetyAction])
+  @@map("ai_message")
+}
+
+/// 9.8 症状分析结构化结论文（P1）：与症状分析会话一对一；呈现结构靠本表字段保证，各端不得改序拼装。
+model AiConsultation {
+  id                  String    @id @db.Uuid
+  sessionId           String    @unique @map("session_id") @db.Uuid
+  memberId            String    @map("member_id") @db.Uuid
+  symptomSummaryEnc   String    @map("symptom_summary_enc") // 症状摘要复述密文
+  collectedFacts      Json      @map("collected_facts") @db.JsonB
+  possibilities       Json?     @db.JsonB // 可能性方向 2-4 个；禁止单一确定结论、禁止百分比伪装精确
+  // triage_level: emergency_now / urgent_24_48 / observe
+  triageLevel         String?   @map("triage_level") @db.VarChar(32)
+  recommendedActions  Json?     @map("recommended_actions") @db.JsonB // 不得含处方与剂量指令
+  warningSigns        Json?     @map("warning_signs") @db.JsonB
+  departmentSuggestion String?  @map("department_suggestion") @db.VarChar(100) // 科室类别，不指定具体医院医生
+  // completeness: sufficient / insufficient
+  completeness        String    @db.VarChar(32)
+  disclaimerVersion   String    @map("disclaimer_version") @db.VarChar(32)
+  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt           DateTime? @map("deleted_at") @db.Timestamptz(6)
+  version             Int       @default(1)
+
+  session AiSession @relation(fields: [sessionId], references: [id])
+  member  Member    @relation(fields: [memberId], references: [id])
+
+  @@index([memberId])
+  @@index([triageLevel])
+  @@map("ai_consultation")
+}
+
+/// 9.9 AI 分析任务表（P1）：病历分析与报告解读均为异步任务；AI 无权直接写计划表，
+/// 方案草案经本表发起、落 ai_report，用户确认后才由计划域另行建计划。
+model AiAnalysisTask {
+  id                 String    @id @db.Uuid
+  memberId           String    @map("member_id") @db.Uuid
+  initiatorAccountId String    @map("initiator_account_id") @db.Uuid
+  consentId          String    @map("consent_id") @db.Uuid
+  // task_type: medical_record_analysis / lab_report_interpretation / timeline_summary（P2）/ plan_info_assist（P2）/ adherence_insight（P2）
+  taskType           String    @map("task_type") @db.VarChar(48)
+  sourceFileIds      Json      @map("source_file_ids") @db.JsonB // file_attachment ID 数组，文件须归属该成员
+  // status: queued / ocr_processing / extracting / generating / completed / failed / cancelled
+  status             String    @default("queued") @db.VarChar(32)
+  modelConfigId      String    @map("model_config_id") @db.Uuid
+  promptVersion      String    @map("prompt_version") @db.VarChar(32)
+  idempotencyKey     String    @unique @map("idempotency_key") @db.VarChar(128)
+  errorCode          String?   @map("error_code") @db.VarChar(64)
+  startedAt          DateTime? @map("started_at") @db.Timestamptz(6)
+  finishedAt         DateTime? @map("finished_at") @db.Timestamptz(6)
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt          DateTime? @map("deleted_at") @db.Timestamptz(6)
+  version            Int       @default(1)
+
+  member     Member         @relation(fields: [memberId], references: [id])
+  initiator  UserAccount    @relation("TaskInitiator", fields: [initiatorAccountId], references: [id])
+  consent    AiConsent      @relation(fields: [consentId], references: [id])
+  modelConfig AiModelConfig @relation(fields: [modelConfigId], references: [id])
+  reports    AiReport[]
+  callLogs   AiCallLog[]
+
+  @@index([memberId, initiatorAccountId])
+  @@index([consentId])
+  @@index([taskType])
+  @@index([status])
+  @@map("ai_analysis_task")
+}
+
+/// 9.10 AI 分析报告表（P1，核心表）：重新生成保留旧版并链回旧报告；
+/// safety_status 未过安全审核（passed 以外）不得展示；未确认不得回填档案。
+model AiReport {
+  id                 String    @id @db.Uuid
+  taskId             String?   @map("task_id") @db.Uuid // 与 session_id 至少其一非空（应用层校验）
+  sessionId          String?   @map("session_id") @db.Uuid
+  memberId           String    @map("member_id") @db.Uuid
+  // report_type: medical_record / lab_report / timeline_summary（P2）/ plan_info_draft（P2）/ adherence_insight（P2）
+  reportType         String    @map("report_type") @db.VarChar(48)
+  structuredExtract  Json?     @map("structured_extract") @db.JsonB // 原文没有的数据不得补全
+  indicators         Json?     @db.JsonB
+  interpretationEnc  String?   @map("interpretation_enc") // 通俗解读正文密文
+  planRelationTips   Json?     @map("plan_relation_tips") @db.JsonB // 只提示复诊核对，不自动建改计划
+  // confirmation_status: pending / confirmed / partially_confirmed / rejected
+  confirmationStatus String    @default("pending") @map("confirmation_status") @db.VarChar(32)
+  confirmedBy        String?   @map("confirmed_by") @db.Uuid // 代确认须 L3 并写审计
+  confirmedAt        DateTime? @map("confirmed_at") @db.Timestamptz(6)
+  reportVersion      Int       @map("report_version") // 报告版本号（与通用乐观锁 version 语义不同、并存）
+  supersedesReportId String?   @map("supersedes_report_id") @db.Uuid
+  modelConfigId      String?   @map("model_config_id") @db.Uuid // 版本快照
+  promptVersion      String?   @map("prompt_version") @db.VarChar(32) // 版本快照
+  // safety_status: passed / pending / blocked / rewritten（文档未枚举，此为按 safety_action 口径推断）
+  safetyStatus       String    @map("safety_status") @db.VarChar(32)
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt          DateTime? @map("deleted_at") @db.Timestamptz(6)
+  version            Int       @default(1) // 通用乐观锁
+
+  task        AiAnalysisTask? @relation(fields: [taskId], references: [id])
+  session     AiSession?      @relation(fields: [sessionId], references: [id])
+  member      Member          @relation(fields: [memberId], references: [id])
+  modelConfig AiModelConfig?  @relation(fields: [modelConfigId], references: [id])
+  confirmer   UserAccount?    @relation("ReportConfirmer", fields: [confirmedBy], references: [id])
+  supersedes  AiReport?       @relation("ReportSupersedes", fields: [supersedesReportId], references: [id])
+  supersededBy AiReport[]     @relation("ReportSupersedes")
+
+  @@index([taskId, sessionId, memberId])
+  @@index([memberId, createdAt])
+  @@index([reportType])
+  @@index([confirmationStatus])
+  @@map("ai_report")
+}
+
+/// 9.11 AI 调用台账表（P1，追加型）：仅 id / created_at 两个通用字段；按月分区（迁移 SQL）。
+/// 只记元数据，绝不存输入输出正文；额度扣减与成本统计以本表为准（blocked / failed 不计额度）。
+model AiCallLog {
+  id             String   @id @db.Uuid
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  requestId      String   @unique @map("request_id") @db.VarChar(128)
+  sessionId      String?  @map("session_id") @db.Uuid
+  taskId         String?  @map("task_id") @db.Uuid
+  memberId       String   @map("member_id") @db.Uuid
+  accountId      String   @map("account_id") @db.Uuid
+  // capability: 同 ai_model_config.capability（调用时刻快照）
+  capability     String   @db.VarChar(48)
+  provider       String   @db.VarChar(100)
+  modelVersion   String   @map("model_version") @db.VarChar(100)
+  promptVersion  String   @map("prompt_version") @db.VarChar(32)
+  inputTokens    Int?     @map("input_tokens")
+  outputTokens   Int?     @map("output_tokens")
+  estimatedCost  Decimal? @map("estimated_cost") @db.Decimal(12, 4)
+  currency       String?  @db.VarChar(8)
+  latencyMs      Int?     @map("latency_ms")
+  // status: success / failed / timeout / blocked
+  status         String   @db.VarChar(32)
+  // safety_action: pass / blocked / rewritten
+  safetyAction   String   @map("safety_action") @db.VarChar(32)
+  emergencyHit   Boolean  @map("emergency_hit")
+  deidentified   Boolean  @default(true) // 为 false 的调用应为零，出现即告警
+
+  session  AiSession?      @relation(fields: [sessionId], references: [id])
+  task     AiAnalysisTask? @relation(fields: [taskId], references: [id])
+  member   Member          @relation(fields: [memberId], references: [id])
+  account  UserAccount     @relation(fields: [accountId], references: [id])
+  messages AiMessage[]
+
+  @@index([sessionId])
+  @@index([taskId])
+  @@index([memberId, accountId])
+  @@index([capability, provider, modelVersion, promptVersion])
+  @@index([createdAt, capability, modelVersion])
+  @@index([status])
+  @@index([safetyAction])
+  @@index([emergencyHit])
+  @@map("ai_call_log")
+}
+
+/// 9.12 AI 输出用户反馈表（P1）：target 为多态引用（message / report / consultation），不建 FK。
+model AiFeedback {
+  id        String    @id @db.Uuid
+  // target_type: message / report / consultation
+  targetType String   @map("target_type") @db.VarChar(32)
+  targetId   String   @map("target_id") @db.Uuid
+  accountId  String   @map("account_id") @db.Uuid
+  memberId   String   @map("member_id") @db.Uuid
+  // rating: helpful / inaccurate / risky（risky 自动置顶并冻结所属会话待审）
+  rating     String   @db.VarChar(32)
+  comment    String?
+  // status: pending / triaged / resolved
+  status     String   @db.VarChar(32)
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt  DateTime? @map("deleted_at") @db.Timestamptz(6)
+  version    Int       @default(1)
+
+  account UserAccount @relation(fields: [accountId], references: [id])
+  member  Member      @relation(fields: [memberId], references: [id])
+
+  @@index([targetType, targetId])
+  @@index([accountId, memberId])
+  @@index([rating])
+  @@index([status])
+  @@map("ai_feedback")
+}
+
+/// 9.12 AI 输出审核表（P1）：标注结论只追加修正行，不覆盖原标注。
+model AiOutputReview {
+  id              String    @id @db.Uuid
+  // target_type: message / report / consultation（多态，不建 FK）
+  targetType      String    @map("target_type") @db.VarChar(32)
+  targetId        String    @map("target_id") @db.Uuid
+  // review_type: safety_auto / sampling / feedback_triggered
+  reviewType      String    @map("review_type") @db.VarChar(32)
+  reviewerAdminId String?   @map("reviewer_admin_id") @db.Uuid // safety_auto 行为空
+  // verdict: pass / error / risky
+  verdict         String    @db.VarChar(32)
+  labels          Json?     @db.JsonB
+  // status: pending / in_review / completed
+  status          String    @default("pending") @db.VarChar(32)
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt       DateTime? @map("deleted_at") @db.Timestamptz(6)
+  version         Int       @default(1)
+
+  reviewer AdminUser? @relation(fields: [reviewerAdminId], references: [id])
+
+  @@index([targetType, targetId])
+  @@index([reviewType])
+  @@index([status, createdAt])
+  @@map("ai_output_review")
+}
+
+// =============================================================================
+// 8 后台与系统域（10 张）
+// =============================================================================
+
+/// 8.1 后台管理员表（P0）：高敏操作（病历明文查看等）要求 MFA（P1 强制）。
+model AdminUser {
+  id           String    @id @db.Uuid
+  username     String    @unique @db.VarChar(64)
+  passwordHash String    @map("password_hash") @db.VarChar(255)
+  realName     String    @map("real_name") @db.VarChar(100)
+  phoneEnc     String?   @map("phone_enc") @db.VarChar(512) // 密文
+  // status: active / disabled / locked
+  status       String    @default("active") @db.VarChar(32)
+  lastLoginAt  DateTime? @map("last_login_at") @db.Timestamptz(6)
+  mfaEnabled   Boolean   @default(false) @map("mfa_enabled")
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt    DateTime? @map("deleted_at") @db.Timestamptz(6)
+  version      Int       @default(1)
+
+  userRoles            AdminUserRole[]    @relation("AdminUserRoles")
+  grantedUserRoles     AdminUserRole[]    @relation("UserRoleGrantor")
+  createdPrompts       AiPromptTemplate[] @relation("PromptCreatedBy")
+  reviewedPrompts      AiPromptTemplate[] @relation("PromptReviewedBy")
+  reviewedKnowledge    AiKnowledgeEntry[]
+  reviewedSafetyRules  AiSafetyRule[]
+  publishedConsents    ConsentDocument[]
+  updatedConfigs       SystemConfig[]
+  assignedTickets      FeedbackTicket[]   @relation("TicketAssignee")
+  authoredArticles     ContentArticle[]   @relation("ArticleAuthor")
+  outputReviews        AiOutputReview[]
+
+  @@map("admin_user")
+}
+
+/// 8.1 后台角色表（P0）：系统内置角色不可删（is_system）。
+model AdminRole {
+  id          String    @id @db.Uuid
+  code        String    @unique @db.VarChar(64) // super_admin / operator / cs_agent / auditor（另有 ai_service_admin / medical_reviewer 种子）
+  name        String    @db.VarChar(100)
+  description String?
+  isSystem    Boolean   @default(false) @map("is_system")
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt   DateTime? @map("deleted_at") @db.Timestamptz(6)
+  version     Int       @default(1)
+
+  userRoles       AdminUserRole[]
+  rolePermissions AdminRolePermission[]
+
+  @@map("admin_role")
+}
+
+/// 8.1 后台权限表（P0）：code 格式「域:资源:动作」；高敏权限单独成 code，不并入普通查看权限。
+model AdminPermission {
+  id        String    @id @db.Uuid
+  code      String    @unique @db.VarChar(128)
+  name      String    @db.VarChar(100)
+  module    String    @db.VarChar(64)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(6)
+  version   Int       @default(1)
+
+  rolePermissions AdminRolePermission[]
+
+  @@index([module])
+  @@map("admin_permission")
+}
+
+/// 8.1 管理员-角色关联表（P0）：保留通用字段以便审计授权变更。
+model AdminUserRole {
+  id          String    @id @db.Uuid
+  adminUserId String    @map("admin_user_id") @db.Uuid
+  roleId      String    @map("role_id") @db.Uuid
+  grantedBy   String?   @map("granted_by") @db.Uuid
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt   DateTime? @map("deleted_at") @db.Timestamptz(6)
+  version     Int       @default(1)
+
+  adminUser AdminUser  @relation("AdminUserRoles", fields: [adminUserId], references: [id])
+  role      AdminRole  @relation(fields: [roleId], references: [id])
+  grantor   AdminUser? @relation("UserRoleGrantor", fields: [grantedBy], references: [id])
+
+  @@unique([adminUserId, roleId])
+  @@map("admin_user_role")
+}
+
+/// 8.1 角色-权限关联表（P0）：纯关联表，仅 id 与时间字段（created_at / updated_at）。
+model AdminRolePermission {
+  id           String   @id @db.Uuid
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  roleId       String   @map("role_id") @db.Uuid
+  permissionId String   @map("permission_id") @db.Uuid
+
+  role       AdminRole       @relation(fields: [roleId], references: [id])
+  permission AdminPermission @relation(fields: [permissionId], references: [id])
+
+  @@unique([roleId, permissionId])
+  @@map("admin_role_permission")
+}
+
+/// 8.2 操作审计日志表（P0，追加型）：仅 id / created_at 两个通用字段；按月分区（迁移 SQL）。
+/// 日志禁止业务代码 UPDATE / DELETE（数据库账号层面收回权限）；detail 禁止写入明文敏感值。
+model AuditLog {
+  id         String   @id @db.Uuid
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  // actor_type: admin / account / system
+  actorType  String   @map("actor_type") @db.VarChar(32)
+  actorId    String   @map("actor_id") @db.Uuid // 随 actor_type 指向 admin_user 或 user_account，不建 FK
+  action     String   @db.VarChar(128) // 与权限 code 同命名空间
+  targetType String   @map("target_type") @db.VarChar(64)
+  targetId   String?  @map("target_id") @db.Uuid // 批量操作为空、明细放 detail
+  memberId   String?  @map("member_id") @db.Uuid // 涉及成员数据时必填
+  detail     Json?    @db.JsonB
+  ipAddress  String?  @map("ip_address") @db.VarChar(64)
+  userAgent  String?  @map("user_agent") @db.VarChar(512)
+  // result: success / denied / failed
+  result     String   @db.VarChar(32)
+
+  member Member? @relation(fields: [memberId], references: [id])
+
+  @@index([actorType, actorId])
+  @@index([action])
+  @@index([targetType, targetId])
+  @@index([memberId])
+  @@index([result])
+  @@map("audit_log")
+}
+
+/// 8.3 系统配置表（P0）：全文「配置可调」项均落本表；改配置写审计，应用层带缓存且支持秒级刷新。
+model SystemConfig {
+  id          String    @id @db.Uuid
+  configKey   String    @unique @map("config_key") @db.VarChar(128)
+  configValue Json      @map("config_value") @db.JsonB // 带类型的值
+  description String?
+  updatedBy   String?   @map("updated_by") @db.Uuid
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt   DateTime? @map("deleted_at") @db.Timestamptz(6)
+  version     Int       @default(1)
+
+  updater AdminUser? @relation(fields: [updatedBy], references: [id])
+
+  @@map("system_config")
+}
+
+/// 8.3 用户反馈工单表（P1）。
+model FeedbackTicket {
+  id              String    @id @db.Uuid
+  accountId       String    @map("account_id") @db.Uuid
+  memberId        String?   @map("member_id") @db.Uuid
+  // category: usage / bug / drug_data / other
+  category        String    @db.VarChar(32)
+  content         String
+  // status: open / processing / resolved / closed
+  status          String    @default("open") @db.VarChar(32)
+  assignedAdminId String?   @map("assigned_admin_id") @db.Uuid
+  resolution      String?
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt       DateTime? @map("deleted_at") @db.Timestamptz(6)
+  version         Int       @default(1)
+
+  account       UserAccount  @relation(fields: [accountId], references: [id])
+  member        Member?      @relation(fields: [memberId], references: [id])
+  assignedAdmin AdminUser?   @relation("TicketAssignee", fields: [assignedAdminId], references: [id])
+
+  @@index([accountId])
+  @@index([status, createdAt])
+  @@map("feedback_ticket")
+}
+
+/// 8.3 内容文章表（P1）：富文本存 HTML，入库前做 XSS 清洗。
+/// V1.2：加 locale + content_group_id，发布状态按语言行独立。
+model ContentArticle {
+  id             String    @id @db.Uuid
+  title          String    @db.VarChar(200)
+  category       String    @db.VarChar(64) // 用药知识 / 公告 / 帮助
+  body           String
+  // locale: zh-CN / zh-TW / en
+  locale         String    @db.VarChar(12)
+  contentGroupId String    @map("content_group_id") @db.Uuid // 逻辑分组，不建 FK
+  // status: draft / published / offline
+  status         String    @db.VarChar(32)
+  publishedAt    DateTime? @map("published_at") @db.Timestamptz(6)
+  authorAdminId  String?   @map("author_admin_id") @db.Uuid
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt      DateTime? @map("deleted_at") @db.Timestamptz(6)
+  version        Int       @default(1)
+
+  author AdminUser? @relation("ArticleAuthor", fields: [authorAdminId], references: [id])
+
+  @@index([contentGroupId, locale])
+  @@index([status])
+  @@index([createdAt])
+  @@map("content_article")
+}
+
+/// 8.3 客户端版本表（P1）：低于 min_supported_version 强制升级。
+model AppVersion {
+  id                  String    @id @db.Uuid
+  // platform: wechat_miniapp / android / ios / windows / linux / macos / web
+  platform            String    @db.VarChar(32)
+  version             String    @db.VarChar(32)
+  minSupportedVersion String?   @map("min_supported_version") @db.VarChar(32)
+  releaseNote         String?   @map("release_note")
+  downloadUrl         String?   @map("download_url") @db.VarChar(512)
+  // status: active / deprecated
+  status              String    @db.VarChar(32)
+  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt           DateTime? @map("deleted_at") @db.Timestamptz(6)
+  lockVersion         Int       @default(1) @map("lock_version") // 通用乐观锁（本表 version 列为客户端版本号，同名冲突，字段/列名避让）
+
+  @@unique([platform, version])
+  @@map("app_version")
+}

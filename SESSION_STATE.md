@@ -45,16 +45,24 @@
 
 ## 五、当前断点与后续待执行事项
 
-1. **当前断点（2026-10-20）**：设计阶段评审全部收官。设计评审 24 个决策点（A–G 组）+ 追补 R-1（提醒附加信息：存放位置/附加备注）+ 扩展评审 11 项（库存/有效期、PRN、疗程与剂量阶段、计划变更历史、过敏与不适、同意版本管理、紧急联系人、枚举占位、处方来源）全部定版，决议存档于助手侧 `~/workspace/medontime-review/`（decisions.md、extensions-backlog.md）。
+1. **当前断点（2026-10-23）**：设计阶段评审全部收官（同前）。**开发脚手架已开工并落 `develop` 分支**：pnpm monorepo 全量脚手架（根工作区 + packages/shared 共享枚举 + packages/api-client 生成客户端骨架 + services/api NestJS 16 模块 + Prisma schema 落 56 表 + apps 五端最小脚手架，原生 Android/iOS 仍为 README 占位）与 LICENSE（MIT）已就绪。验证证据（助手 VM，2026-10-23）：`prisma validate` 通过、Prisma Client 生成成功、`pnpm -r build` 7/7 通过、`pnpm -r typecheck` 7/7 通过、api `eslint` 通过。助手 VM 无 Docker/PostgreSQL，API 启动冒烟与首个 migrate 待在有 Docker 的环境执行。
 2. **文档现行版本**：用户端需求 V1.8、后台需求 V1.5、数据库设计 V1.2（56 张表）、技术架构 V1.5（已推送 main，commit `c18ba30`）、UI 设计规范 V1.0、技术预研 V1.1（零预算版）。需求/数据库 PDF 为 artifact 构建产物，位于助手侧目标目录，未入仓（待发布到 Releases）。
 3. **POC 状态**：POC-1 已完成（说明书层有条件通过；质检管线已全量运行，报告见 `docs/research/`）；POC-2（模型评测）资产就绪、**经用户指示暂停**，恢复需用户提供智谱 API Key 与讯飞 APIPassword，不得擅自重启；POC-3（相互作用替代打法验证）未启动。
 4. **后续下一步（均待用户发令）**：
    - [x] 技术架构正式冻结确认（2026-10-20 用户确认，口径：选型须为大型项目验证过的成熟技术；TECH_ARCHITECTURE.md 状态已改为已确认冻结）
    - [x] 两个可点击原型（用户端/后台）用户走查完成（2026-10-20：无大问题，通过）
-   - [ ] 按定稿生成各端脚手架代码（`services/api` NestJS 初始化 + Prisma schema 落表）
-   - [ ] 落 DDL 迁移脚本；设计 PDF 发布到 GitHub Releases；建立 `develop` 分支；选 License（候选 MIT）
+   - [x] 按定稿生成各端脚手架代码（2026-10-23 落 develop：services/api NestJS + Prisma 56 表 + 其余各端最小脚手架，build/typecheck 全绿）
+   - [x] 建立 `develop` 分支（2026-10-23，自 main 切出）；选 License（MIT，已落仓）
+   - [ ] 落 DDL 迁移脚本（prisma migrate 首迁 + 按月分区/部分索引/CHECK 约束补齐 SQL，见 schema 文件头注记）
+   - [ ] 设计 PDF 发布到 GitHub Releases（design-v1.0 标签，5 份 PDF 附件）
    - [ ] 200 药首期队列处理（2 拦截 + 4 复核 + 11 人工补录）
+   - [ ] API 启动冒烟（需 Docker 环境起 PostgreSQL 15 + Redis 7）与首批业务接口实现
+5. **待文档小修（DB 设计 V1.3 候选，Prisma 落表时发现）**：
+   - 四表（consent_document、ai_prompt_template、ai_safety_rule、app_version）业务 `version`（VARCHAR 版本号）与通用乐观锁 `version`（int）同名冲突：schema 暂以业务 version 占列名、乐观锁映射 `lock_version` 列，待文档裁定（改列名或豁免四表乐观锁）。
+   - AI capability 六项取值文档未列全（附录 B 与 9.2 互相回指）：schema 按 9.1 scopes + 9.9 task_type 暂定六项（health_qa、lab_report_interpretation、medical_record_analysis、symptom_analysis、timeline_summary、adherence_insight），shared 枚举仅收前四项确证值，待文档定版统一。
+   - plan_info_assist（9.9 task_type）与 plan_info_draft（9.10 report_type）命名不一致；operator_type 两套枚举同名异义（授权日志 account/admin/system vs 附录 B member_self/caregiver/admin_cs/system），待文档消歧。
 5. **开放风险 / 待决策项**：
    - AI 主备排序未定：待 POC-2 恢复执行后按评测结果定（双通道 Spark Lite + GLM-4-Flash、DeepSeek 兜底已定版）。
    - AI 上线前必须过一次性外部医学审校，未过则入口不开（需求红线）；生成式 AI 若被认定构成诊断/医疗器械属性须立即下线（后台需求第 12 章）。
    - `run-pipeline.sh` 部署时若覆盖根目录三文档，以本仓库版本为准，部署后需核对。
+   - 环境注意事项（2026-10-23 实测）：国内网络下 Prisma engines 二进制下载可能被重置（ECONNRESET），安装时设 `PRISMA_ENGINES_MIRROR=https://npmmirror.com/mirrors/prisma` 可解；助手 VM 的沙箱文件系统上 pnpm 更新已存在的 `pnpm-lock.yaml` / `node_modules/.modules.yaml` 会因 chown EPERM 失败，删旧文件后新建可绕（仅助手 VM 环境问题，用户本机一般不受影响）；该 VM 安装时另设 `ELECTRON_SKIP_BINARY_DOWNLOAD=1` 跳过 Electron 二进制下载。

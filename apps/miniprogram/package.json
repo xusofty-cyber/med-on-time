@@ -1,1 +1,36 @@
-{"name":"@med-on-time/miniprogram","version":"0.1.0","private":true}
+{
+  "dependencies": {
+    "@tarojs/components": "^4.0.4",
+    "@tarojs/helper": "^4.0.4",
+    "@tarojs/plugin-framework-react": "^4.0.4",
+    "@tarojs/react": "^4.0.4",
+    "@tarojs/runtime": "^4.0.4",
+    "@tarojs/shared": "^4.0.4",
+    "@tarojs/taro": "^4.0.4",
+    "@tarojs/vite-runner": "^4.3.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "description": "药准时微信小程序（Taro 4 + React）",
+  "devDependencies": {
+    "@babel/core": "^7.24.4",
+    "@babel/preset-react": "^7.24.1",
+    "@tarojs/cli": "^4.0.4",
+    "@tarojs/plugin-platform-weapp": "^4.0.4",
+    "@types/react": "^18.3.5",
+    "babel-preset-taro": "^4.0.4",
+    "typescript": "^5.5.4"
+  },
+  "license": "MIT",
+  "name": "@med-on-time/miniprogram",
+  "private": true,
+  "scripts": {
+    "build": "taro build --type weapp",
+    "build:weapp": "taro build --type weapp",
+    "dev:weapp": "taro build --type weapp --watch",
+    "lint": "echo \"miniprogram: no lint configured yet\"",
+    "test": "echo \"miniprogram: no tests yet\"",
+    "typecheck": "tsc --noEmit"
+  },
+  "version": "0.1.0"
+}
