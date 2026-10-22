@@ -1,0 +1,201 @@
+通用名,英文名,QC原状态,最终处置,建议入库状态,代表产品,批准文号,来源,备注
+氨氯地平,amlodipine,可入库（有合格单方说明书）,direct_import,approved,马来酸氨氯地平分散片,H20080295,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+硝苯地平,nifedipine,可入库（有合格单方说明书）,direct_import,approved,硝苯地平缓释片(Ⅱ),H20083792,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+非洛地平,felodipine,可入库（有合格单方说明书）,direct_import,approved,非洛地平缓释片,H20030415,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+尼群地平,nitrendipine,可入库（有合格单方说明书）,direct_import,approved,尼群地平片,H44020888,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+拉西地平,lacidipine,可入库（有合格单方说明书）,direct_import,approved,拉西地平分散片,H20130129,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+乐卡地平,lercanidipine,可入库（有合格单方说明书）,direct_import,approved,盐酸乐卡地平片,H20103398,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+缬沙坦,valsartan,可入库（有合格单方说明书）,direct_import,approved,缬沙坦胶囊,H20103521,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+氯沙坦钾,losartan,可入库（有合格单方说明书）,direct_import,approved,氯沙坦钾片,H20080371,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+厄贝沙坦,irbesartan,可入库（有合格单方说明书）,direct_import,approved,厄贝沙坦分散片,H20110024,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+奥美沙坦酯,olmesartan,可入库（有合格单方说明书）,direct_import,approved,奥美沙坦酯片,H20060371,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+替米沙坦,telmisartan,可入库（有合格单方说明书）,direct_import,approved,替米沙坦片,H20070246,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+依那普利,enalapril,可入库（有合格单方说明书）,direct_import,approved,马来酸依那普利片,H20066383,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+贝那普利,benazepril,可入库（有合格单方说明书）,direct_import,approved,盐酸贝那普利片,H20053390,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+培哚普利,perindopril,无此通用名,alias_salt,pending_review,培哚普利叔丁胺片,H20034053,CPM-DDI-KG,单方上市形态为培哚普利叔丁胺（雅施达系）；相互作用一节已由公开说明书补全，待人工核验 相互作用据施维雅原研 SmPC 4.5 节中译摘录（imedi英国药品信息（Perindopril tert-butylamine 4mg Tablets SmPC，Les Laboratoires Servier）4.5节，及同页doc=4禁忌/不推荐合用部分），与国产说明书字句待核。
+赖诺普利,lisinopril,可入库（有合格单方说明书）,direct_import,approved,赖诺普利片,H20066146,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+卡托普利,captopril,可入库（有合格单方说明书）,direct_import,approved,卡托普利片,H23023158,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+福辛普利,fosinopril,可入库（有合格单方说明书）,direct_import,approved,福辛普利钠胶囊,H20080311,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+雷米普利,ramipril,可入库（有合格单方说明书）,direct_import,approved,雷米普利片,H20030723,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+美托洛尔,metoprolol,可入库（有合格单方说明书）,direct_import,approved,酒石酸美托洛尔片,H32025390,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+比索洛尔,bisoprolol,可入库（有合格单方说明书）,direct_import,approved,富马酸比索洛尔片,H10970082,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+阿替洛尔,atenolol,可入库（有合格单方说明书）,direct_import,approved,阿替洛尔片,H37023046,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+普萘洛尔,propranolol,可入库（有合格单方说明书）,direct_import,approved,盐酸普萘洛尔片,H21020060,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+氢氯噻嗪,hydrochlorothiazide,可入库（有合格单方说明书）,direct_import,approved,氢氯噻嗪片,H11022413,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+吲达帕胺,indapamide,可入库（有合格单方说明书）,direct_import,approved,吲达帕胺胶囊,H20040548,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+螺内酯,spironolactone,可入库（有合格单方说明书）,direct_import,approved,螺内酯片,H20053281,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+哌唑嗪,prazosin,全拦截（需人工处理）,cleared_with_supplement,pending_review,盐酸哌唑嗪片,H32023906,CPM-DDI-KG,唯一记录禁忌与相互作用为空（P2）；两节已由公开说明书补全（见 supplements 合并），待人工核验 相互作用据公开镜像补全（echemi药品说明书镜像（盐酸哌唑嗪片，长春白求恩药业版））；禁忌一节公开渠道无常州版全文，保持空缺待纸质说明书核对。
+特拉唑嗪,terazosin,可入库（有合格单方说明书）,direct_import,approved,盐酸特拉唑嗪片,H20067067,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+多沙唑嗪,doxazosin,可入库（有合格单方说明书）,direct_import,approved,甲磺酸多沙唑嗪片,H20020335,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+可乐定,clonidine,可入库（有合格单方说明书）,direct_import,approved,盐酸可乐定片,H32020262,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+甲基多巴,methyldopa,无此通用名,manual_backfill_blocked,pending_review,,,公开渠道未取得（待人工调取）,草稿，待人工双人核验。经多轮公开检索（国家药监局公示、国家医保局申报材料、Echemi国产药品档案、中文说明书数据库关键词检索），未找到中国大陆上市甲基多巴制剂的说明书原文；公开渠道仅见境外英文说明书（如英国SmPC：适应症为中、重度高血压，片剂250mg）及原料药供应商信息，按本队列口径（只采用中国上市说明书原文）未予采用，故除中英文通用名外其余字段全部留空。其国内上市/注册状态待人工经国家药监
+维拉帕米,verapamil,可入库（有合格单方说明书）,direct_import,approved,盐酸维拉帕米片,H32020603,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+地尔硫卓,diltiazem,可入库（有合格单方说明书）,direct_import,approved,盐酸地尔硫卓片,H44021634,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+二甲双胍,metformin,可入库（有合格单方说明书）,direct_import,approved,盐酸二甲双胍缓释片,H20050349,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+格列美脲,glimepiride,可入库（有合格单方说明书）,direct_import,approved,格列美脲片,H20073592,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+格列齐特,gliclazide,可入库（有合格单方说明书）,direct_import,approved,格列齐特缓释片,H20057208,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+格列吡嗪,glipizide,可入库（有合格单方说明书）,direct_import,approved,格列吡嗪控释片,J20100129,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+瑞格列奈,repaglinide,可入库（有合格单方说明书）,direct_import,approved,瑞格列奈片,进口药品注册证号20080126,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+那格列奈,nateglinide,可入库（有合格单方说明书）,direct_import,approved,那格列奈片,H20060661,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+阿卡波糖,acarbose,可入库（有合格单方说明书）,direct_import,approved,阿卡波糖片,H19990205,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+伏格列波糖,voglibose,可入库（有合格单方说明书）,direct_import,approved,伏格列波糖咀嚼片,H20090045,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+米格列醇,miglitol,可入库（有合格单方说明书）,direct_import,approved,米格列醇片,H20074195,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+西格列汀,sitagliptin,可入库（有合格单方说明书）,direct_import,approved,磷酸西格列汀片,J20120058,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+沙格列汀,saxagliptin,可入库（有合格单方说明书）,direct_import,approved,沙格列汀片,J20110029,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+维格列汀,vildagliptin,可入库（有合格单方说明书）,direct_import,approved,维格列汀片,H20110358,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+利格列汀,linagliptin,可入库（有合格单方说明书）,direct_import,approved,利格列汀片,H20130865,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+阿格列汀,alogliptin,可入库（有合格单方说明书）,direct_import,approved,苯甲酸阿格列汀片,H20130548,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+恩格列净,empagliflozin,无此通用名,manual_backfill_draft,pending_review,孚来欣,国药准字H20203363（10mg）；国药准字H20203364（25mg）,恩格列净片说明书（孚来欣）公示PDF，江苏豪森药业官网（cn.hspharm.com）,本条以国产仿制药孚来欣（江苏豪森药业）公示说明书全文为据（核准日期2020-07-29，修改至2023-10-30；执行标准YBH02572020；有效期36个月；上市许可持有人与生产企业均为江苏豪森药业集团有限公司）。原研商品名为欧唐静（Jardiance，勃林格殷格翰），其批准文号本轮未核到，未填入本条。
+达格列净,dapagliflozin,可入库（有合格单方说明书）,direct_import,approved,达格列净片,J20170040,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+罗格列酮,rosiglitazone,可入库（有合格单方说明书）,direct_import,approved,马来酸罗格列酮片,H20020475,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+吡格列酮,pioglitazone,可入库（有合格单方说明书）,direct_import,approved,盐酸吡格列酮片,H20110048,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+利拉鲁肽,liraglutide,可入库（有合格单方说明书）,direct_import,approved,利拉鲁肽注射液,J20110026,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+司美格鲁肽,semaglutide,无此通用名,manual_backfill_draft,pending_review,诺和盈（Wegovy）,,司美格鲁肽注射液说明书（诺和盈）公示PDF（hnysfww托管，执行标准JS20240027）；适应症文字转引自药时代对该说明书的报道,同成分另有诺和泰（Ozempic，2型糖尿病适应症），本条以诺和盈（体重管理）中国说明书为代表口径。批准文号数值在本轮检索片段中未取得，填 null；药物相互作用章节原文未完整取得，填 null。用法用量中的剂量递增间隔、注射部位等细节部分据公开资料及同成分诺和泰中国说明书转述整理，待核验人对照诺和盈说明书原文逐项确认。另据新浪新闻转述的企业公告，NMPA已批准诺和盈适应症BMI阈值更新（肥胖≥2
+艾塞那肽,exenatide,无此通用名,manual_backfill_draft,pending_review,,国药准字H20244873（5μg）；国药准字H20244874（10μg）,翰宇药业《关于艾塞那肽注射液获批上市的公告》（2024-09-19，东方财富披露PDF）；辅助来源：圣诺生物艾塞那肽注射液注册证书公告（2025-07-01，证券时报）,本轮未检索到艾塞那肽中国说明书全文公开原文（国家药监局公示、说明书数据库均未命中）。已填字段（规格、批准文号、适应症、上市许可持有人/生产企业、有效期36个月）据上市公司药品注册公告，公告称说明书照所附执行；原研商品名为百泌达（Byetta，每日两次制剂）/百达扬（Bydureon，每周一次制剂），据中文维基百科，本条代表产品为翰宇药业国产仿制药，公告未载商品名，故 brand_example 填
+甘精胰岛素,insulin glargine,可入库（有合格单方说明书）,direct_import,approved,甘精胰岛素注射液,S20030078,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+门冬胰岛素,insulin aspart,可入库（有合格单方说明书）,direct_import,approved,门冬胰岛素注射液,J20050097,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+德谷胰岛素,insulin degludec,无此通用名,manual_backfill_draft,pending_review,诺和达（Tresiba）,,天津市医疗保障局医保支付信息公示文件（2023-10，检索片段）；商品名据中文维基百科,本轮多次检索仅命中含德谷胰岛素的复方制剂说明书（德谷门冬双胰岛素「诺和佳」、德谷胰岛素利拉鲁肽「诺和益」），未找到德谷胰岛素单方（诺和达）中国说明书全文公开原文，复方说明书内容不适用于单方，未据此填写。已填的规格与生产企业据天津市医保支付信息公示文件；商品名诺和达据中文维基百科（非说明书来源）。天津公示表检索片段中出现的其他批准文号（如国药准字S20227009）属相邻行其他药品，未采，故 app
+地特胰岛素,insulin detemir,可入库（有合格单方说明书）,direct_import,approved,地特胰岛素注射液,S20090064,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+赖脯胰岛素,insulin lispro,可入库（有合格单方说明书）,direct_import,approved,赖脯胰岛素注射液,H20090735,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+阿托伐他汀,atorvastatin,可入库（有合格单方说明书）,direct_import,approved,阿托伐他汀钙片,H20100053,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+瑞舒伐他汀,rosuvastatin,可入库（有合格单方说明书）,direct_import,approved,瑞舒伐他汀钙分散片,H20120099,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+辛伐他汀,simvastatin,可入库（有合格单方说明书）,direct_import,approved,辛伐他汀片,H20000009,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+普伐他汀,pravastatin,可入库（有合格单方说明书）,direct_import,approved,普伐他汀钠片,H20070093,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+非诺贝特,fenofibrate,可入库（有合格单方说明书）,direct_import,approved,非诺贝特片,H15020521,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+苯扎贝特,bezafibrate,可入库（有合格单方说明书）,direct_import,approved,苯扎贝特胶囊,H20080729,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+依折麦布,ezetimibe,可入库（有合格单方说明书）,direct_import,approved,依折麦布片,H20180837,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+吉非罗齐,gemfibrozil,可入库（有合格单方说明书）,direct_import,approved,吉非罗齐胶囊,H23020994,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+阿司匹林,aspirin,可入库（有合格单方说明书）,direct_import,approved,阿司匹林肠溶片,H32025896,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+氯吡格雷,clopidogrel,可入库（有合格单方说明书）,direct_import,approved,硫酸氢氯吡格雷片,H20000542,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+替格瑞洛,ticagrelor,可入库（有合格单方说明书）,direct_import,approved,替格瑞洛片,J20130020,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+双嘧达莫,dipyridamole,可入库（有合格单方说明书）,direct_import,approved,双嘧达莫片,H34021919,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+华法林,warfarin,可入库（有合格单方说明书）,direct_import,approved,华法林钠片,H31022123,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+利伐沙班,rivaroxaban,可入库（有合格单方说明书）,direct_import,approved,利伐沙班片,H20150214,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+达比加群酯,dabigatran,可入库（有合格单方说明书）,direct_import,approved,达比加群酯胶囊,H20130163,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+硝酸甘油,nitroglycerin,可入库（有合格单方说明书）,direct_import,approved,硝酸甘油气雾剂,H37021173,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+单硝酸异山梨酯,isosorbide mononitrate,可入库（有合格单方说明书）,direct_import,approved,单硝酸异山梨酯缓释片,H10980015,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+硝酸异山梨酯,isosorbide dinitrate,可入库（有合格单方说明书）,direct_import,approved,硝酸异山梨酯乳膏,H10880050,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+曲美他嗪,trimetazidine,可入库（有合格单方说明书）,direct_import,approved,盐酸曲美他嗪片,H20083806,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+尼可地尔,nicorandil,可入库（有合格单方说明书）,direct_import,approved,尼可地尔片,H20009088,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+地高辛,digoxin,可入库（有合格单方说明书）,direct_import,approved,地高辛片,H33021738,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+胺碘酮,amiodarone,可入库（有合格单方说明书）,direct_import,approved,盐酸胺碘酮胶囊,H12020263,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+普罗帕酮,propafenone,可入库（有合格单方说明书）,direct_import,approved,盐酸普罗帕酮片,H20090432,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+美西律,mexiletine,可入库（有合格单方说明书）,direct_import,approved,盐酸美西律片,H37022728,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+奥美拉唑,omeprazole,可入库（有合格单方说明书）,direct_import,approved,奥美拉唑肠溶片,H20123239,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+兰索拉唑,lansoprazole,可入库（有合格单方说明书）,direct_import,approved,兰索拉唑胶囊,H20066197,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+泮托拉唑,pantoprazole,可入库（有合格单方说明书）,direct_import,approved,泮托拉唑肠溶片,H20090933,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+雷贝拉唑,rabeprazole,可入库（有合格单方说明书）,direct_import,approved,雷贝拉唑钠肠溶片,H20110160,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+埃索美拉唑,esomeprazole,无此通用名,alias_salt,approved,埃索美拉唑镁肠溶片,H20046379,CPM-DDI-KG,上市形态为埃索美拉唑镁肠溶制剂，CPM 键「埃索美拉唑镁」2 条 CLEAN 记录
+法莫替丁,famotidine,可入库（有合格单方说明书）,direct_import,approved,法莫替丁分散片,H20040963,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+雷尼替丁,ranitidine,可入库（有合格单方说明书）,direct_import,approved,盐酸雷尼替丁咀嚼片,H20050183,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+西咪替丁,cimetidine,可入库（有合格单方说明书）,direct_import,approved,西咪替丁胶囊,H34024068,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+硫糖铝,sucralfate,可入库（有合格单方说明书）,direct_import,approved,硫糖铝咀嚼片,H20113008,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+枸橼酸铋钾,bismuth potassium citrate,可入库（有合格单方说明书）,direct_import,approved,枸橼酸铋钾胶囊,H20023400,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+多潘立酮,domperidone,可入库（有合格单方说明书）,direct_import,approved,马来酸多潘立酮片,J20140038,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+莫沙必利,mosapride,可入库（有合格单方说明书）,direct_import,approved,枸橼酸莫沙必利片,J20110022,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+伊托必利,itopride,可入库（有合格单方说明书）,direct_import,approved,盐酸伊托必利片,H20160414,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+乳果糖,lactulose,可入库（有合格单方说明书）,direct_import,approved,乳果糖口服溶液,H20090583,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+替普瑞酮,teprenone,可入库（有合格单方说明书）,direct_import,approved,替普瑞酮胶囊,H20093656,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+瑞巴派特,rebamipide,可入库（有合格单方说明书）,direct_import,approved,瑞巴派特片,H20020541,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+氨溴索,ambroxol,可入库（有合格单方说明书）,direct_import,approved,盐酸氨溴索口服溶液,H19980178,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+乙酰半胱氨酸,acetylcysteine,可入库（有合格单方说明书）,direct_import,approved,乙酰半胱氨酸颗粒,H20000472,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+右美沙芬,dextromethorphan,可入库（有合格单方说明书）,direct_import,approved,氢溴酸右美沙芬颗粒,H10940099,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+氨茶碱,aminophylline,可入库（有合格单方说明书）,direct_import,approved,氨茶碱片,H11020651,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+多索茶碱,doxofylline,可入库（有合格单方说明书）,direct_import,approved,多索茶碱口服溶液,H20040499,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+沙丁胺醇,salbutamol,可入库（有合格单方说明书）,direct_import,approved,硫酸沙丁胺醇气雾剂,H20113348,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+特布他林,terbutaline,可入库（有合格单方说明书）,direct_import,approved,硫酸特布他林片,H32022694,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+布地奈德,budesonide,可入库（有合格单方说明书）,direct_import,approved,布地奈德气雾剂,H20010552,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+氟替卡松,fluticasone,可入库（有合格单方说明书）,direct_import,approved,丙酸氟替卡松乳膏,H20103501,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+孟鲁司特,montelukast,可入库（有合格单方说明书）,direct_import,approved,孟鲁司特钠咀嚼片,J20070070,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+氯雷他定,loratadine,可入库（有合格单方说明书）,direct_import,approved,氯雷他定片,H20045777,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+西替利嗪,cetirizine,可入库（有合格单方说明书）,direct_import,approved,盐酸西替利嗪片,H20100740,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+氯苯那敏,chlorphenamine,可入库（有合格单方说明书）,direct_import,approved,马来酸氯苯那敏片,H13020105,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+阿莫西林,amoxicillin,可入库（有合格单方说明书）,direct_import,approved,阿莫西林颗粒,H23022657,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+头孢呋辛,cefuroxime,可入库（有合格单方说明书）,direct_import,approved,头孢呋辛酯片,H20010096,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+头孢克肟,cefixime,可入库（有合格单方说明书）,direct_import,approved,头孢克肟分散片,H20051663,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+头孢克洛,cefaclor,可入库（有合格单方说明书）,direct_import,approved,头孢克洛分散片,H19991433,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+阿奇霉素,azithromycin,可入库（有合格单方说明书）,direct_import,approved,阿奇霉素片,H20103507,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+罗红霉素,roxithromycin,可入库（有合格单方说明书）,direct_import,approved,罗红霉素分散片,H19991146,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+克拉霉素,clarithromycin,可入库（有合格单方说明书）,direct_import,approved,克拉霉素片,H20183466,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+左氧氟沙星,levofloxacin,可入库（有合格单方说明书）,direct_import,approved,盐酸左氧氟沙星胶囊,H20000055,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+莫西沙星,moxifloxacin,可入库（有合格单方说明书）,direct_import,approved,盐酸莫西沙星片,J20150015,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+甲硝唑,metronidazole,可入库（有合格单方说明书）,direct_import,approved,甲硝唑片,H44023892,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+奥硝唑,ornidazole,可入库（有合格单方说明书）,direct_import,approved,奥硝唑胶囊,H20030239,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+呋喃妥因,nitrofurantoin,可入库（有合格单方说明书）,direct_import,approved,呋喃妥因片,H21022891,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+奥司他韦,oseltamivir,可入库（有合格单方说明书）,direct_import,approved,磷酸奥司他韦胶囊,H20090377,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+阿昔洛韦,aciclovir,可入库（有合格单方说明书）,direct_import,approved,阿昔洛韦咀嚼片,H20020112,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+伐昔洛韦,valaciclovir,可入库（有合格单方说明书）,direct_import,approved,盐酸伐昔洛韦片,H20150209,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+恩替卡韦,entecavir,可入库（有合格单方说明书）,direct_import,approved,恩替卡韦片,H20052237,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+替诺福韦,tenofovir,无此通用名,alias_prodrug,approved,富马酸替诺福韦二吡呋酯片,H20130589,CPM-DDI-KG,登记通用名为富马酸替诺福韦二吡呋酯；CPM 键被截断为「替诺福韦二吡呋」，5 条 CLEAN 记录
+拉米夫定,lamivudine,可入库（有合格单方说明书）,direct_import,approved,拉米夫定片,J20130114,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+布洛芬,ibuprofen,可入库（有合格单方说明书）,direct_import,approved,布洛芬混悬液,H19991011,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+对乙酰氨基酚,paracetamol,可入库（有合格单方说明书）,direct_import,approved,对乙酰氨基酚咀嚼片,H10940159,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+双氯芬酸,diclofenac,可入库（有合格单方说明书）,direct_import,approved,双氯芬酸钠肠溶片,H44021746,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+塞来昔布,celecoxib,可入库（有合格单方说明书）,direct_import,approved,塞来昔布胶囊,J20120063,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+美洛昔康,meloxicam,可入库（有合格单方说明书）,direct_import,approved,美洛昔康片,H20010203,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+萘普生,naproxen,可入库（有合格单方说明书）,direct_import,approved,萘普生钠颗粒,H20040208,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+洛索洛芬,loxoprofen,可入库（有合格单方说明书）,direct_import,approved,洛索洛芬钠片,H20030769,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+曲马多,tramadol,无此通用名,manual_backfill_draft,pending_review,,,echemi药品说明书镜像（盐酸曲马多缓释片，石药集团欧意药业有限公司）,"待人工核验草稿。以盐酸曲马多缓释片（单方）为例；正文据echemi英文镜像译回中文，非说明书原文截图，其中禁忌条在该镜像中列于「注意事项」第1条。echemi页面未载批准文号与商品名，置null；「药物相互作用」一节该镜像未收录，置null待补（国内说明书通常载有与中枢抑制药、单胺氧化酶抑制剂合用等条目，需以原文为准）。 空缺字段：brand_example, approval_number, i"
+左甲状腺素钠,levothyroxine,可入库（有合格单方说明书）,direct_import,approved,左甲状腺素钠片,H20140052,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+甲巯咪唑,thiamazole,可入库（有合格单方说明书）,direct_import,approved,甲巯咪唑肠溶片,H20080775,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+丙硫氧嘧啶,propylthiouracil,可入库（有合格单方说明书）,direct_import,approved,丙硫氧嘧啶片,H20150035,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+骨化三醇,calcitriol,可入库（有合格单方说明书）,direct_import,approved,骨化三醇胶丸,医药产品注册证号HC20100032,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+别嘌醇,allopurinol,可入库（有合格单方说明书）,direct_import,approved,别嘌醇片,H44021368,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+非布司他,febuxostat,可入库（有合格单方说明书）,direct_import,approved,非布司他片,H20130009,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+苯溴马隆,benzbromarone,可入库（有合格单方说明书）,direct_import,approved,苯溴马隆片,J20090012,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+秋水仙碱,colchicine,可入库（有合格单方说明书）,direct_import,approved,秋水仙碱片,H53021389,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+氨基葡萄糖,glucosamine,可入库（有合格单方说明书）,direct_import,approved,硫酸氨基葡萄糖胶囊,医药产品注册证号：HC20120036,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+阿仑膦酸钠,alendronate,可入库（有合格单方说明书）,direct_import,approved,阿仑膦酸钠片,H20093921,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+维生素C,ascorbic acid,可入库（有合格单方说明书）,direct_import,approved,维生素C泡腾片,注册证号HC20110011,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+甲钴胺,mecobalamin,可入库（有合格单方说明书）,direct_import,approved,甲钴胺片,H20041642,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+叶酸,folic acid,可入库（有合格单方说明书）,direct_import,approved,叶酸片,H32023288,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+硫酸亚铁,ferrous sulfate,可入库（有合格单方说明书）,direct_import,approved,琥珀酸亚铁缓释片,H20010307,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+阿普唑仑,alprazolam,无此通用名,manual_backfill_draft,pending_review,,,Echemi药品档案（转载重庆青阳药业有限公司阿普唑仑片说明书，英文版）,草稿，待人工双人核验。剂型取片剂，包装规格0.4mg×100片/瓶。适应症引自江苏恩华药业股份有限公司深交所公告（2023-041号，2023-11-22）所载其阿普唑仑片说明书适应症原文（http://disc.static.szse.cn/download/disc/disk03/finalpage/2023-11-22/5416b979-f7db-499a-8b38-ce536284f217
+地西泮,diazepam,无此通用名,manual_backfill_draft,pending_review,,,《国家基本药物目录（2012年版）》全文转载PDF（华东公共卫生 ecphf.cn）,草稿，待人工双人核验。本条仅据国家基本药物目录确认剂型与规格：地西泮片剂2.5mg、5mg（目录另载注射液2ml:10mg，本条以片剂为代表剂型）。多轮公开检索未找到中国大陆上市地西泮片说明书全文（该药为第二类精神药品，说明书公开渠道极少；个别医院采购清单可见地西泮片2.5mg×100片/瓶条目，但表格中生产企业列对应关系不可靠，未据此填写生产企业）。适应症、用法用量、禁忌、不良反应、注意事项、药
+佐匹克隆,zopiclone,无此通用名,manual_backfill_draft,pending_review,,,Echemi药品档案（转载上海信谊天平药业有限公司佐匹克隆片说明书，英文版）,草稿，待人工双人核验。剂型取片剂（薄膜衣片），代表规格7.5mg；国家基本药物目录另载3.75mg规格。来源为Echemi转载的英文版说明书，为英译回译文字，须与中文说明书原稿逐字核对：来源页将禁忌内容置于“Precautions”栏目下，本稿按内容实质归入禁忌字段；注意事项据其特殊人群用药栏目及不良反应中的停药提示整理。商品名、批准文号在公开来源中未找到，未填写。 空缺字段：approval_n
+氟西汀,fluoxetine,可入库（有合格单方说明书）,direct_import,approved,盐酸氟西汀分散片,J20160029,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+舍曲林,sertraline,可入库（有合格单方说明书）,direct_import,approved,盐酸舍曲林分散片,H20100046,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+艾司西酞普兰,escitalopram,可入库（有合格单方说明书）,direct_import,approved,草酸艾司西酞普兰片,H20143391,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+文拉法辛,venlafaxine,需复核后入库,cleared_with_supplement,pending_review,盐酸文拉法辛缓释片,H20070269,CPM-DDI-KG,代表记录取成都康弘缓释片（H20070269）；相互作用一节已由公开说明书补全，待人工核验；其余胶囊记录禁忌为空，不采用 相互作用据 CPM rationalRule 结构化数据补全（CPM说明书数据库（本地POC-1数据集 details.jsonl，H20070269 成都康弘记录的 rationalRule.medicineInteraction 全文）），待与康弘纸质说明书核对。
+度洛西汀,duloxetine,可入库（有合格单方说明书）,direct_import,approved,盐酸度洛西汀肠溶片,H20061261,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+加巴喷丁,gabapentin,可入库（有合格单方说明书）,direct_import,approved,加巴喷丁胶囊,H20030662,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+普瑞巴林,pregabalin,可入库（有合格单方说明书）,direct_import,approved,普瑞巴林胶囊,J20100102,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+卡马西平,carbamazepine,可入库（有合格单方说明书）,direct_import,approved,卡马西平片,H44020492,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+玻璃酸钠滴眼液,sodium hyaluronate,可入库（有合格单方说明书）,direct_import,approved,玻璃酸钠滴眼液,H20130583,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+妥布霉素,tobramycin,可入库（有合格单方说明书）,direct_import,approved,妥布霉素眼膏,H20110316,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+布林佐胺,brinzolamide,可入库（有合格单方说明书）,direct_import,approved,布林佐胺滴眼液,H20100212,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+拉坦前列素,latanoprost,可入库（有合格单方说明书）,direct_import,approved,拉坦前列素滴眼液,H20080048,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+黄体酮,progesterone,可入库（有合格单方说明书）,direct_import,approved,黄体酮胶囊,H20041902,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+地屈孕酮,dydrogesterone,全拦截（需人工处理）,cleared_false_positive,approved,地屈孕酮片,H20130110,CPM-DDI-KG,P5 文号跨名系噻托溴铵吸入粉雾剂（南昌弘益）记录文号污染所致；本药 3 条记录产品/企业/规格一致，文号 H20130110 经公开来源核对归属达芙通
+非那雄胺,finasteride,可入库（有合格单方说明书）,direct_import,approved,非那雄胺胶囊,H20060772,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+坦索罗辛,tamsulosin,无此通用名,cleared_false_positive,approved,盐酸坦索罗辛缓释胶囊,H20000681,CPM-DDI-KG,P5 系同一产品（哈乐，H20000681）被拆为「哈乐盐酸坦索罗辛缓释/坦索罗辛缓释」两个污染键自撞，合并后为同一文号同一产品
+托特罗定,tolterodine,可入库（有合格单方说明书）,direct_import,approved,酒石酸托特罗定片,H20000611,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+熊去氧胆酸,ursodeoxycholic acid,可入库（有合格单方说明书）,direct_import,approved,熊去氧胆酸胶囊,H20100502,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+多烯磷脂酰胆碱,polyene phosphatidylcholine,可入库（有合格单方说明书）,direct_import,approved,多烯磷脂酰胆碱胶囊,H20059010,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+呋塞米,furosemide,可入库（有合格单方说明书）,direct_import,approved,呋塞米片,H32021443,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+托拉塞米,torasemide,可入库（有合格单方说明书）,direct_import,approved,托拉塞米片,H20040075,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+沙库巴曲缬沙坦,sacubitril-valsartan,需复核后入库,cleared_with_supplement,pending_review,沙库巴曲缬沙坦钠片,H20170344,CPM-DDI-KG,CPM 记录规格为空（P5）；规格已按进口注册证 H20170344 公开登记补全，待人工核验 规格 50mg/片 经 PMC 文献与 CPM 记录【性状】双源一致；CPM 记录包装为 28 片/盒。
+西尼地平,cilnidipine,可入库（有合格单方说明书）,direct_import,approved,西尼地平胶囊,H20070109,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+坎地沙坦,candesartan,可入库（有合格单方说明书）,direct_import,approved,坎地沙坦酯分散片,H20060174,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+依普利酮,eplerenone,无此通用名,manual_backfill_draft,pending_review,,国药准字H20233974,国家医疗保障局《2024年国家医保药品目录调整申报材料（公示版）》依普利酮片（申报企业：武汉远大制药集团销售有限公司）,草稿，待人工双人核验。上市许可持有人为南京卡文迪许生物工程技术有限公司，2023年8月于中国大陆首次上市，独家品种；申报材料载商品名：无，故商品名留空。注册规格共25mg、50mg两规格，批准文号共两号（国药准字H20233974、国药准字H20233980），申报材料未标明文号与规格的对应关系，approval_number取先列者、specification取25mg，对应关系待人工核验。适应
+聚乙二醇4000,macrogol 4000,可入库（有合格单方说明书）,direct_import,approved,聚乙二醇4000散,H20110130,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+开塞露,glycerol,无此通用名,manual_backfill_draft,pending_review,,国药准字H11021175,彩牛养生药品库（开塞露，国药准字H11021175）+ CPM说明书数据库（本地POC-1数据集）,"待人工核验草稿。文号/厂家/适应症据彩牛养生药品库所载北京麦迪海药业产品；规格（另有10ml/支等）、禁忌、用法、注意事项据CPM结构化数据（开塞露（含甘油）条目）。不良反应、药物相互作用、贮藏三节未检索到中国大陆说明书原文（CPM亦无此三项），置null待补。dosage_form枚举无灌肠剂，本品为直肠给药，暂归external。 空缺字段：brand_example, adverse_rea"
+蒙脱石散,montmorillonite,可入库（有合格单方说明书）,direct_import,approved,蒙脱石散,H19980050,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+双歧杆菌三联活菌,bifidobacterium,可入库（有合格单方说明书）,direct_import,approved,双歧杆菌三联活菌散,S10970105,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+羧甲司坦,carbocisteine,可入库（有合格单方说明书）,direct_import,approved,羧甲司坦口服溶液,H20044967,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+噻托溴铵,tiotropium,需复核后入库,cleared_false_positive,approved,噻托溴铵粉吸入剂,H20100195,CPM-DDI-KG,以「噻托溴铵粉」CLEAN 记录为代表；「噻托溴铵吸入」名下文号污染记录（H20130110）已隔离不采用
+沙美特罗,salmeterol,无此通用名,alias_salt,approved,昔萘酸沙美特罗气雾剂,H20010584,CPM-DDI-KG,单方上市形态为昔萘酸沙美特罗吸入剂，2 条 CLEAN 记录；复方「沙美特罗替卡松粉」为独立产品另行登记
+地氯雷他定,desloratadine,可入库（有合格单方说明书）,direct_import,approved,地氯雷他定片,H20138005,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+依巴斯汀,ebastine,可入库（有合格单方说明书）,direct_import,approved,依巴斯汀片,H20120423,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+头孢地尼,cefdinir,可入库（有合格单方说明书）,direct_import,approved,头孢地尼分散片,H20100146,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+环丙沙星,ciprofloxacin,可入库（有合格单方说明书）,direct_import,approved,盐酸环丙沙星胶囊,H33020387,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+替硝唑,tinidazole,可入库（有合格单方说明书）,direct_import,approved,替硝唑片,H20073865,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+环孢素滴眼液,ciclosporin,可入库（有合格单方说明书）,direct_import,approved,环孢素口服溶液,H20093010,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+毛果芸香碱,pilocarpine,可入库（有合格单方说明书）,direct_import,approved,硝酸毛果芸香碱滴眼液,H20083286,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+米拉贝隆,mirabegron,无此通用名,manual_backfill_draft,pending_review,贝坦利（BETMIGA）,国药准字J20180019（50mg）；国药准字J20180018（25mg）,米拉贝隆缓释片说明书（贝坦利，安斯泰来）公示PDF（go-touzi托管）,剂型为缓释片，字段枚举无缓释片选项，按口径填 tablet 并在此注明。说明书核准日期2017-09-29、修改日期2020-09-02，执行标准JX20160189，有效期36个月；进口药品注册证号：50mg为H20171306、25mg为H20171305。包装为双铝泡罩（25mg 10片/盒；50mg 10片/盒、30片/盒）。
+索利那新,solifenacin,需复核后入库,cleared_false_positive,approved,琥珀酸索利那新片,J20090109,CPM-DDI-KG,P3 禁忌同文对象为「卫喜康琥珀酸索利那新」，系同药商品名变体，非跨药串扰
+西地那非,sildenafil,可入库（有合格单方说明书）,direct_import,approved,枸橼酸西地那非片,H20020527,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+维生素D,vitamin D,无此通用名,class_entry_d2_proxy,pending_review,维生素D2软胶囊,H13022540,CPM-DDI-KG,「维生素D」为类名条目：CPM 内仅有维生素D2（麦角骨化醇）软胶囊合格记录，以此为 D2 代表挂账；临床更常用的维生素D3（胆骨化醇）说明书公开渠道本轮未取得，待人工补录后拆分建档。
+碳酸钙,calcium carbonate,无此通用名,manual_backfill_draft,pending_review,,,CPM说明书数据库（本地POC-1数据集，碳酸钙D3片(Ⅰ)条目）+ echemi说明书镜像（碳酸钙D3咀嚼片）,待人工核验草稿。身份以成人制剂碳酸钙D3片(Ⅰ)为准：规格、用法、禁忌、注意事项据CPM结构化数据（其用法组频次字段有冲突，已按recommendUsage取一日1次；同通用名咀嚼片说明书为一次1片、一日1-2次、一日最大量不超过3片）。CPM未载该品种的生产厂家、批准文号、商品名，未臆填，置null。适应症、不良反应、药物相互作用、贮藏据echemi镜像之碳酸钙D3咀嚼片（1.25g/200IU
+奥卡西平,oxcarbazepine,可入库（有合格单方说明书）,direct_import,approved,奥卡西平片,H20080093,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
+左乙拉西坦,levetiracetam,可入库（有合格单方说明书）,direct_import,approved,左乙拉西坦片,H20143177,CPM-DDI-KG,管线判定可入库，代表说明书为 CLEAN/AUTOFIX 级单方记录
