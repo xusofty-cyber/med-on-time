@@ -99,10 +99,31 @@ export class ReminderGenerationService {
   }
 
   /**
+   * 当日即时生效（2026-10-23 负责人裁定）：为成员补生成「今天」尚未到点的剂量实例。
+   * 已过时刻不生成（也就不会被 missed 扫描误判未服）；剂量按全天时刻数解析后再过滤，
+   * 当日总剂量口径不变。由计划创建/恢复/更新成功后触发，失败只记日志不阻断计划操作。
+   */
+  async generateTodayUpcoming(memberId: string, now: Date = new Date()): Promise<number> {
+    const member = await this.prisma.member.findFirst({
+      where: { id: memberId, deletedAt: null },
+      select: { id: true, timezone: true },
+    });
+    if (!member) return 0;
+    const todayLocal = localDateOf(now, member.timezone);
+    return this.generateForMember(memberId, todayLocal, { notBefore: now });
+  }
+
+  /**
    * 为单个成员生成指定本地日的全部实例；返回新生成条数。
    * 幂等：重复调用同一日期只补缺不重复（唯一约束 + skipDuplicates）。
+   * opts.notBefore：只生成 scheduledAtUtc 晚于该时刻的实例（当日补生成用，
+   * 避免为已过时刻造实例再被判 missed）。
    */
-  async generateForMember(memberId: string, targetLocalDate: string): Promise<number> {
+  async generateForMember(
+    memberId: string,
+    targetLocalDate: string,
+    opts?: { notBefore?: Date },
+  ): Promise<number> {
     const member = await this.prisma.member.findFirst({
       where: { id: memberId, deletedAt: null },
       select: { id: true, timezone: true },
@@ -159,16 +180,19 @@ export class ReminderGenerationService {
         });
       }
     }
-    if (rows.length === 0) return 0;
+    const effectiveRows = opts?.notBefore
+      ? rows.filter((r) => new Date(r.scheduledAtUtc).getTime() > opts.notBefore!.getTime())
+      : rows;
+    if (effectiveRows.length === 0) return 0;
 
     const result = await this.prisma.reminderInstance.createMany({
-      data: rows,
+      data: effectiveRows,
       skipDuplicates: true,
     });
     // 为待投递实例登记到点投递任务：新生成者必登记；重跑时若发现既有 pending
     // 实例缺任务（如首次登记时 Redis 不可用）一并补登记——jobId 去重保证不重复。
     const existing = await this.prisma.reminderInstance.findMany({
-      where: { idempotencyKey: { in: rows.map((r) => r.idempotencyKey) } },
+      where: { idempotencyKey: { in: effectiveRows.map((r) => r.idempotencyKey) } },
       select: { id: true, scheduledAtUtc: true, status: true },
     });
     const nowMs = Date.now();

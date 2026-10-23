@@ -1,4 +1,4 @@
-import { HttpStatus, Injectable } from '@nestjs/common';
+import { HttpStatus, Injectable, Logger } from '@nestjs/common';
 import {
   Prisma,
   type Drug,
@@ -22,6 +22,7 @@ import {
 import type { AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { uuidv7 } from '../../common/utils/uuidv7';
 import { DrugService } from '../drug/drug.service';
+import { ReminderGenerationService } from '../reminder/reminder-generation.service';
 import {
   NotificationPrefsService,
   type PlanCycleOverride,
@@ -185,11 +186,30 @@ function asPositiveInt(v: unknown): number | null {
  */
 @Injectable()
 export class PlanService {
+  private readonly logger = new Logger(PlanService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly drugService: DrugService,
     private readonly prefs: NotificationPrefsService,
+    private readonly generation: ReminderGenerationService,
   ) {}
+
+  /**
+   * 当日即时生效（2026-10-23 负责人裁定）：计划创建/恢复/更新成功后，为该成员
+   * 补生成今天尚未到点的提醒实例。生成失败只记日志，不回滚计划操作
+   * （每小时节拍与次日生成仍在，缺失实例不会扩大）。
+   */
+  private async triggerSameDayGeneration(memberId: string): Promise<void> {
+    try {
+      const created = await this.generation.generateTodayUpcoming(memberId);
+      if (created > 0) {
+        this.logger.log(`same-day catch-up created ${created} instances member=${memberId}`);
+      }
+    } catch (err) {
+      this.logger.error(`same-day catch-up failed member=${memberId}: ${String(err)}`);
+    }
+  }
 
   /* ---------------------------- 权限与加载 ---------------------------- */
 
@@ -774,6 +794,8 @@ export class PlanService {
     if (cycleInput.present && cycleInput.override) {
       await this.prefs.setPlanCycleOverride(planId, cycleInput.override);
     }
+    // 当日即时生效：新建计划立即补生成今天未到点剂量（生成器内过滤非 Active/PRN）
+    await this.triggerSameDayGeneration(memberId);
     return this.withCycleFields(created, planId);
   }
 
@@ -1384,6 +1406,8 @@ export class PlanService {
         await this.prefs.deletePlanCycleOverride(planId);
       }
     }
+    // 当日即时生效：排程变更后补生成今天未到点剂量（幂等，只补缺）
+    await this.triggerSameDayGeneration(existing.memberId);
     return this.withCycleFields(updated, planId);
   }
 
@@ -1522,6 +1546,10 @@ export class PlanService {
     if (action === 'delete') {
       await this.prefs.deletePlanCycleOverride(planId);
       return result;
+    }
+    if (action === 'resume') {
+      // 当日即时生效：恢复计划立即补生成今天未到点剂量
+      await this.triggerSameDayGeneration(existing.memberId);
     }
     return this.withCycleFields(result as Record<string, unknown>, planId);
   }

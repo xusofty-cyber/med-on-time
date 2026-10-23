@@ -75,3 +75,9 @@
    - AI 上线前必须过一次性外部医学审校，未过则入口不开（需求红线）；生成式 AI 若被认定构成诊断/医疗器械属性须立即下线（后台需求第 12 章）。
    - `run-pipeline.sh` 部署时若覆盖根目录三文档，以本仓库版本为准，部署后需核对。
    - 环境注意事项（2026-10-23 实测）：国内网络下 Prisma engines 二进制下载可能被重置（ECONNRESET），安装时设 `PRISMA_ENGINES_MIRROR=https://npmmirror.com/mirrors/prisma` 可解；助手 VM 的沙箱文件系统上 pnpm 更新已存在的 `pnpm-lock.yaml` / `node_modules/.modules.yaml` 会因 chown EPERM 失败，删旧文件后新建可绕（仅助手 VM 环境问题，用户本机一般不受影响）；该 VM 安装时另设 `ELECTRON_SKIP_BINARY_DOWNLOAD=1` 跳过 Electron 二进制下载。
+
+## 追记（2026-10-23 晚 · 当日即时生效改版）
+- 负责人裁定：提醒由「次日生效」改为「当日即时生效」。实现：`ReminderGenerationService.generateForMember` 加 `notBefore` 过滤 + 新增 `generateTodayUpcoming`；`PlanService` 在 createPlan / updatePlan / transitionStatus(resume) 成功后触发（失败只记日志）。PlanModule 引入 ReminderModule（无循环依赖），ReminderModule 导出生成器。
+- 验证：本地 nest build 通过；生产实测（探针账号 17:25 建计划，时刻 15:25/19:25）DB 仅生成 19:25 pending 一条，探针数据已软删清理。TEST_CASES 新增 D9、D3 标注改版；API_CONTRACT 与 HANDOVER 口径 #4 已同步。
+- 同日负责人裁定：Web 微信扫码登录走「小程序扫码确认」路线（不走开放平台网站应用），待实现；Logo 定版概念 A「时钟+胶囊」，全尺寸图标包在助手侧 ~/workspace/medontime-logo/exports/，尚未装入各端工程。
+- 打包路线变更：GitHub Actions 因账户 $0 预算阻断且删预算须绑支付方式，负责人拒绝付费 → 改自有服务器打包；小程序 dist 已在服务器打出（~/release-out/），安卓 APK 构建中（Gradle 境外源不通，已换腾讯/阿里镜像）。

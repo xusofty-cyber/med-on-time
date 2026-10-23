@@ -57,7 +57,7 @@
 - 系统：GET /admin/app-versions, POST /admin/app-versions
 
 ## 提醒引擎（reminder 模块内，BullMQ）
-- 生成器：每日为活跃 plan 按成员本地时区生成次日 reminder_instance（scheduled_at_utc + local_date/local_time + timezone 快照；幂等键 = plan_item_id + local_date + local_time + dose_index，唯一约束兜底）。
+- 生成器：每日为活跃 plan 按成员本地时区生成次日 reminder_instance（scheduled_at_utc + local_date/local_time + timezone 快照；幂等键 = plan_item_id + local_date + local_time + dose_index，唯一约束兜底）。**当日即时生效（2026-10-23 裁定）**：计划创建/恢复/更新成功后同步调用 `generateTodayUpcoming(memberId)`，为该成员补生成今天 scheduledAtUtc 晚于当前时刻的剂量（按全天时刻解析剂量后过滤，已过时刻不落实例）；生成失败只记日志不回滚计划操作。
 - 投递器：到点按 notification 渠道投递并写 reminder_delivery_log；未确认按 cycle（默认标准 90 分钟内每 15 分钟）重复提醒，超窗记 missed。
 - 打卡回写：intake_record 落库后更新 instance 状态、扣库存、刷新依从统计。
 
