@@ -177,7 +177,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_type == 'tag' && github.ref_name || format('manual-{0}', github.run_number) }}
-          name: ${{ github.ref_type == 'tag' && format('MedOnTime {0}', github.ref_name) || format('MedOnTime 手动打包 #{0}', github.run_number) }}
+          name: "${{ github.ref_type == 'tag' && format('MedOnTime {0}', github.ref_name) || format('MedOnTime 手动打包 No.{0}', github.run_number) }}"
           draft: ${{ github.ref_type != 'tag' }}
           files: artifacts/**/*
           body: |
