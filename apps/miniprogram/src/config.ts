@@ -17,6 +17,6 @@ export const API_BASE = 'https://mot.ulife.vip/api';
  * 3. 后端 wechat_subscribe 投递通道须同步配置同一批模板 ID 才可下发。
  * 列表为空时，订阅入口走占位提示（见 lib/notify.ts）。
  */
-export const SUBSCRIBE_TEMPLATE_IDS: string[] = [];
+export const SUBSCRIBE_TEMPLATE_IDS: string[] = ['2S6XZXrPDUFeIK0TEhQo91bZDvgbPt31bqW7Y1vXgLg'];
 
 export const APP_VERSION = '0.1.0';

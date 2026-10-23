@@ -1,5 +1,7 @@
 import { Logger} from '@nestjs/common';
 import { uuidv7} from '../../common/utils/uuidv7';
+import type { PrismaService} from '../../prisma/prisma.service';
+import type { WechatMiniappService} from '../auth/services/wechat-miniapp.service';
 
 /**
 * 通知渠道 Provider 抽象：投递器只面向本接口写 reminder_delivery_log，
@@ -76,15 +78,76 @@ return { result: 'success', providerMsgId};
 }
 
 /**
-* 微信订阅消息：未接微信订阅消息能力前恒失败留痕（契约口径：微信渠道占位），
+* 微信订阅消息（真实实现，2026-10-23 接入）：模板「服药提醒」
+* （priTmplId 见环境变量 WECHAT_SUBSCRIBE_TEMPLATE_ID；字段 thing1=服药人、
+* time2=服药时间 HH:mm——与公众平台选用模板的关键词参数逐字对应）。
+* 收件人 openid 取 user_oauth_binding(provider='wechat')；未绑定/未订阅
+* （一次性订阅额度不足，微信 errcode 43101）均以业务码失败留痕，
 * 用户端不应据此判定提醒失败——站内渠道为必达兜底。
+* miniprogram_state 由 WECHAT_SUBSCRIBE_MP_STATE 控制（体验期 trial，发布后 formal）。
 */
-export class WechatSubscribePlaceholderProvider
-implements NotificationChannelProvider
-{
+export class WechatSubscribeProvider implements NotificationChannelProvider {
 readonly channel = 'wechat_subscribe';
+private readonly logger = new Logger(WechatSubscribeProvider.name);
 
-async send(): Promise<ChannelSendResult> {
-return { result: 'failed', errorCode: 'WECHAT_SUBSCRIBE_NOT_CONNECTED'};
+constructor(
+private readonly prisma: PrismaService,
+private readonly wechat: WechatMiniappService,
+private readonly templateId: string | undefined,
+private readonly mpState: string,
+) {}
+
+async send(ctx: ReminderChannelContext): Promise<ChannelSendResult> {
+if (!this.templateId) {
+return { result: 'failed', errorCode: 'WECHAT_SUBSCRIBE_NOT_CONFIGURED'};
+}
+if (!this.wechat.isConfigured()) {
+return { result: 'failed', errorCode: 'WECHAT_NOT_CONFIGURED'};
+}
+const binding = await this.prisma.userOauthBinding.findFirst({
+where: {
+accountId: ctx.recipientAccountId,
+provider: 'wechat',
+unboundAt: null,
+deletedAt: null,
+},
+});
+if (!binding) {
+return { result: 'failed', errorCode: 'WECHAT_NOT_BOUND'};
+}
+const member = await this.prisma.member.findUnique({
+where: { id: ctx.memberId},
+select: { displayName: true},
+});
+const who = (member?.displayName ?? '家人').slice(0, 20);
+const res = await this.wechat.sendSubscribeMessage({
+openid: binding.openid,
+templateId: this.templateId,
+page: 'pages/index/index',
+mpState: this.mpState,
+data: {
+thing1: { value: who},
+time2: { value: ctx.localTimeText},
+},
+});
+if (res.errcode === 0) {
+return {
+result: 'success',
+providerMsgId: res.msgid ? `wx:${res.msgid}` : `wx:${uuidv7()}`,
+};
+}
+if (res.errcode === 43101) {
+return { result: 'failed', errorCode: 'WECHAT_SUBSCRIBE_NO_CREDIT'};
+}
+if (res.errcode === 47003) {
+return { result: 'failed', errorCode: 'WECHAT_SUBSCRIBE_BAD_ARGS'};
+}
+if (res.errcode === 40037) {
+return { result: 'failed', errorCode: 'WECHAT_SUBSCRIBE_BAD_TEMPLATE'};
+}
+this.logger.warn(
+`订阅消息发送失败 errcode=${res.errcode} errmsg=${res.errmsg ?? ''} instance=${ctx.instanceId}`,
+);
+return { result: 'failed', errorCode: `WECHAT_ERR_${res.errcode}`};
 }
 }

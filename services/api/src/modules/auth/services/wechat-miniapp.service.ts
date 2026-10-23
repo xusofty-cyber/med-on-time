@@ -103,6 +103,34 @@ export class WechatMiniappService {
     return phone;
   }
 
+  /**
+   * 发送订阅消息（cgi-bin/message/subscribe/send）。不抛业务异常：
+   * 返回微信 errcode 由调用方（通知渠道）映射为投递结果留痕
+   * （43101=用户未订阅/一次性额度不足，47003=参数不符，40037=模板无效）。
+   */
+  async sendSubscribeMessage(params: {
+    openid: string;
+    templateId: string;
+    page?: string;
+    mpState?: string;
+    data: Record<string, { value: string }>;
+  }): Promise<{ errcode: number; errmsg?: string; msgid?: number }> {
+    this.assertConfigured();
+    const token = await this.getAccessToken();
+    const url =
+      'https://api.weixin.qq.com/cgi-bin/message/subscribe/send?access_token=' +
+      encodeURIComponent(token);
+    const res = (await this.requestJson('POST', url, {
+      touser: params.openid,
+      template_id: params.templateId,
+      page: params.page,
+      miniprogram_state: params.mpState ?? 'formal',
+      lang: 'zh_CN',
+      data: params.data,
+    })) as WechatErrorBody & { msgid?: number };
+    return { errcode: res.errcode ?? 0, errmsg: res.errmsg, msgid: res.msgid };
+  }
+
   private async getAccessToken(): Promise<string> {
     if (this.tokenCache && this.tokenCache.expiresAt > Date.now()) {
       return this.tokenCache.token;

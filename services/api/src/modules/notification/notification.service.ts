@@ -8,11 +8,13 @@ import {
 } from '../../common/exceptions/business.exception';
 import { uuidv7 } from '../../common/utils/uuidv7';
 import { NotificationPrefsService } from './notification-prefs.service';
+import { ConfigService } from '@nestjs/config';
+import { WechatMiniappService } from '../auth/services/wechat-miniapp.service';
 import {
   InAppProvider,
   LogPushProvider,
   LogSmsProvider,
-  WechatSubscribePlaceholderProvider,
+  WechatSubscribeProvider,
   type NotificationChannelProvider,
   type ReminderChannelContext,
 } from './notification.providers';
@@ -57,17 +59,26 @@ function timeToStr(d: Date): string {
 @Injectable()
 export class NotificationService {
   private readonly logger = new Logger(NotificationService.name);
-  private readonly providers: Record<string, NotificationChannelProvider> = {
-    [DeliveryChannel.InApp]: new InAppProvider(),
-    [DeliveryChannel.Sms]: new LogSmsProvider(),
-    [DeliveryChannel.AppPush]: new LogPushProvider(),
-    [DeliveryChannel.WechatSubscribe]: new WechatSubscribePlaceholderProvider(),
-  };
+  private readonly providers: Record<string, NotificationChannelProvider>;
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly prefs: NotificationPrefsService,
-  ) {}
+    wechat: WechatMiniappService,
+    config: ConfigService,
+  ) {
+    this.providers = {
+      [DeliveryChannel.InApp]: new InAppProvider(),
+      [DeliveryChannel.Sms]: new LogSmsProvider(),
+      [DeliveryChannel.AppPush]: new LogPushProvider(),
+      [DeliveryChannel.WechatSubscribe]: new WechatSubscribeProvider(
+        prisma,
+        wechat,
+        config.get<string>('WECHAT_SUBSCRIBE_TEMPLATE_ID'),
+        config.get<string>('WECHAT_SUBSCRIBE_MP_STATE') ?? 'formal',
+      ),
+    };
+  }
 
   // ------------------------------------------------------------------
   // 站内通知（数据源 = reminder_delivery_log 中 channel=in_app 的行；

@@ -61,6 +61,7 @@ import {
     TokenService,
     SessionService,
     VerificationCodeService,
+    WechatMiniappService,
   ],
 })
 export class AuthModule {}
