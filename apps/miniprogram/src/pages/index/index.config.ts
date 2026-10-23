@@ -1,3 +1,4 @@
 export default definePageConfig({
-  navigationBarTitleText: '药准时',
+  navigationBarTitleText: '今日提醒',
+  enablePullDownRefresh: true,
 });

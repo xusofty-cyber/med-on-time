@@ -1,7 +1,379 @@
+/* 药准时小程序全局样式：医嘱绿 #0B6B4F；尺寸用 rpx（设计稿 750，2rpx ≈ 1px）。 */
 page {
   font-family:
     -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei',
     sans-serif;
   color: #1a1a1a;
+  background: #f6f8f7;
+}
+
+/* ---------- 布局 ---------- */
+.pg {
+  padding: 24rpx 24rpx 56rpx;
+  display: flex;
+  flex-direction: column;
+  gap: 24rpx;
+}
+.row {
+  display: flex;
+  align-items: center;
+}
+.row-between {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.row-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12rpx;
+}
+.col {
+  display: flex;
+  flex-direction: column;
+}
+.grow {
+  flex: 1;
+  min-width: 0;
+}
+
+/* ---------- 文本 ---------- */
+.tx-title {
+  font-size: 44rpx;
+  font-weight: 700;
+  color: #084c38;
+}
+.tx-h {
+  font-size: 36rpx;
+  font-weight: 600;
+  color: #1a1a1a;
+}
+.tx-md {
+  font-size: 32rpx;
+  color: #1a1a1a;
+}
+.tx-sm {
+  font-size: 28rpx;
+}
+.tx-xs {
+  font-size: 24rpx;
+}
+.tx-sub {
+  color: #5b6660;
+}
+.tx-green {
+  color: #0b6b4f;
+}
+.tx-danger {
+  color: #dc2626;
+}
+.tx-strong {
+  font-weight: 600;
+}
+
+/* ---------- 卡片 ---------- */
+.card {
   background: #ffffff;
+  border: 1rpx solid #e3e8e5;
+  border-radius: 24rpx;
+  padding: 28rpx;
+}
+.card-title {
+  font-size: 34rpx;
+  font-weight: 600;
+  color: #084c38;
+  margin-bottom: 16rpx;
+  display: block;
+}
+
+/* ---------- 按钮（View 实现，min-height 88rpx ≈ 44px；关怀模式 112rpx ≈ 56px） ---------- */
+.btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8rpx;
+  min-height: 88rpx;
+  padding: 0 28rpx;
+  border-radius: 20rpx;
+  font-size: 32rpx;
+  font-weight: 500;
+  box-sizing: border-box;
+}
+.btn-hover {
+  opacity: 0.85;
+}
+.btn-primary {
+  background: #0b6b4f;
+  color: #ffffff;
+}
+.btn-soft {
+  background: #e7f4ee;
+  color: #084c38;
+}
+.btn-ghost {
+  background: #ffffff;
+  border: 1rpx solid #d3dad6;
+  color: #374151;
+}
+.btn-danger {
+  background: #dc2626;
+  color: #ffffff;
+}
+.btn-disabled {
+  opacity: 0.5;
+}
+.btn-block {
+  width: 100%;
+}
+
+/* ---------- 表单 ---------- */
+.input {
+  min-height: 88rpx;
+  width: 100%;
+  background: #ffffff;
+  border: 1rpx solid #d3dad6;
+  border-radius: 20rpx;
+  padding: 0 24rpx;
+  font-size: 32rpx;
+  color: #1a1a1a;
+  box-sizing: border-box;
+}
+.input-ph {
+  color: #9aa5a0;
+}
+.field {
+  display: flex;
+  flex-direction: column;
+}
+.field-label {
+  font-size: 28rpx;
+  font-weight: 500;
+  color: #374151;
+  margin-bottom: 12rpx;
+}
+.field-hint {
+  font-size: 24rpx;
+  color: #5b6660;
+  margin-top: 8rpx;
+}
+.pick-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.pick-arrow {
+  color: #9aa5a0;
+  font-size: 36rpx;
+}
+
+/* ---------- 徽标 ---------- */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999rpx;
+  padding: 4rpx 16rpx;
+  font-size: 24rpx;
+  font-weight: 500;
+  line-height: 1.5;
+}
+.badge-green {
+  background: #e7f4ee;
+  color: #0b6b4f;
+}
+.badge-amber {
+  background: #fef3c7;
+  color: #92400e;
+}
+.badge-red {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+.badge-gray {
+  background: #eef1ef;
+  color: #5b6660;
+}
+.badge-blue {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+/* ---------- 成员切换 chips ---------- */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8rpx;
+  padding: 14rpx 26rpx;
+  border-radius: 999rpx;
+  background: #ffffff;
+  border: 1rpx solid #d3dad6;
+  font-size: 30rpx;
+  white-space: nowrap;
+}
+.chip-on {
+  background: #0b6b4f;
+  border-color: #0b6b4f;
+  color: #ffffff;
+}
+
+/* ---------- 到点横幅 ---------- */
+.due-banner {
+  border: 3rpx solid #f59e0b;
+  background: #fffbeb;
+  border-radius: 24rpx;
+  padding: 24rpx 28rpx;
+}
+
+/* ---------- 时间线 ---------- */
+.tl-dot {
+  width: 22rpx;
+  height: 22rpx;
+  border-radius: 50%;
+  margin-top: 12rpx;
+  flex-shrink: 0;
+}
+.tl-line {
+  width: 2rpx;
+  flex: 1;
+  background: #e3e8e5;
+  margin-top: 6rpx;
+}
+
+/* ---------- 列表行（我的/设置入口） ---------- */
+.menu-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 26rpx 4rpx;
+  border-bottom: 1rpx solid #eef1ef;
+}
+.menu-row-last {
+  border-bottom: none;
+}
+
+/* ---------- 浮层（Sheet） ---------- */
+.sheet-mask {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  z-index: 50;
+  display: flex;
+  align-items: flex-end;
+}
+.sheet-panel {
+  background: #ffffff;
+  width: 100%;
+  max-height: 86vh;
+  border-radius: 28rpx 28rpx 0 0;
+  padding: 32rpx 28rpx 48rpx;
+  box-sizing: border-box;
+  overflow-y: auto;
+}
+.sheet-title {
+  font-size: 36rpx;
+  font-weight: 600;
+  color: #084c38;
+  margin-bottom: 24rpx;
+  display: block;
+}
+
+/* ---------- 月历 ---------- */
+.cal-cell {
+  min-height: 108rpx;
+  border-radius: 16rpx;
+  padding: 8rpx;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+}
+.cal-heat-full {
+  background: #0b6b4f;
+  color: #ffffff;
+}
+.cal-heat-good {
+  background: #7fb8a4;
+}
+.cal-heat-mid {
+  background: #fde68a;
+}
+.cal-heat-bad {
+  background: #fecaca;
+}
+.cal-heat-none {
+  background: #f1f4f2;
+}
+
+/* ---------- 通用状态 ---------- */
+.empty {
+  padding: 40rpx 8rpx;
+  text-align: center;
+  color: #5b6660;
+  font-size: 30rpx;
+  line-height: 1.6;
+}
+.error-line {
+  color: #b91c1c;
+  font-size: 28rpx;
+  line-height: 1.5;
+}
+.loading {
+  padding: 48rpx 0;
+  text-align: center;
+  color: #5b6660;
+  font-size: 30rpx;
+}
+.dot-red {
+  width: 16rpx;
+  height: 16rpx;
+  border-radius: 50%;
+  background: #dc2626;
+  display: inline-block;
+}
+
+/*
+ * 长辈关怀模式（UI 规范 V1.0，与 Web 端 data-care-mode 同口径）：
+ * 开关经根节点 .care-on 类生效 —— 字号放大、文字与主按钮对比度 ≥7:1、
+ * 触控目标 ≥112rpx（≈56px）。设置来自成员级 care-settings（PUT 保存）。
+ */
+.care-on {
+  color: #0d1f18;
+}
+.care-on .tx-title {
+  font-size: 56rpx;
+}
+.care-on .tx-h {
+  font-size: 46rpx;
+}
+.care-on .tx-md {
+  font-size: 42rpx;
+}
+.care-on .tx-sm {
+  font-size: 38rpx;
+}
+.care-on .tx-xs {
+  font-size: 34rpx;
+}
+.care-on .tx-sub {
+  color: #33463e;
+}
+.care-on .btn,
+.care-on .input {
+  min-height: 112rpx;
+  font-size: 40rpx;
+}
+.care-on .btn-primary {
+  background: #084c38; /* 深绿对白 ≈ 9:1，满足关怀模式对比度 */
+}
+.care-on .field-label {
+  font-size: 36rpx;
+}
+.care-on .chip {
+  font-size: 38rpx;
+  padding: 20rpx 32rpx;
+}
+.care-on .badge {
+  font-size: 30rpx;
+}
+.care-on .cal-cell {
+  min-height: 128rpx;
 }

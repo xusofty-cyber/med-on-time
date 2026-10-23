@@ -1,24 +1,124 @@
+import { useEffect, useState } from 'react';
+import Layout from './components/Layout';
+import { Toasts } from './components/ui';
+import Login from './pages/Login';
+import Register from './pages/Register';
+import Today from './pages/Today';
+import Members from './pages/Members';
+import Plans from './pages/Plans';
+import Adherence from './pages/Adherence';
+import Stock from './pages/Stock';
+import Ehr from './pages/Ehr';
+import Authorizations from './pages/Authorizations';
+import Notifications from './pages/Notifications';
+import Settings from './pages/Settings';
+import { tokenStore, setSessionExpiredHandler } from './lib/api';
+import { authApi, memberApi } from './lib/endpoints';
+import { actions, applyCareMode, useApp } from './lib/store';
+import { PUBLIC_ROUTES, navigate, useRoute } from './lib/router';
+
 /**
- * Web 用户门户脚手架首页（响应式双形态：PC + 移动，P0 同步验收口径）。
- * 正式页面按用户端需求 V1.8 与 UI 规范 V1.0 迭代：今日用药、计划管理、
- * 家庭照护、健康档案、AI 健康助手。数据经 @med-on-time/api-client 调用。
+ * Web 用户门户（需求 V1.8 / UI V1.0）：
+ * 路由 /login /register /（今日提醒）/members /plans /adherence /stock /ehr
+ *      /authorizations /notifications /settings（hash 路由，零新增依赖）。
+ * 会话：token 存 localStorage，401 由请求层刷新；成员切换驱动关怀模式与全部成员域页面。
  */
 export default function App() {
+  const route = useRoute();
+  const account = useApp((s) => s.account);
+  const currentMemberId = useApp((s) => s.currentMemberId);
+  const [booted, setBooted] = useState(false);
+
+  useEffect(() => {
+    setSessionExpiredHandler(() => {
+      actions.resetSession();
+      navigate('/login');
+    });
+    applyCareMode();
+    (async () => {
+      if (tokenStore.access) {
+        try {
+          const me = await authApi.me();
+          actions.setAccount(me);
+          actions.setMembers(await memberApi.list());
+        } catch {
+          tokenStore.clear();
+          actions.resetSession();
+        }
+      }
+      setBooted(true);
+    })();
+  }, []);
+
+  /* 当前成员变化时装载其关怀/提醒设置并切换 data-care-mode */
+  useEffect(() => {
+    if (!account || !currentMemberId) return;
+    let alive = true;
+    memberApi
+      .getCareSettings(currentMemberId)
+      .then((s) => {
+        if (alive) actions.setCareSettings(s);
+      })
+      .catch(() => {
+        if (alive) actions.setCareSettings(null);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [account, currentMemberId]);
+
+  const isPublic = PUBLIC_ROUTES.has(route.name);
+
+  useEffect(() => {
+    if (!booted) return;
+    if (!account && !isPublic) navigate('/login');
+    if (account && isPublic) navigate('/');
+  }, [booted, account, isPublic, route.name]);
+
+  if (!booted) {
+    return (
+      <main className="flex min-h-screen items-center justify-center">
+        <span className="spinner" aria-label="加载中" />
+      </main>
+    );
+  }
+
+  if (!account || isPublic) {
+    return (
+      <>
+        <Toasts />
+        {route.name === 'register' ? <Register /> : <Login />}
+      </>
+    );
+  }
+
+  const page = (() => {
+    switch (route.name) {
+      case 'members':
+        return <Members />;
+      case 'plans':
+        return <Plans />;
+      case 'adherence':
+        return <Adherence />;
+      case 'stock':
+        return <Stock />;
+      case 'ehr':
+        return <Ehr />;
+      case 'authorizations':
+        return <Authorizations />;
+      case 'notifications':
+        return <Notifications />;
+      case 'settings':
+        return <Settings />;
+      default:
+        return <Today />;
+    }
+  })();
+
   return (
-    <main className="mx-auto min-h-screen max-w-3xl px-4 py-8">
-      <header className="mb-8">
-        <h1 className="text-3xl font-bold text-medgreen">药准时 MedOnTime</h1>
-        <p className="mt-2 text-base text-neutral-600">
-          按时吃药，家人放心。今日用药将在此呈现（脚手架占位）。
-        </p>
-      </header>
-      <section className="rounded-2xl bg-medgreen-light p-6">
-        <h2 className="text-xl font-semibold text-medgreen-dark">今日用药</h2>
-        <p className="mt-3 text-base leading-relaxed">
-          登录并为成员建立用药计划后，这里会按提醒实例逐条列出待服药品，
-          具体提醒将展示药名、剂量与存放位置（需求 V1.8 定版口径）。
-        </p>
-      </section>
-    </main>
+    <>
+      <Toasts />
+      <Layout routeName={route.name}>{page}</Layout>
+    </>
   );
 }

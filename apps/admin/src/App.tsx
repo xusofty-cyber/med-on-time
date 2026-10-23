@@ -1,42 +1,45 @@
-import { Card, Layout, Menu, Typography } from 'antd';
-
-const { Header, Sider, Content } = Layout;
+import { Navigate, Route, Routes } from 'react-router-dom';
+import RequireAuth from './components/RequireAuth';
+import AdminLayout from './layouts/AdminLayout';
+import AccountsPage from './pages/accounts';
+import AuditPage from './pages/audit';
+import ContentPage from './pages/content';
+import DashboardPage from './pages/dashboard';
+import DisputesPage from './pages/disputes';
+import DrugsPage from './pages/drugs';
+import LoginPage from './pages/login';
+import MembersPage from './pages/members';
+import PlansPage from './pages/plans';
+import AppVersionsPage from './pages/system';
 
 /**
- * 后台管理平台脚手架首页。页面与权限口径以后台需求 V1.5 为准，
- * 数据经 @med-on-time/api-client（OpenAPI 生成）调用 services/api。
+ * 后台管理平台路由。
+ * 页面与 docs/dev/API_CONTRACT.md「后台接口」一一对应；/login 在布局外，
+ * 其余页面经 RequireAuth 守卫（无 admin token 跳登录）。
  */
 export default function App() {
   return (
-    <Layout style={{ minHeight: '100vh' }}>
-      <Sider theme="light" width={220}>
-        <div style={{ padding: '16px', fontWeight: 600, color: '#0B6B4F' }}>
-          药准时 · 后台管理
-        </div>
-        <Menu
-          mode="inline"
-          defaultSelectedKeys={['dashboard']}
-          items={[
-            { key: 'dashboard', label: '运营看板' },
-            { key: 'users', label: '账号与成员' },
-            { key: 'drugs', label: '药品主数据' },
-            { key: 'content', label: '内容与模板' },
-            { key: 'ai', label: 'AI 管理' },
-            { key: 'system', label: '系统与审计' },
-          ]}
-        />
-      </Sider>
-      <Layout>
-        <Header style={{ background: '#fff', paddingInline: 24 }}>
-          <Typography.Text strong>运营看板</Typography.Text>
-        </Header>
-        <Content style={{ padding: 24 }}>
-          <Card>
-            脚手架已就绪：设计定稿（需求 V1.8 / 后台 V1.5 / 数据库 V1.2 / 架构 V1.5
-            已冻结）已落为代码骨架，业务页面按模块迭代接入。
-          </Card>
-        </Content>
-      </Layout>
-    </Layout>
+    <Routes>
+      <Route path="/login" element={<LoginPage />} />
+      <Route
+        element={
+          <RequireAuth>
+            <AdminLayout />
+          </RequireAuth>
+        }
+      >
+        <Route index element={<Navigate to="/dashboard" replace />} />
+        <Route path="/dashboard" element={<DashboardPage />} />
+        <Route path="/accounts" element={<AccountsPage />} />
+        <Route path="/members" element={<MembersPage />} />
+        <Route path="/drugs" element={<DrugsPage />} />
+        <Route path="/plans" element={<PlansPage />} />
+        <Route path="/content" element={<ContentPage />} />
+        <Route path="/disputes" element={<DisputesPage />} />
+        <Route path="/audit" element={<AuditPage />} />
+        <Route path="/system/app-versions" element={<AppVersionsPage />} />
+      </Route>
+      <Route path="*" element={<Navigate to="/dashboard" replace />} />
+    </Routes>
   );
 }

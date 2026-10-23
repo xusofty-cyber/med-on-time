@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <title>药准时 · 加载失败</title>
+    <style>
+      body {
+        font-family: system-ui, -apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+        margin: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        height: 100vh;
+        color: #1f2937;
+        background: #f7faf8;
+      }
+      .card {
+        text-align: center;
+        max-width: 420px;
+        padding: 32px;
+      }
+      h1 {
+        font-size: 20px;
+        color: #0b6b4f;
+        margin: 0 0 12px;
+      }
+      p {
+        font-size: 14px;
+        line-height: 1.7;
+        color: #4b5563;
+        margin: 0 0 24px;
+      }
+      button {
+        font-size: 15px;
+        padding: 10px 28px;
+        border: 0;
+        border-radius: 8px;
+        background: #0b6b4f;
+        color: #fff;
+        cursor: pointer;
+      }
+      button:hover {
+        background: #095a42;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <h1>页面加载失败</h1>
+      <p>
+        药准时界面暂时没能打开。可能是网络未连接、服务器地址不可达，或本地资源不完整。<br />
+        请检查网络后重试；本地提醒调度不受影响，已同步的提醒仍会按时通知。
+      </p>
+      <button id="retry" type="button">重新加载</button>
+    </div>
+    <script>
+      document.getElementById('retry').addEventListener('click', function () {
+        if (window.medontimeDesktop && window.medontimeDesktop.retryLoad) {
+          window.medontimeDesktop.retryLoad();
+        } else {
+          location.reload();
+        }
+      });
+    </script>
+  </body>
+</html>

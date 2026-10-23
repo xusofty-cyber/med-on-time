@@ -1,0 +1,52 @@
+# 药准时桌面端打包配置（electron-builder）
+# 三目标齐全：Windows NSIS / macOS DMG / Linux AppImage。
+# 本机（Linux 沙箱）不产出安装包属预期；发版机上 pnpm --filter @med-on-time/desktop dist[:win|:mac|:linux]。
+appId: com.medontime.desktop
+productName: MedOnTime
+copyright: Copyright © 2026 ulife
+
+directories:
+  output: release
+  buildResources: build
+
+# 主进程产物（tsc 输出 dist/）+ 托盘/失败页资源；package.json 由 builder 自动纳入
+files:
+  - dist/**
+  - assets/**
+  - package.json
+
+# apps/web 构建产物随包分发：主进程以 medontime://app 自定义协议承载 resources/web
+extraResources:
+  - from: ../web/dist
+    to: web
+    filter:
+      - "**/*"
+
+win:
+  target:
+    - nsis
+  icon: build/icon.png
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  shortcutName: 药准时
+
+mac:
+  target:
+    - dmg
+  icon: build/icon.png
+  category: public.app-category.healthcare-fitness
+  # 代码签名 / 公证需发版机证书，不在仓库配置内（出包时经环境变量注入）
+  hardenedRuntime: false
+
+linux:
+  target:
+    - AppImage
+  icon: build/icon.png
+  category: Utility
+  maintainer: ulife
+  description: 药准时 MedOnTime —— 用药提醒桌面端（补充提醒）
+
+publish: null

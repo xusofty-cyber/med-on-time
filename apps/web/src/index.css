@@ -4,8 +4,92 @@
 
 /*
  * 长辈关怀模式（UI 规范 V1.0）：字号 ≥18pt、对比度 ≥7:1、触控目标 ≥56px。
- * 以 data 属性挂在 html 上切换，具体组件在迭代中按规范接入。
+ * 开关经 html[data-care-mode='on'] 生效，成员级设置（PUT care-settings）驱动。
  */
 html[data-care-mode='on'] {
   font-size: 20px;
+}
+
+html[data-care-mode='on'] body {
+  color: #0d1f18;
+}
+
+html[data-care-mode='on'] .btn,
+html[data-care-mode='on'] .input,
+html[data-care-mode='on'] .nav-link,
+html[data-care-mode='on'] .btn-icon {
+  min-height: 56px;
+  font-size: 1.15rem;
+}
+
+html[data-care-mode='on'] .btn-primary {
+  background-color: #084c38; /* 深绿对白 ≈ 9:1，满足关怀模式对比度 */
+}
+
+html[data-care-mode='on'] .text-neutral-500,
+html[data-care-mode='on'] .text-neutral-600 {
+  color: #33463e;
+}
+
+@layer components {
+  .btn {
+    @apply inline-flex min-h-[44px] items-center justify-center gap-2 rounded-xl px-4 py-2 text-base font-medium transition disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .btn-primary {
+    @apply bg-medgreen text-white hover:bg-medgreen-dark;
+  }
+  .btn-soft {
+    @apply bg-medgreen-light text-medgreen-dark hover:bg-[#d3ecdf];
+  }
+  .btn-ghost {
+    @apply border border-neutral-300 bg-white text-neutral-700 hover:border-medgreen hover:text-medgreen-dark;
+  }
+  .btn-danger {
+    @apply bg-red-600 text-white hover:bg-red-700;
+  }
+  .btn-icon {
+    @apply inline-flex h-10 w-10 items-center justify-center rounded-full text-2xl leading-none text-neutral-500 hover:bg-neutral-100;
+  }
+  .input {
+    @apply min-h-[44px] w-full rounded-xl border border-neutral-300 bg-white px-3 py-2 text-base text-neutral-900 outline-none focus:border-medgreen focus:ring-2 focus:ring-medgreen/30;
+  }
+  .field-label {
+    @apply mb-1.5 block text-sm font-medium text-neutral-700;
+  }
+  .card {
+    @apply rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm;
+  }
+  .card-title {
+    @apply mb-4 text-lg font-semibold text-medgreen-dark;
+  }
+  .nav-link {
+    @apply flex min-h-[44px] items-center gap-2 rounded-xl px-3 py-2 text-base text-neutral-700 hover:bg-medgreen-light;
+  }
+  .nav-link-active {
+    @apply bg-medgreen-light font-semibold text-medgreen-dark;
+  }
+  .modal-backdrop {
+    @apply fixed inset-0 z-40 flex items-end justify-center bg-black/45 p-0 sm:items-center sm:p-4;
+  }
+  .modal-panel {
+    @apply max-h-[92vh] w-full overflow-y-auto rounded-t-2xl bg-white p-5 shadow-xl sm:rounded-2xl;
+  }
+  .toast {
+    @apply pointer-events-auto w-full max-w-md rounded-xl px-4 py-3 text-center text-base shadow-lg;
+  }
+  .toast-success {
+    @apply bg-medgreen-dark text-white;
+  }
+  .toast-error {
+    @apply bg-red-700 text-white;
+  }
+  .toast-info {
+    @apply bg-neutral-800 text-white;
+  }
+  .spinner {
+    @apply inline-block h-5 w-5 animate-spin rounded-full border-2 border-medgreen border-t-transparent;
+  }
+  .timeline-dot {
+    @apply mt-1.5 h-3.5 w-3.5 shrink-0 rounded-full border-2 border-white shadow;
+  }
 }
