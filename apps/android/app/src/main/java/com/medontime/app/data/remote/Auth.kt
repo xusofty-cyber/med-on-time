@@ -66,11 +66,9 @@ class TokenAuthenticator(
 
     private fun refreshTokens(refreshToken: String): TokenPairDto? {
         val client = OkHttpClient()
-        val body = AppJson.encodeToString(
-            kotlinx.serialization.json.buildJsonObject {
-                put("refreshToken", refreshToken)
-            },
-        )
+        val body = kotlinx.serialization.json.buildJsonObject {
+            put("refreshToken", kotlinx.serialization.json.JsonPrimitive(refreshToken))
+        }.toString()
         val request = Request.Builder()
             .url(baseUrlProvider() + "api/auth/refresh")
             .post(body.toRequestBody("application/json".toMediaType()))

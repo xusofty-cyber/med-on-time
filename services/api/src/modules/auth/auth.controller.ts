@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Req, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
 import {
@@ -9,6 +9,8 @@ import { AuthService, type RequestContext } from './auth.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import {
   BindWechatDto,
+  ConfirmScanTicketDto,
+  CreateScanTicketDto,
   LoginByCodeDto,
   LoginDto,
   LogoutDto,
@@ -114,6 +116,29 @@ export class AuthController {
     @Body() dto: BindWechatDto,
   ) {
     return this.service.bindWechat(user.accountId, dto.code);
+  }
+
+  /** 扫码登录：Web 建票（返回二维码内容，Web 侧渲染并轮询） */
+  @Post('scan-login/tickets')
+  async createScanTicket(@Body() dto: CreateScanTicketDto) {
+    return this.service.createScanTicket(dto);
+  }
+
+  /** 扫码登录：Web 轮询取票（confirmed 时一次性返回令牌） */
+  @Get('scan-login/tickets/:id')
+  async pollScanTicket(@Param('id') id: string, @Req() req: Request) {
+    return this.service.pollScanTicket(id, requestContext(req));
+  }
+
+  /** 扫码登录：小程序端确认（需登录态，确认本人登录网页版） */
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @Post('scan-login/confirm')
+  async confirmScanTicket(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: ConfirmScanTicketDto,
+  ) {
+    return this.service.confirmScanTicket(dto.ticketId, user.accountId);
   }
 
   /** 微信手机号验证（需登录）：getPhoneNumber 的 code 换真号落库/置验证 */

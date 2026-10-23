@@ -1,4 +1,6 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { randomUUID } from 'node:crypto';
 import * as argon2 from 'argon2';
 import { AccountStatus } from '@med-on-time/shared';
 import type { UserAccount } from '@prisma/client';
@@ -18,6 +20,10 @@ import {
   type SmsScene,
 } from './services/verification-code.service';
 import { WechatMiniappService } from './services/wechat-miniapp.service';
+import {
+  ScanLoginTicketStore,
+  SCAN_TICKET_TTL_MS,
+} from './scan-login-ticket.store';
 import type {
   DeviceInfoDto,
   LoginByCodeDto,
@@ -49,6 +55,8 @@ export class AuthService {
     private readonly sessions: SessionService,
     private readonly codes: VerificationCodeService,
     private readonly wechat: WechatMiniappService,
+    private readonly scanTickets: ScanLoginTicketStore,
+    private readonly config: ConfigService,
   ) {}
 
   async sendSmsCode(phone: string, scene: SmsScene): Promise<{ expiresInSeconds: number }> {
@@ -524,6 +532,108 @@ export class AuthService {
       lastLoginAt: account.lastLoginAt,
       cancelApplyAt: account.cancelApplyAt,
     };
+  }
+
+  /* ---------------- 小程序扫码确认登录 Web（2026-10-23 裁定路线） ----------------
+   * Web 建票并出示二维码 → 用户在小程序内扫码进入确认页 → 以小程序登录态确认
+   * → Web 轮询取票，确认后一次性换发正式会话令牌（与密码登录同路径落会话）。 */
+
+  async createScanTicket(device: DeviceInfoDto): Promise<{
+    ticketId: string;
+    qrContent: string;
+    expiresIn: number;
+  }> {
+    const ticketId = randomUUID();
+    const now = Date.now();
+    this.scanTickets.create({
+      id: ticketId,
+      status: 'pending',
+      createdAt: now,
+      expiresAt: now + SCAN_TICKET_TTL_MS,
+      platform: device.platform ?? 'web',
+      deviceName: device.deviceName,
+    });
+    const webBase = (
+      this.config.get<string>('WEB_PUBLIC_URL') ?? 'https://mot.ulife.vip'
+    ).replace(/\/$/, '');
+    return {
+      ticketId,
+      // Web 为 hash 路由：落地页 #/scan-login 引导用户在小程序内扫码确认
+      qrContent: `${webBase}/#/scan-login?t=${ticketId}`,
+      expiresIn: Math.floor(SCAN_TICKET_TTL_MS / 1000),
+    };
+  }
+
+  /** Web 轮询取票：pending 只报状态；confirmed 一次性换发令牌并销票 */
+  async pollScanTicket(
+    ticketId: string,
+    ctx: RequestContext,
+  ): Promise<{ status: 'pending' } | ({ status: 'confirmed' } & TokenPair)> {
+    const ticket = this.scanTickets.get(ticketId);
+    if (!ticket) {
+      throw new BusinessException(
+        BusinessCode.NotFound,
+        '登录二维码不存在或已过期，请刷新',
+        HttpStatus.NOT_FOUND,
+      );
+    }
+    if (ticket.status === 'pending') return { status: 'pending' };
+    const account = await this.prisma.userAccount.findFirst({
+      where: { id: ticket.accountId!, deletedAt: null },
+    });
+    if (!account) {
+      this.scanTickets.delete(ticketId);
+      throw new BusinessException(
+        BusinessCode.NotFound,
+        '确认账号不可用，请重新扫码',
+        HttpStatus.NOT_FOUND,
+      );
+    }
+    this.assertAccountUsable(account);
+    const tokens = await this.issueTokens(
+      account,
+      { platform: ticket.platform ?? 'web', deviceName: ticket.deviceName },
+      ctx,
+    );
+    await this.touchLogin(account.id);
+    this.scanTickets.delete(ticketId);
+    return { status: 'confirmed', ...tokens };
+  }
+
+  /** 小程序端确认：调用者为小程序登录态账号，确认其本人登录网页版 */
+  async confirmScanTicket(
+    ticketId: string,
+    accountId: string,
+  ): Promise<{ status: 'confirmed'; nickname: string }> {
+    const ticket = this.scanTickets.get(ticketId);
+    if (!ticket) {
+      throw new BusinessException(
+        BusinessCode.NotFound,
+        '登录二维码不存在或已过期，请在网页端刷新',
+        HttpStatus.NOT_FOUND,
+      );
+    }
+    if (ticket.status === 'confirmed' && ticket.accountId !== accountId) {
+      throw new BusinessException(
+        BusinessCode.Forbidden,
+        '该二维码已被其他账号确认',
+        HttpStatus.FORBIDDEN,
+      );
+    }
+    const account = await this.prisma.userAccount.findFirst({
+      where: { id: accountId, deletedAt: null },
+    });
+    if (!account) {
+      throw new BusinessException(
+        BusinessCode.Unauthorized,
+        '账号不存在',
+        HttpStatus.UNAUTHORIZED,
+      );
+    }
+    this.assertAccountUsable(account);
+    ticket.status = 'confirmed';
+    ticket.accountId = accountId;
+    return { status: 'confirmed', nickname: account.nickname };
   }
 
   private async issueTokens(

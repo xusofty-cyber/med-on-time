@@ -65,6 +65,15 @@ export const authApi = {
   resetPassword: (body: { phone: string; code: string; newPassword: string }) =>
     http.post<{ ok: boolean }>('/auth/password/reset', body),
   logout: () => http.post<{ ok: boolean }>('/auth/logout'),
+  /** 扫码登录（小程序确认）：建票 + 轮询取票 */
+  createScanTicket: () =>
+    http.post<{ ticketId: string; qrContent: string; expiresIn: number }>('/auth/scan-login/tickets', {
+      platform: 'web',
+    }),
+  pollScanTicket: (ticketId: string) =>
+    http.get<{ status: 'pending' } | ({ status: 'confirmed' } & AuthResult)>(
+      `/auth/scan-login/tickets/${ticketId}`,
+    ),
   me: () => http.get<Account>('/auth/me'),
   bindWechat: () => http.post<{ ok: boolean; message?: string }>('/auth/bind/wechat', {}),
 };

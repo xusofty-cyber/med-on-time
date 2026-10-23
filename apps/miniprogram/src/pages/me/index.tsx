@@ -125,6 +125,7 @@ export default function Me() {
           url='/pages/notifications/index'
           badge={unread > 0 ? String(unread) : undefined}
         />
+        <MenuRow label='扫码登录网页版' desc='扫描网页版二维码，确认以本账号登录' url='/pages/scan-login/index' />
         <MenuRow label='设置' desc='账号资料、登录会话、消息订阅与注销说明' url='/pages/settings/index' last />
       </Card>
 

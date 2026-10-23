@@ -51,6 +51,9 @@ export const authApi = {
   verifyPhoneByWechat: (phoneCode: string) => http.post<Account>('/auth/phone/verify/wechat', { phoneCode }),
   /** 绑定微信（需登录）：code 来自 Taro.login()。 */
   wechatBind: (code: string) => http.post<{ ok: boolean; message?: string }>('/auth/wechat/bind', { code }),
+  /** 扫码登录网页版（需登录）：确认当前账号登录 Web 端；票据过期/已被他人确认时后端给出业务提示。 */
+  confirmScanTicket: (ticketId: string) =>
+    http.post<{ status: 'confirmed'; nickname: string }>('/auth/scan-login/confirm', { ticketId }),
   /** @deprecated 旧占位名，改调正式 /auth/wechat/bind 且必须传 Taro.login() 的 code；新代码请用 wechatBind。 */
   bindWechat: (code: string) => http.post<{ ok: boolean; message?: string }>('/auth/wechat/bind', { code }),
 };

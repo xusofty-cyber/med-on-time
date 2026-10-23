@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
+import { ScanLoginTicketStore } from './scan-login-ticket.store';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { PhoneCryptoService } from './services/phone-crypto.service';
 import { TokenService } from './services/token.service';
@@ -41,6 +42,7 @@ import {
     SessionService,
     VerificationCodeService,
     WechatMiniappService,
+    ScanLoginTicketStore,
     { provide: RefreshSessionStore, useClass: InMemoryRefreshSessionStore },
     { provide: VerificationCodeStore, useClass: InMemoryVerificationCodeStore },
     { provide: SmsSender, useClass: DevStubSmsSender },

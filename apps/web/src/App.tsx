@@ -2,6 +2,7 @@ import { Component, useEffect, useState, type ReactNode } from 'react';
 import Layout from './components/Layout';
 import { Button, Card, EmptyState, Toasts } from './components/ui';
 import Login from './pages/Login';
+import ScanLogin from './pages/ScanLogin';
 import Register from './pages/Register';
 import Today from './pages/Today';
 import Members from './pages/Members';
@@ -121,7 +122,7 @@ export default function App() {
     return (
       <>
         <Toasts />
-        {route.name === 'register' ? <Register /> : <Login />}
+        {route.name === 'register' ? <Register /> : route.name === 'scan-login' ? <ScanLogin /> : <Login />}
       </>
     );
   }

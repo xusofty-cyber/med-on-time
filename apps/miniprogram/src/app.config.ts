@@ -11,6 +11,7 @@ export default defineAppConfig({
     'pages/authorizations/index',
     'pages/notifications/index',
     'pages/settings/index',
+    'pages/scan-login/index',
   ],
   window: {
     backgroundTextStyle: 'light',

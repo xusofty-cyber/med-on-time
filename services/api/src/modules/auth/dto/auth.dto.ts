@@ -3,6 +3,7 @@ import {
   IsIn,
   IsOptional,
   IsString,
+  IsUUID,
   Length,
   Matches,
   MaxLength,
@@ -189,4 +190,13 @@ export class WechatPhoneVerifyDto {
   @IsString()
   @Length(1, 256)
   phoneCode!: string;
+}
+
+/** 扫码登录：Web 建票（设备信息用于确认后落 Web 会话） */
+export class CreateScanTicketDto extends DeviceInfoDto {}
+
+/** 扫码登录：小程序端确认（需登录态，确认当前账号登录网页版） */
+export class ConfirmScanTicketDto {
+  @IsUUID()
+  ticketId!: string;
 }

@@ -33,4 +33,4 @@ export function useRoute(): Route {
   return route;
 }
 
-export const PUBLIC_ROUTES = new Set(['login', 'register']);
+export const PUBLIC_ROUTES = new Set(['login', 'register', 'scan-login']);
