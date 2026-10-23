@@ -7,6 +7,7 @@ ARG NPM_REGISTRY=https://registry.npmmirror.com
 FROM node:22-alpine AS build
 ARG NPM_REGISTRY
 ENV NPM_CONFIG_REGISTRY=${NPM_REGISTRY} \
+    ELECTRON_SKIP_BINARY_DOWNLOAD=1 \
     CI=true
 WORKDIR /repo
 RUN npm install -g pnpm@9.0.0 --registry ${NPM_REGISTRY}

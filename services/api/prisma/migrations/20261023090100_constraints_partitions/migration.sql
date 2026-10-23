@@ -146,6 +146,7 @@ ALTER TABLE "reminder_delivery_log" DROP CONSTRAINT "reminder_delivery_log_remin
 ALTER TABLE "medication_intake_record" DROP CONSTRAINT "medication_intake_record_reminder_instance_id_fkey";
 ALTER TABLE "intake_adverse_record" DROP CONSTRAINT "intake_adverse_record_reminder_instance_id_fkey";
 ALTER TABLE "reminder_instance" RENAME TO "reminder_instance_legacy_20261023";
+ALTER INDEX "reminder_instance_pkey" RENAME TO "reminder_instance_legacy_pkey";
 CREATE TABLE "reminder_instance" (
     "id" UUID NOT NULL,
     "member_id" UUID NOT NULL,
@@ -208,6 +209,7 @@ CREATE INDEX "reminder_instance_plan_id_plan_item_id_idx" ON "reminder_instance"
 
 -- reminder_delivery_log：按 "created_at" 月分区
 ALTER TABLE "reminder_delivery_log" RENAME TO "reminder_delivery_log_legacy_20261023";
+ALTER INDEX "reminder_delivery_log_pkey" RENAME TO "reminder_delivery_log_legacy_pkey";
 CREATE TABLE "reminder_delivery_log" (
     "id" UUID NOT NULL,
     "created_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -259,6 +261,7 @@ CREATE INDEX "reminder_delivery_log_result_idx" ON "reminder_delivery_log"("resu
 -- ai_call_log：按 "created_at" 月分区
 ALTER TABLE "ai_message" DROP CONSTRAINT "ai_message_call_log_id_fkey";
 ALTER TABLE "ai_call_log" RENAME TO "ai_call_log_legacy_20261023";
+ALTER INDEX "ai_call_log_pkey" RENAME TO "ai_call_log_legacy_pkey";
 CREATE TABLE "ai_call_log" (
     "id" UUID NOT NULL,
     "created_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -313,7 +316,7 @@ ALTER TABLE "ai_call_log" ADD CONSTRAINT "ai_call_log_session_id_fkey" FOREIGN K
 ALTER TABLE "ai_call_log" ADD CONSTRAINT "ai_call_log_task_id_fkey" FOREIGN KEY ("task_id") REFERENCES "ai_analysis_task"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 ALTER TABLE "ai_call_log" ADD CONSTRAINT "ai_call_log_member_id_fkey" FOREIGN KEY ("member_id") REFERENCES "member"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 ALTER TABLE "ai_call_log" ADD CONSTRAINT "ai_call_log_account_id_fkey" FOREIGN KEY ("account_id") REFERENCES "user_account"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-CREATE UNIQUE INDEX "ai_call_log_request_id_key" ON "ai_call_log"("request_id");
+CREATE UNIQUE INDEX "ai_call_log_request_id_key" ON "ai_call_log"("request_id", "created_at");
 CREATE INDEX "ai_call_log_session_id_idx" ON "ai_call_log"("session_id");
 CREATE INDEX "ai_call_log_task_id_idx" ON "ai_call_log"("task_id");
 CREATE INDEX "ai_call_log_member_id_account_id_idx" ON "ai_call_log"("member_id", "account_id");
@@ -325,6 +328,7 @@ CREATE INDEX "ai_call_log_emergency_hit_idx" ON "ai_call_log"("emergency_hit");
 
 -- audit_log：按 "created_at" 月分区
 ALTER TABLE "audit_log" RENAME TO "audit_log_legacy_20261023";
+ALTER INDEX "audit_log_pkey" RENAME TO "audit_log_legacy_pkey";
 CREATE TABLE "audit_log" (
     "id" UUID NOT NULL,
     "created_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,

@@ -11,10 +11,13 @@ ARG PRISMA_VERSION=5.22.0
 
 # ---------- 构建阶段 ----------
 FROM node:22-alpine AS build
+# apk 换国内镜像源（官方 CDN 在国内云上时常慢到单包百秒级）
+RUN sed -i 's|dl-cdn.alpinelinux.org|mirrors.cloud.tencent.com|g' /etc/apk/repositories
 ARG NPM_REGISTRY
 ARG PRISMA_ENGINES_MIRROR
 ENV NPM_CONFIG_REGISTRY=${NPM_REGISTRY} \
     PRISMA_ENGINES_MIRROR=${PRISMA_ENGINES_MIRROR} \
+    ELECTRON_SKIP_BINARY_DOWNLOAD=1 \
     CI=true
 # argon2 为原生模块需编译工具链；openssl 供 Prisma 引擎使用
 RUN apk add --no-cache python3 make g++ openssl \
@@ -33,6 +36,7 @@ RUN pnpm --filter @med-on-time/api deploy --prod /out
 
 # ---------- 运行阶段 ----------
 FROM node:22-alpine AS runner
+RUN sed -i 's|dl-cdn.alpinelinux.org|mirrors.cloud.tencent.com|g' /etc/apk/repositories
 ARG NPM_REGISTRY
 ARG PRISMA_VERSION
 ARG PRISMA_ENGINES_MIRROR=https://npmmirror.com/mirrors/prisma
@@ -46,6 +50,9 @@ COPY --from=build /out ./
 # import-drug-seed.js 按 __dirname 读取同目录 drug_seed_200.json，
 # tsc 不复制 JSON 资产，从源码 prisma 目录补一份到 dist 对应位置。
 RUN cp prisma/seeds/drug_seed_200.json dist/prisma/seeds/drug_seed_200.json
+# pnpm deploy 产出的 /out 中 @prisma/client 为未生成的桩（pnpm 隔离布局下
+# 构建阶段的 generate 产物不随 deploy 拷贝），运行阶段用全局 CLI 补生成一次。
+RUN prisma generate --schema prisma/schema.prisma
 USER node
 EXPOSE 3000
 ENTRYPOINT ["/sbin/tini", "--"]
