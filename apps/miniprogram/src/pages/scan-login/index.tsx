@@ -15,7 +15,7 @@ import { Card, Loading } from '../../components/ui';
 function extractTicket(raw: string | undefined): string | null {
   if (!raw) return null;
   const m = raw.match(/[?&#]t=([0-9a-fA-F-]{36})/);
-  if (m) return m[1];
+  if (m?.[1]) return m[1];
   // 直接就是票据本身（二维码内容简化形态）
   if (/^[0-9a-fA-F-]{36}$/.test(raw.trim())) return raw.trim();
   return null;

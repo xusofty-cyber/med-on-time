@@ -33,6 +33,10 @@ const qs = (params: Record<string, string | number | undefined>) => {
   return parts.length ? `?${parts.join('&')}` : '';
 };
 
+/** 后端分页包装 {items,total,...} 或裸数组 → 裸数组（与 Web 端 unpage 同口径）。 */
+type Paged<T> = { items: T[]; total?: number; page?: number; pageSize?: number };
+const unpage = <T>(p: Paged<T> | T[]): T[] => (Array.isArray(p) ? p : (p?.items ?? []));
+
 export const authApi = {
   sendSmsCode: (phone: string, scene: 'register' | 'login' | 'reset') =>
     http.post<{ sent: boolean }>('/auth/sms/send', { phone, scene }),
@@ -63,12 +67,22 @@ export const accountApi = {
   profile: () => http.get<Account>('/account/profile'),
   updateProfile: (body: { nickname?: string; timezone?: string }) => http.patch<Account>('/account/profile', body),
   cancel: (reason?: string) => http.post<{ ok: boolean; cancelApplyAt?: string }>('/account/cancel', { reason }),
-  sessions: () => http.get<UserSession[]>('/account/sessions'),
+  sessions: async (): Promise<UserSession[]> => unpage(await http.get<Paged<UserSession>>('/account/sessions')),
   revokeSession: (id: string) => http.del<{ ok: boolean }>(`/account/sessions/${id}`),
 };
 
 export const memberApi = {
-  list: () => http.get<Member[]>('/members'),
+  /** 后端返回 {own, authorized} 分组：own → accessLevel='owner'；authorized → accessLevel=授权级别（L1/L2/L3）。 */
+  list: async (): Promise<Member[]> => {
+    const r = await http.get<{
+      own: (Member & { access?: string })[];
+      authorized: (Member & { access?: string; level?: string })[];
+    }>('/members');
+    return [
+      ...(r.own ?? []).map((m) => ({ ...m, accessLevel: 'owner' })),
+      ...(r.authorized ?? []).map((m) => ({ ...m, accessLevel: m.level ?? 'caregiver' })),
+    ];
+  },
   create: (body: {
     displayName: string;
     relationship: string;
@@ -84,7 +98,18 @@ export const memberApi = {
 };
 
 export const authorizationApi = {
-  list: () => http.get<Authorization[]>('/authorizations'),
+  /** 后端返回 {granted, received} 分组且字段名为 memberDisplayName/grantedByNickname，在此归一化并合并为扁平数组（页面按 grantedByAccountId 自行分两组）。 */
+  list: async (): Promise<Authorization[]> => {
+    type Raw = Authorization & { memberDisplayName?: string | null; grantedByNickname?: string | null };
+    const r = await http.get<{ granted: Raw[]; received: Raw[] }>('/authorizations');
+    const norm = (a: Raw): Authorization => ({
+      ...a,
+      memberName: a.memberDisplayName ?? undefined,
+      grantorNickname: a.grantedByNickname ?? undefined,
+      caregiverNickname: a.caregiverNickname ?? undefined,
+    });
+    return [...(r.granted ?? []).map(norm), ...(r.received ?? []).map(norm)];
+  },
   create: (body: {
     memberId: string;
     caregiverPhone: string;
@@ -105,19 +130,21 @@ export const drugApi = {
 };
 
 export const planApi = {
-  list: (memberId: string) => http.get<Plan[]>(`/members/${memberId}/plans`),
+  list: async (memberId: string): Promise<Plan[]> => unpage(await http.get<Paged<Plan>>(`/members/${memberId}/plans`)),
   create: (memberId: string, body: PlanPayload) => http.post<Plan>(`/members/${memberId}/plans`, body),
   update: (planId: string, body: Partial<PlanPayload>) => http.patch<Plan>(`/plans/${planId}`, body),
   remove: (planId: string) => http.del<{ ok: boolean }>(`/plans/${planId}`),
-  history: (planId: string) => http.get<PlanChangeHistoryEntry[]>(`/plans/${planId}/history`),
+  history: async (planId: string): Promise<PlanChangeHistoryEntry[]> =>
+    unpage(await http.get<Paged<PlanChangeHistoryEntry>>(`/plans/${planId}/history`)),
   pause: (planId: string) => http.post<Plan>(`/plans/${planId}/pause`),
   resume: (planId: string) => http.post<Plan>(`/plans/${planId}/resume`),
 };
 
 export const reminderApi = {
-  today: (memberId: string) => http.get<ReminderInstance[]>(`/members/${memberId}/reminders/today`),
-  byDate: (memberId: string, date: string) =>
-    http.get<ReminderInstance[]>(`/members/${memberId}/reminders${qs({ date })}`),
+  today: async (memberId: string): Promise<ReminderInstance[]> =>
+    (await http.get<{ items: ReminderInstance[] }>(`/members/${memberId}/reminders/today`)).items ?? [],
+  byDate: async (memberId: string, date: string): Promise<ReminderInstance[]> =>
+    (await http.get<{ items: ReminderInstance[] }>(`/members/${memberId}/reminders${qs({ date })}`)).items ?? [],
   snooze: (instanceId: string) => http.post<ReminderInstance>(`/reminders/${instanceId}/snooze`, {}),
   skip: (instanceId: string, reason?: string) =>
     http.post<ReminderInstance>(`/reminders/${instanceId}/skip`, { reason }),
@@ -128,19 +155,96 @@ export const reminderApi = {
       confirmationMethod: 'tap',
       clientRequestId: newClientRequestId(),
     }),
-  checkins: (memberId: string, from: string, to: string) =>
-    http.get<unknown[]>(`/members/${memberId}/checkins${qs({ from, to })}`),
+  checkins: async (memberId: string, from: string, to: string): Promise<unknown[]> =>
+    unpage(await http.get<Paged<unknown>>(`/members/${memberId}/checkins${qs({ from, to })}`)),
 };
 
 export const adherenceApi = {
-  summary: (memberId: string, range: 'week' | 'month') =>
-    http.get<AdherenceSummary>(`/members/${memberId}/adherence/summary${qs({ range })}`),
-  calendar: (memberId: string, month: string) =>
-    http.get<AdherenceCalendarDay[]>(`/members/${memberId}/adherence/calendar${qs({ month })}`),
+  /** 后端计数字段为 scheduled/taken/onTime/missed/skipped（无 Count 后缀），在此对齐页面口径（与 Web 同口径）。 */
+  summary: async (memberId: string, range: 'week' | 'month'): Promise<AdherenceSummary> => {
+    const r = await http.get<{
+      range: string;
+      scheduled: number;
+      taken: number;
+      onTime: number;
+      missed: number;
+      skipped: number;
+      adherenceRate: number | null;
+      onTimeRate: number | null;
+    }>(`/members/${memberId}/adherence/summary${qs({ range })}`);
+    return {
+      range: r.range,
+      scheduledCount: r.scheduled,
+      takenCount: r.taken,
+      onTimeCount: r.onTime,
+      missedCount: r.missed,
+      skippedCount: r.skipped,
+      adherenceRate: r.adherenceRate,
+      onTimeRate: r.onTimeRate,
+    };
+  },
+  calendar: async (memberId: string, month: string): Promise<AdherenceCalendarDay[]> => {
+    const r = await http.get<{
+      days: {
+        date: string;
+        scheduled: number;
+        taken: number;
+        onTime: number;
+        missed: number;
+        skipped: number;
+        adherenceRate: number | null;
+      }[];
+    }>(`/members/${memberId}/adherence/calendar${qs({ month })}`);
+    return (r.days ?? []).map((d) => ({
+      date: d.date,
+      scheduledCount: d.scheduled,
+      takenCount: d.taken,
+      onTimeCount: d.onTime,
+      missedCount: d.missed,
+      skippedCount: d.skipped,
+      adherenceRate: d.adherenceRate,
+    }));
+  },
 };
 
 export const stockApi = {
-  list: (memberId: string) => http.get<StockItem[]>(`/members/${memberId}/stock`),
+  /** 后端分页包装且主键名为 memberMedicationId、预警为 alerts/expiryStatus，在此对齐页面 StockItem 口径（与 Web 同口径）。 */
+  list: async (memberId: string): Promise<StockItem[]> => {
+    type Raw = {
+      memberMedicationId: string;
+      memberId: string;
+      drugId: string;
+      drug?: { genericName: string; brandName: string | null; specification: string; dosageForm: string; unit: string };
+      stockQuantity: number;
+      stockUnit: string;
+      currentBatchExpiryDate?: string | null;
+      storageLocation?: string | null;
+      status: string;
+      estimatedDaysLeft?: number | null;
+      expiryStatus?: string;
+      alerts?: string[];
+    };
+    const rows = unpage(await http.get<Paged<Raw>>(`/members/${memberId}/stock`));
+    return rows.map((r) => ({
+      id: r.memberMedicationId,
+      memberId: r.memberId,
+      drugId: r.drugId,
+      drugName: r.drug?.brandName ?? r.drug?.genericName,
+      genericName: r.drug?.genericName,
+      brandName: r.drug?.brandName,
+      specification: r.drug?.specification,
+      stockQuantity: r.stockQuantity,
+      stockUnit: r.stockUnit,
+      currentBatchExpiryDate: r.currentBatchExpiryDate,
+      storageLocation: r.storageLocation,
+      status: r.status,
+      daysLeftEstimate: r.estimatedDaysLeft,
+      lowStock: (r.alerts ?? []).includes('low_stock'),
+      expiringSoon: r.expiryStatus === 'expiring_soon',
+      expired: r.expiryStatus === 'expired',
+      drug: r.drug as StockItem['drug'],
+    }));
+  },
   adjust: (memberId: string, body: StockAdjustPayload) =>
     http.post<StockItem>(`/members/${memberId}/stock/adjust`, body),
 };
@@ -149,7 +253,8 @@ export const ehrApi = {
   getAllergies: (memberId: string) => http.get<Allergy[]>(`/members/${memberId}/allergies`),
   putAllergies: (memberId: string, items: Allergy[]) =>
     http.put<Allergy[]>(`/members/${memberId}/allergies`, { items }),
-  listAdverse: (memberId: string) => http.get<AdverseRecord[]>(`/members/${memberId}/adverse-records`),
+  listAdverse: async (memberId: string): Promise<AdverseRecord[]> =>
+    unpage(await http.get<Paged<AdverseRecord>>(`/members/${memberId}/adverse-records`)),
   createAdverse: (memberId: string, body: { symptomTags: string[]; description?: string; severity: string; occurredAt: string; planItemId?: string }) =>
     http.post<AdverseRecord>(`/members/${memberId}/adverse-records`, body),
   listContacts: (memberId: string) => http.get<EmergencyContact[]>(`/members/${memberId}/emergency-contacts`),
