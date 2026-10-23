@@ -22,8 +22,8 @@
 
 ### 1. 基础环境与分支
 - **代码仓库**：https://github.com/xusofty-cyber/med-on-time（SSH：git@github.com:xusofty-cyber/med-on-time.git）
-- **主分支 / 开发分支**：`main`（`develop` 待建立）；`main` 为受保护分支
-- **运行/部署环境**：本地 pnpm workspace 开发；生产部署架构待定
+- **主分支 / 开发分支**：`main`（受保护）/ `develop`（2026-10-23 已建立，日常开发分支）
+- **运行/部署环境**：本地 pnpm workspace 开发；**生产已部署**（2026-10-23，腾讯云广州 + Docker Compose + nginx/ulife.vip 域名，实况见 `docs/DEPLOY.md` 附录 B 与 `docs/HANDOVER.md`）
 
 ### 2. 技术栈选型
 
@@ -35,7 +35,7 @@
 | **小程序** | Taro 4（React 写法） | 编译到微信小程序 |
 | **移动端** | Android Kotlin + Jetpack；iOS Swift + SwiftUI | 推送 APNs/FCM；国内安卓极光·JPush 聚合 |
 | **桌面端** | Electron（复用 `apps/web`） | Windows / Linux / macOS |
-| **持久化与缓存** | PostgreSQL 15+（已定）+ Redis 7 | 34 张表 / 8 个域；UUIDv7 主键；大表按月分区 |
+| **持久化与缓存** | PostgreSQL 15+（生产 PG 16 容器）+ Redis 7 | **56 张表 / 9 个域**（DB 设计 V1.2 定稿）；UUIDv7 主键；大表按月分区 |
 | **接口与中间件** | RESTful over HTTPS（已定），OpenAPI 为唯一契约 | TS 客户端由契约生成（orval）；事件总线待定 |
 
 ---

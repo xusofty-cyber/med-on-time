@@ -3,8 +3,8 @@ import { ehrApi } from '../lib/endpoints';
 import { actions, useApp } from '../lib/store';
 import { Badge, Button, Card, EmptyState, ErrorText, Field, Modal, Select, Spinner, TextInput } from '../components/ui';
 import { ALLERGEN_TYPE_LABELS, SEVERITY_LABELS, SYMPTOM_TAGS } from '../lib/dict';
-import { fmtDate, fmtDateTime } from '../lib/time';
-import type { AdverseRecord, Allergy, EmergencyContact, MedicalRecordEntry } from '../lib/types';
+import { fmtDateTime } from '../lib/time';
+import type { AdverseRecord, Allergy, EmergencyContact } from '../lib/types';
 
 type Tab = 'allergies' | 'adverse' | 'contacts' | 'records';
 
@@ -24,7 +24,7 @@ export default function Ehr() {
     { key: 'allergies', label: '过敏档案' },
     { key: 'adverse', label: '服药后不适' },
     { key: 'contacts', label: '紧急联系人' },
-    { key: 'records', label: '病历记录' },
+    { key: 'records', label: '健康概况' },
   ];
 
   return (
@@ -419,35 +419,48 @@ function ContactForm({
   );
 }
 
+/* 健康概况：后端为每位成员一条档案（血型/身高/体重/常去医院/健康摘要），upsert 保存。 */
 function Records({ memberId }: { memberId: string }) {
-  const [items, setItems] = useState<MedicalRecordEntry[] | null>(null);
+  const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState<unknown>(null);
-  const [title, setTitle] = useState('');
-  const [content, setContent] = useState('');
-  const [recordDate, setRecordDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [bloodType, setBloodType] = useState('');
+  const [heightCm, setHeightCm] = useState('');
+  const [weightKg, setWeightKg] = useState('');
+  const [primaryHospital, setPrimaryHospital] = useState('');
+  const [summary, setSummary] = useState('');
+  const [updatedAt, setUpdatedAt] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const load = async () => {
-    try {
-      setItems(await ehrApi.listMedicalRecords(memberId));
-    } catch (e) {
-      setError(e);
-    }
-  };
   useEffect(() => {
-    load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    ehrApi
+      .getMedicalProfile(memberId)
+      .then((p) => {
+        if (p) {
+          setBloodType(p.bloodType ?? '');
+          setHeightCm(p.heightCm != null ? String(p.heightCm) : '');
+          setWeightKg(p.weightKg != null ? String(p.weightKg) : '');
+          setPrimaryHospital(p.primaryHospital ?? '');
+          setSummary(p.summary ?? '');
+          setUpdatedAt(p.updatedAt ?? null);
+        }
+      })
+      .catch(setError)
+      .finally(() => setLoaded(true));
   }, [memberId]);
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     setBusy(true);
     try {
-      await ehrApi.createMedicalRecord(memberId, { title: title || undefined, content, recordDate });
-      actions.toast('success', '病历记录已保存（正文加密存储）');
-      setTitle('');
-      setContent('');
-      await load();
+      const saved = await ehrApi.upsertMedicalProfile(memberId, {
+        bloodType: bloodType || undefined,
+        heightCm: heightCm ? Number(heightCm) : undefined,
+        weightKg: weightKg ? Number(weightKg) : undefined,
+        primaryHospital: primaryHospital || undefined,
+        summary: summary || undefined,
+      });
+      setUpdatedAt(saved.updatedAt ?? null);
+      actions.toast('success', '健康概况已保存（摘要加密存储）');
     } catch (err) {
       actions.toast('error', err instanceof Error ? err.message : '保存失败');
     } finally {
@@ -456,47 +469,53 @@ function Records({ memberId }: { memberId: string }) {
   };
 
   return (
-    <div className="flex flex-col gap-4">
-      <Card title="新增病历记录">
+    <Card title="健康概况（每位成员一份，持续更新）">
+      <ErrorText error={error} />
+      {!loaded ? (
+        <Spinner />
+      ) : (
         <form className="flex flex-col gap-4" onSubmit={submit}>
           <div className="grid gap-3 sm:grid-cols-2">
-            <Field label="标题">
-              <TextInput value={title} onChange={setTitle} placeholder="如：市人民医院复诊" />
+            <Field label="血型">
+              <Select
+                value={bloodType}
+                onChange={setBloodType}
+                options={[
+                  { value: '', label: '未填写' },
+                  { value: 'A', label: 'A 型' },
+                  { value: 'B', label: 'B 型' },
+                  { value: 'AB', label: 'AB 型' },
+                  { value: 'O', label: 'O 型' },
+                  { value: 'unknown', label: '不清楚' },
+                ]}
+              />
             </Field>
-            <Field label="就诊日期">
-              <input className="input" type="date" value={recordDate} onChange={(e) => setRecordDate(e.target.value)} />
+            <Field label="常去医院（选填）">
+              <TextInput value={primaryHospital} onChange={setPrimaryHospital} placeholder="如：市人民医院" />
+            </Field>
+            <Field label="身高（cm，选填）">
+              <TextInput value={heightCm} onChange={setHeightCm} type="number" placeholder="如：165" />
+            </Field>
+            <Field label="体重（kg，选填）">
+              <TextInput value={weightKg} onChange={setWeightKg} type="number" placeholder="如：60" />
             </Field>
           </div>
-          <Field label="病历内容" hint="正文在服务端字段加密存储，仅本人及被授权照护人可见">
-            <textarea className="input min-h-[120px]" value={content} onChange={(e) => setContent(e.target.value)} required placeholder="诊断、医嘱、检查结论等" />
+          <Field label="健康摘要（选填）" hint="既往病史、手术史、长期注意事项等；正文在服务端字段加密存储，仅本人及被授权照护人可见">
+            <textarea
+              className="input min-h-[120px]"
+              value={summary}
+              onChange={(e) => setSummary(e.target.value)}
+              placeholder="如：2019 年阑尾切除术；高血压 10 年，长期服药控制中"
+            />
           </Field>
-          <div>
+          <div className="flex items-center gap-3">
             <Button type="submit" disabled={busy}>
-              保存病历
+              {busy ? '保存中…' : '保存健康概况'}
             </Button>
+            {updatedAt && <span className="text-sm text-neutral-500">最近更新 {fmtDateTime(updatedAt)}</span>}
           </div>
         </form>
-      </Card>
-      <Card title="病历记录列表">
-        <ErrorText error={error} />
-        {items === null ? (
-          <Spinner />
-        ) : items.length === 0 ? (
-          <EmptyState text="暂无病历记录。" />
-        ) : (
-          <ul className="flex flex-col gap-3">
-            {items.map((r) => (
-              <li key={r.id} className="rounded-xl bg-neutral-50 px-4 py-3">
-                <p className="font-medium">
-                  {r.title ?? '病历记录'}
-                  <span className="ml-2 text-sm font-normal text-neutral-500">{fmtDate(r.recordDate ?? r.createdAt)}</span>
-                </p>
-                <p className="mt-1 whitespace-pre-wrap text-neutral-700">{r.content}</p>
-              </li>
-            ))}
-          </ul>
-        )}
-      </Card>
-    </div>
+      )}
+    </Card>
   );
 }

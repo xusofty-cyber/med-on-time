@@ -80,6 +80,37 @@
 5. 独立纠纷（dispute）表：现以 feedback_ticket 为载体、前后值双记录落 audit_log.detail。
 6. drug 表 `member_id` 列或自建药归属优化：现按 created_by_account_id 归属。
 
+## 2026-10-23 线上巡检修复（白屏 + 契约对齐，实测口径）
+
+上线后逐页巡检发现 Web 门户多处前后端契约不一致（页面按数组消费、后端返回包装对象），其中两处致整页白屏。修复口径：**形状适配集中在 Web 端 `apps/web/src/lib/endpoints.ts` 归一化层，后端形状不迁就前端改动**（后端形状与 DB 定版一致，且小程序/原生端按后端口径开发）。逐项：
+
+| 接口 | 后端实际形状 | 修复 |
+|---|---|---|
+| GET /members | `{own, authorized}`（own 带 `access:'owner'`，authorized 带 `level`） | 前端合并为数组：own→accessLevel='owner'，authorized→accessLevel=level |
+| GET /authorizations | `{granted, received}`，字段 `memberDisplayName`/`grantedByNickname` | 前端按分组消费并映射字段名为 memberName/grantorNickname |
+| GET /account/sessions | `{items, total}` | 前端解包 items |
+| GET /members/:id/plans、GET /plans/:id/history、GET /members/:id/stock、GET /members/:id/checkins、GET /members/:id/adverse-records | 分页 `{items,total,page,pageSize}`（stock 条目主键为 memberMedicationId，含 drug 对象/alerts/expiryStatus/estimatedDaysLeft） | 前端 unpage；stock 逐字段映射为 StockItem（id/drugName/daysLeftEstimate/lowStock/expiringSoon/expired） |
+| GET /members/:id/reminders/today、/reminders?date | `{date, timezone, items}` | 前端取 items |
+| GET /members/:id/adherence/summary、/calendar | summary 计数字段无 Count 后缀；calendar 为 `{month, timezone, days}` | 前端重命名 scheduled→scheduledCount 等并取 days |
+| GET/POST /members/:id/medical-records | **单条健康概况**（血型/身高/体重/常去医院/摘要，upsert） | 前端原「病历条目列表」与后端模型冲突，按后端模型重写 Web 页签为「健康概况」表单（原条目模型无 DB 落点，废弃） |
+
+后端侧两处修正：
+1. **手机号注册对齐 V1.3 裁定**（此前 DTO 强制 smsCode + registerChannel 且前端未对齐，Web 手机号注册 100% 失败）：smsCode 改可选（带码校验并置 phoneVerifiedAt，无码未验证注册、三受限照常），registerChannel 可选默认 'web'；Web 注册页去掉短信验证码字段。
+2. **不适记录关联改为可选**：ehr.service 曾硬性要求 intakeRecordId/reminderInstanceId/prnIntakeId 至少其一，但 DB V1.2 三列均可空、DTO 亦为可选——删除该硬校验，传了关联仍逐项校验归属。
+3. **提醒实例视图补 R-1 字段**：toInstanceView 增加 plan.storageLocation / plan.additionalNote / planItem.mealRelation（listByDate 装载 plan/planItem 关系），详细提醒可展示存放位置与备注。
+
+另：Web App 增加页面级 ErrorBoundary（按路由 key 重挂载），单页渲染异常降级为错误卡片而非整站白屏。成员装载失败曾连带启动 catch 清空登录态（表现为刷新即掉登录），归一化后消除。已知小瑕疵：会话列表无 `current` 标记，本人当前会话也显示「退出该设备」按钮（后端未返回 currentSessionId，待后端补字段后前端再禁用自踢）。
+
+### 2026-10-23 后台巡检修复（同日第二轮，hotfix5/5b 已上线并探针复验）
+
+| # | 问题 | 修复 |
+| --- | --- | --- |
+| 1 | 仪表盘整页崩溃 `reading 'deliveredToday'`（后端 dashboard 返回 `deliveriesToday` 自有形状，页面按 DashboardData 读 `reminders.*`） | 后端 dashboard() 形状对齐前端类型：accounts{total,active,frozen,cancelling,newToday,newThisWeek}、members{total,active}、reminders{deliveredToday（result=success 计数）,failedToday,missedToday,deliveryRateToday}、drugs{total,pendingReview,approved,rejected}、disputes{pending,open}；探针核对全字段有值 |
+| 2 | 账号列表/详情手机号恒为「-」（后端从未回脱敏手机号；前端读 phoneMasked） | AdminService 注入 PhoneCryptoService：select 密文列 phone → 解密 + maskPhone 脱敏回 phoneMasked，密文剥离不出接口；纯邮箱注册无手机号的账号为 null 属正确 |
+| 3 | 后台关键字搜索恒不生效（账号/药品） | 双因：前端 ProTable 参数名 keyword 与后端 DTO 的 q 不一致 → apps/admin api 层单点映射 withQ（accounts/members/drugs）；后端账号 q 此前仅匹配昵称 → 扩为昵称模糊 OR 完整手机号哈希精确 OR 邮箱哈希精确（部分号码模糊检索因哈希不可逆不支持，隐私设计） |
+| 4 | 用户侧操作不进平台审计（后台按操作者类型=用户账号筛选恒空；授权创建无记录） | 授权域本有 caregiver_authorization_log 双记录（合规口径不变）；在 AuthorizationService.writeLog 单点加 audit_log 镜像：actorType='account'（设计枚举 admin/account/system）、action=care:authorization:<invited\|accepted\|rejected\|revoked\>；实测 invited+revoked 两条落库可查；误写的一条 'user' 已 SQL 更正 |
+| 5 | 药品详情「用法用量」直显原始 JSON（usageDefault 为 {text} 对象被 prettyJson 直印） | 页面改为优先展示 usageDefault.text 正文，其余形状回退 prettyJson |
+
 ## 生产待接项
 - 短信网关（腾讯云/阿里云）：现为 DevStubSmsSender 只记掩码日志，验证码不实际下发——**接入前普通用户无法自助注册/验证码登录**，临时开户办法见 docs/DEPLOY.md。
 - 微信：bind/wechat 已于 2026-10-23 注册验证通道迭代实接（jscode2session + user_oauth_binding 落点，未配 appid/secret 返回 40312，见 `docs/dev/AUTH_CHANNELS.md`）；订阅消息通道仍占位（WECHAT_SUBSCRIBE_NOT_CONNECTED 留痕）。

@@ -282,6 +282,28 @@ export class AuthorizationService {
         afterSnapshot: this.snapshot(after),
       },
     });
+    // 平台审计镜像（2026-10-23 巡检补）：授权域日志是合规双记录，平台 audit_log
+    // 供后台「审计日志」统一检索——此前用户侧动作从不落 audit_log，后台按操作者
+    // 类型=用户账号筛选恒为空。actorType 用设计词汇 'account'（枚举 admin/account/system）。
+    // 动作名 care:authorization:<invited|accepted|rejected|revoked>。
+    await tx.auditLog.create({
+      data: {
+        id: uuidv7(),
+        actorType: 'account',
+        actorId: operatorAccountId,
+        action: `care:authorization:${action}`,
+        targetType: 'caregiver_authorization',
+        targetId: auth.id,
+        memberId: auth.memberId,
+        detail: {
+          level: after.level,
+          status: after.status,
+          caregiverAccountId: after.caregiverAccountId,
+          grantedByAccountId: after.grantedByAccountId,
+        },
+        result: 'success',
+      },
+    });
   }
 
   private snapshot(a: CaregiverAuthorization): Prisma.InputJsonValue {

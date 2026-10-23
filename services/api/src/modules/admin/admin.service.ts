@@ -9,6 +9,7 @@ import { signJwt } from '../../common/utils/jwt';
 import { uuidv7 } from '../../common/utils/uuidv7';
 import type { AuthenticatedAdmin } from '../../common/decorators/admin.decorator';
 import { DrugSeedImportService, type DrugSeedImportResult } from './drug-seed-import.service';
+import { PhoneCryptoService } from '../auth/services/phone-crypto.service';
 import type {
   AdminLoginDto,
   CreateAppVersionDto,
@@ -47,7 +48,18 @@ export class AdminService {
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
     private readonly seedImport: DrugSeedImportService,
+    private readonly phoneCrypto: PhoneCryptoService,
   ) {}
+
+  /** 密文手机号 → 脱敏展示（138****1234）；解密失败/无手机号返回 null，页面显示「-」。 */
+  private maskPhoneSafe(ciphertext: string | null | undefined): string | null {
+    if (!ciphertext) return null;
+    try {
+      return PhoneCryptoService.maskPhone(this.phoneCrypto.decryptPhone(ciphertext));
+    } catch {
+      return null;
+    }
+  }
 
   // ------------------------------------------------------------------ 登录
 
@@ -113,50 +125,107 @@ export class AdminService {
   // ------------------------------------------------------------------ 看板
 
   async dashboard() {
+    // 形状对齐 apps/admin DashboardData（2026-10-23 巡检修复：此前返回
+    // deliveriesToday 等自有形状，页面读 data.reminders.deliveredToday 直接崩溃）。
+    // 「今日」口径沿用 UTC 日界（与投递日志计数一致），接手调整时两处同步。
     const startOfToday = new Date();
     startOfToday.setUTCHours(0, 0, 0, 0);
+    const startOfTomorrow = new Date(startOfToday.getTime() + 24 * 3600 * 1000);
+    const weekAgo = new Date(startOfToday.getTime() - 7 * 24 * 3600 * 1000);
     const [
       accountsTotal,
       accountsActive,
       accountsFrozen,
+      accountsCancelling,
+      accountsNewToday,
+      accountsNewThisWeek,
       membersTotal,
+      membersActive,
       drugsTotal,
       drugsPendingReview,
-      deliveriesToday,
-      deliveriesFailedToday,
+      drugsApproved,
+      drugsRejected,
+      deliveredToday,
+      failedToday,
+      missedToday,
       plansActive,
       disputesOpen,
     ] = await Promise.all([
       this.prisma.userAccount.count({ where: { deletedAt: null } }),
       this.prisma.userAccount.count({ where: { deletedAt: null, status: AccountStatus.Active } }),
       this.prisma.userAccount.count({ where: { deletedAt: null, status: AccountStatus.Frozen } }),
+      this.prisma.userAccount.count({ where: { deletedAt: null, status: AccountStatus.Cancelling } }),
+      this.prisma.userAccount.count({ where: { deletedAt: null, registeredAt: { gte: startOfToday } } }),
+      this.prisma.userAccount.count({ where: { deletedAt: null, registeredAt: { gte: weekAgo } } }),
       this.prisma.member.count({ where: { deletedAt: null } }),
+      this.prisma.member.count({ where: { deletedAt: null, status: 'active' } }),
       this.prisma.drug.count({ where: { deletedAt: null } }),
       this.prisma.drug.count({ where: { deletedAt: null, reviewStatus: 'pending_review' } }),
-      this.prisma.reminderDeliveryLog.count({ where: { createdAt: { gte: startOfToday } } }),
+      this.prisma.drug.count({ where: { deletedAt: null, reviewStatus: 'approved' } }),
+      this.prisma.drug.count({ where: { deletedAt: null, reviewStatus: 'rejected' } }),
+      this.prisma.reminderDeliveryLog.count({
+        where: { createdAt: { gte: startOfToday }, result: 'success' },
+      }),
       this.prisma.reminderDeliveryLog.count({
         where: { createdAt: { gte: startOfToday }, result: 'failed' },
+      }),
+      this.prisma.reminderInstance.count({
+        where: {
+          scheduledAtUtc: { gte: startOfToday, lt: startOfTomorrow },
+          status: 'missed',
+        },
       }),
       this.prisma.medicationPlan.count({ where: { deletedAt: null, status: 'active' } }),
       this.prisma.feedbackTicket.count({ where: { deletedAt: null, status: 'open' } }),
     ]);
+    const attempts = deliveredToday + failedToday;
     return {
-      accounts: { total: accountsTotal, active: accountsActive, frozen: accountsFrozen },
-      members: { total: membersTotal },
-      drugs: { total: drugsTotal, pendingReview: drugsPendingReview },
-      deliveriesToday: { total: deliveriesToday, failed: deliveriesFailedToday },
+      accounts: {
+        total: accountsTotal,
+        active: accountsActive,
+        frozen: accountsFrozen,
+        cancelling: accountsCancelling,
+        newToday: accountsNewToday,
+        newThisWeek: accountsNewThisWeek,
+      },
+      members: { total: membersTotal, active: membersActive },
+      reminders: {
+        deliveredToday,
+        failedToday,
+        missedToday,
+        deliveryRateToday: attempts > 0 ? deliveredToday / attempts : 0,
+      },
+      drugs: {
+        total: drugsTotal,
+        pendingReview: drugsPendingReview,
+        approved: drugsApproved,
+        rejected: drugsRejected,
+      },
       plans: { active: plansActive },
-      disputes: { open: disputesOpen },
+      disputes: { pending: disputesOpen, open: disputesOpen },
     };
   }
 
   // -------------------------------------------------------------- 账号/成员
 
   async listAccounts(query: ListAccountsQueryDto) {
+    // 关键字口径（2026-10-23 巡检修复）：昵称模糊 + 完整手机号哈希精确 + 邮箱哈希精确。
+    // 手机号/邮箱均以密文+哈希落库，不支持部分号码模糊检索（哈希不可逆，属隐私设计）。
+    const q = query.q?.trim();
     const where: Prisma.UserAccountWhereInput = {
       deletedAt: null,
       ...(query.status ? { status: query.status } : {}),
-      ...(query.q ? { nickname: { contains: query.q, mode: 'insensitive' } } : {}),
+      ...(q
+        ? {
+            OR: [
+              { nickname: { contains: q, mode: 'insensitive' as const } },
+              ...(/^[+\d][\d\s-]{4,}$/.test(q)
+                ? [{ phoneHash: this.phoneCrypto.hashPhone(q.replace(/[\s-]/g, '')) }]
+                : []),
+              ...(q.includes('@') ? [{ emailHash: this.phoneCrypto.hashEmail(q) }] : []),
+            ],
+          }
+        : {}),
     };
     const [items, total] = await Promise.all([
       this.prisma.userAccount.findMany({
@@ -174,12 +243,18 @@ export class AdminService {
           timezone: true,
           createdAt: true,
           updatedAt: true,
+          phone: true,
           _count: { select: { members: true } },
         },
       }),
       this.prisma.userAccount.count({ where }),
     ]);
-    return { items, total, page: query.page, pageSize: query.pageSize };
+    // 密文不出接口：剥离 phone（密文列），仅回脱敏 phoneMasked（页面列与详情同口径）。
+    const masked = items.map(({ phone, ...rest }) => ({
+      ...rest,
+      phoneMasked: this.maskPhoneSafe(phone),
+    }));
+    return { items: masked, total, page: query.page, pageSize: query.pageSize };
   }
 
   async getAccount(id: string) {
@@ -197,6 +272,7 @@ export class AdminService {
         cancelledAt: true,
         createdAt: true,
         updatedAt: true,
+        phone: true,
         members: {
           where: { deletedAt: null },
           orderBy: { sortOrder: 'asc' },
@@ -208,7 +284,8 @@ export class AdminService {
     if (!account) {
       throw new BusinessException(BusinessCode.NotFound, 'account not found', HttpStatus.NOT_FOUND);
     }
-    return account;
+    const { phone, ...rest } = account;
+    return { ...rest, phoneMasked: this.maskPhoneSafe(phone) };
   }
 
   /** 冻结/解冻：前后状态双记录入审计。 */

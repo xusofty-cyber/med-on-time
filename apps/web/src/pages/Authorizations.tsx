@@ -9,9 +9,8 @@ import type { Authorization } from '../lib/types';
 const MAX_CAREGIVERS = 5;
 
 export default function Authorizations() {
-  const account = useApp((s) => s.account);
   const members = useApp((s) => s.members);
-  const [list, setList] = useState<Authorization[] | null>(null);
+  const [list, setList] = useState<{ granted: Authorization[]; received: Authorization[] } | null>(null);
   const [error, setError] = useState<unknown>(null);
   const [formOpen, setFormOpen] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -28,8 +27,8 @@ export default function Authorizations() {
     load();
   }, []);
 
-  const mine = (list ?? []).filter((a) => a.grantedByAccountId === account?.id);
-  const incoming = (list ?? []).filter((a) => a.grantedByAccountId !== account?.id);
+  const mine = list?.granted ?? [];
+  const incoming = list?.received ?? [];
   const memberName = (id: string) => members.find((m) => m.id === id)?.displayName ?? '成员';
 
   const act = async (id: string, fn: () => Promise<unknown>, ok: string) => {

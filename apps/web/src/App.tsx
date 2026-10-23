@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
+import { Component, useEffect, useState, type ReactNode } from 'react';
 import Layout from './components/Layout';
-import { Toasts } from './components/ui';
+import { Button, Card, EmptyState, Toasts } from './components/ui';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import Today from './pages/Today';
@@ -23,6 +23,40 @@ import { PUBLIC_ROUTES, navigate, useRoute } from './lib/router';
  *      /authorizations /notifications /settings（hash 路由，零新增依赖）。
  * 会话：token 存 localStorage，401 由请求层刷新；成员切换驱动关怀模式与全部成员域页面。
  */
+/**
+ * 页面级错误边界（兜底）：单个页面渲染异常时只降级当前页并给出返回入口，
+ * 不再整树卸载白屏（2026-10-23 白屏事故后加固；按 route key 重挂载自动复位）。
+ */
+class PageBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
+  state: { error: Error | null } = { error: null };
+  static getDerivedStateFromError(error: Error) {
+    return { error };
+  }
+  componentDidCatch(error: Error) {
+    console.error('[PageBoundary]', error);
+  }
+  render() {
+    if (this.state.error) {
+      return (
+        <Card>
+          <EmptyState text="这个页面出了点问题，您的其它数据不受影响。可以先返回今日提醒，或稍后刷新重试。" />
+          <div className="mt-4">
+            <Button
+              onClick={() => {
+                this.setState({ error: null });
+                navigate('/');
+              }}
+            >
+              返回今日提醒
+            </Button>
+          </div>
+        </Card>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 export default function App() {
   const route = useRoute();
   const account = useApp((s) => s.account);
@@ -118,7 +152,9 @@ export default function App() {
   return (
     <>
       <Toasts />
-      <Layout routeName={route.name}>{page}</Layout>
+      <Layout routeName={route.name}>
+        <PageBoundary key={route.name}>{page}</PageBoundary>
+      </Layout>
     </>
   );
 }

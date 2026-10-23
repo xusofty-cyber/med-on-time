@@ -125,12 +125,8 @@ export class EhrService {
 
   async createAdverseRecord(memberId: string, operatorAccountId: string, dto: CreateAdverseRecordDto) {
     await this.requireMember(memberId);
-    if (!dto.intakeRecordId && !dto.reminderInstanceId && !dto.prnIntakeId) {
-      throw new BusinessException(
-        BusinessCode.BadRequest,
-        '不适记录必须关联一次服药事件（intakeRecordId / reminderInstanceId / prnIntakeId 至少其一）',
-      );
-    }
+    // 关联服药事件为可选（DB V1.2 三个关联列均可空，独立记录不适是合法口径）；
+    // 传了关联则必须属于该成员并校验存在性（下方逐项校验）。
     // 关联事件必须属于该成员；planItemId 缺省时从关联事件推导（按药聚合口径）
     let planItemId = dto.planItemId ?? null;
     if (dto.intakeRecordId) {

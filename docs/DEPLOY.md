@@ -310,3 +310,14 @@ curl -s http://127.0.0.1:8080/api/ops/ready   # 确认 code=0
 | `deploy/scripts/backup.sh` | 数据库备份（保留 14 份） |
 | `deploy/scripts/logs.sh` / `stop.sh` | 日志 / 停止（仅本项目） |
 | `.dockerignore` | 构建上下文排除（node_modules、dist、.env、备份） |
+
+## 附录 B：当前生产实例实况（2026-10-23 上线，与正文通用口径的差异以本附录为准）
+
+- **服务器**：腾讯云广州，Ubuntu 22.04 LTS x86_64，公网 154.8.219.189 / Tailscale 100.108.115.52；SSH 22（用户 ubuntu，免密 sudo）。仓克隆于 `~/projects/medontime`（develop 分支）。
+- **端口实况**：正文默认 8080/8081 已被该机既有服务占用（zhihu-web 8080、hookbox-relay 18080），实例实际 `WEB_PORT=28080`、`ADMIN_PORT=28081`（写在服务器 `deploy/.env`）。API 3000、Redis 6379 不映射宿主机。
+- **入口与证书**：宿主机 nginx 三站点——`mot.ulife.vip` → 127.0.0.1:28080、`admin.ulife.vip` → 127.0.0.1:28081、`blog.ulife.vip` → 静态占位页；腾讯云证书包在服务器 `~/projects/ssl/<域名>_nginx/`，站点配置在 `/etc/nginx/sites-enabled/`（沿用该机既有 n8n 站点风格）；DNS 三条 A 记录均 → 154.8.219.189（DNSPod）。云防火墙 80/443/22 已放行，无需为本项目新增（5432 安全组亦为开放状态，收紧与否待负责人拍板）。
+- **数据库**：既有容器 `nexasx-postgres`（PG 16），库 `medontime`；容器内经 `nexasx-internal` 网络以 `nexasx-postgres:5432` 访问。三段迁移已实跑（基线/约束分区/V1.3 auth 通道）；分区迁移首跑曾因旧表主键索引未改名 42P07 失败，修复（索引 RENAME + ai_call_log 唯一索引复合化）已回仓。
+- **构建实况修复（已回仓 Dockerfile）**：① 三镜像设 `ELECTRON_SKIP_BINARY_DOWNLOAD=1`；② api 镜像 apk 源换腾讯云镜像 `mirrors.cloud.tencent.com`（官方 CDN 在该机超时、阿里源慢）；③ api 运行阶段补 `prisma generate`（pnpm deploy 产物为未生成客户端桩）。
+- **SMTP 实况**：`SMTP_URL=smtps://<用户QQ邮箱>@smtp.qq.com:465` 与 `SMTP_FROM` 已写入服务器 deploy/.env 并实发验证通过；授权码只存在该文件。个人 QQ SMTP 有日发送上限，用户量上来后应迁专业发信服务（注册侧代码不用改，只换 env）。
+- **运维纪律（该机特有）**：① **不得动既有服务与容器**（n8n、zhihu-web、hookbox-relay 等），只许新增/更新本项目资源；② 构建缓存曾涨至 30GB——构建后执行 prune 回收无用缓存与悬空镜像，镜像保持精简；③ 管理员 `admin` 初始密码由 bootstrap 一次性打印、负责人留存，首登后改密。
+- **热修通道（仓库外）**：单文件热修曾用「打包改动文件 → 传服务器解压 → compose build 对应服务 → up -d」直发，事后必须汇总回仓推送 develop（2026-10-23 白屏修复即走此路，代码已回仓）。

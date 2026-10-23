@@ -41,10 +41,20 @@ export function getDashboard() {
   return request<DashboardData>('/admin/dashboard');
 }
 
+/**
+ * ProTable 搜索字段统一为 keyword，后端各列表 DTO 的关键字参数名为 q——
+ * 在此单点映射（2026-10-23 巡检修复：此前 keyword 被后端白名单剥离，
+ * 账号/药品等关键字搜索恒不生效）。
+ */
+function withQ(query: ListQuery): Record<string, string | number | boolean | null | undefined> {
+  const { keyword, ...rest } = query as ListQuery & { keyword?: string };
+  return keyword ? { ...rest, q: keyword } : { ...rest };
+}
+
 /* ---------------- 账号与成员 ---------------- */
 
 export function listAccounts(query: ListQuery) {
-  return request<PageData<AccountItem>>('/admin/accounts', { params: query });
+  return request<PageData<AccountItem>>('/admin/accounts', { params: withQ(query) });
 }
 
 export function getAccount(id: string) {
@@ -66,13 +76,13 @@ export function unfreezeAccount(id: string) {
 }
 
 export function listMembers(query: ListQuery) {
-  return request<PageData<MemberItem>>('/admin/members', { params: query });
+  return request<PageData<MemberItem>>('/admin/members', { params: withQ(query) });
 }
 
 /* ---------------- 药品库 ---------------- */
 
 export function listDrugs(query: ListQuery) {
-  return request<PageData<DrugItem>>('/admin/drugs', { params: query });
+  return request<PageData<DrugItem>>('/admin/drugs', { params: withQ(query) });
 }
 
 export function getDrug(id: string) {

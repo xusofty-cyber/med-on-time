@@ -62,7 +62,10 @@ export class AuthService {
 
   async register(dto: RegisterDto, ctx: RequestContext): Promise<TokenPair> {
     const phoneHash = this.phoneCrypto.hashPhone(dto.phone);
-    await this.codes.verifyAndConsume(phoneHash, 'register', dto.smsCode);
+    // V1.3 裁定：带短信验证码则校验并置已验证；不带码未验证注册（三受限生效，见 AUTH_CHANNELS.md）。
+    if (dto.smsCode) {
+      await this.codes.verifyAndConsume(phoneHash, 'register', dto.smsCode);
+    }
 
     const existing = await this.findAccountByPhoneHash(phoneHash);
     if (existing) {
@@ -83,11 +86,11 @@ export class AuthService {
           id: accountId,
           phone: this.phoneCrypto.encryptPhone(dto.phone),
           phoneHash,
-          // 短信验证码注册即完成手机号核验（V1.3）
-          phoneVerifiedAt: now,
+          // 带码注册即完成手机号核验；无码注册 phoneVerifiedAt=null（未验证，三受限）
+          phoneVerifiedAt: dto.smsCode ? now : null,
           passwordHash,
           nickname,
-          registerChannel: dto.registerChannel,
+          registerChannel: dto.registerChannel ?? 'web',
           registeredAt: now,
           status: AccountStatus.Active,
           lastLoginAt: now,

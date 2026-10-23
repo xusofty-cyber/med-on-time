@@ -35,6 +35,10 @@ export interface ReminderInstanceView {
   snoozeUntil: Date | null;
   snoozeCount: number;
   source: string;
+  /** R-1：计划级「存放位置」「附加备注」与条目餐前/餐后关系，供详细提醒展示（单实例接口未装载计划时为 null） */
+  storageLocation: string | null;
+  additionalNote: string | null;
+  mealRelation: string | null;
   intake: {
     id: string;
     action: string;
@@ -45,6 +49,8 @@ export interface ReminderInstanceView {
 }
 
 type InstanceWithIntake = ReminderInstance & {
+  plan?: { storageLocation: string | null; additionalNote: string | null } | null;
+  planItem?: { mealRelation: string } | null;
   intakeRecord: {
     id: string;
     action: string;
@@ -72,6 +78,9 @@ export function toInstanceView(inst: InstanceWithIntake): ReminderInstanceView {
     snoozeUntil: inst.snoozeUntil,
     snoozeCount: inst.snoozeCount,
     source: inst.source,
+    storageLocation: inst.plan?.storageLocation ?? null,
+    additionalNote: inst.plan?.additionalNote ?? null,
+    mealRelation: inst.planItem?.mealRelation ?? null,
     intake: inst.intakeRecord
       ? {
           id: inst.intakeRecord.id,
@@ -115,6 +124,8 @@ export class ReminderService {
         deletedAt: null,
       },
       include: {
+        plan: { select: { storageLocation: true, additionalNote: true } },
+        planItem: { select: { mealRelation: true } },
         intakeRecord: {
           select: {
             id: true,

@@ -281,12 +281,16 @@ export interface EmergencyContact {
   note?: string | null;
 }
 
-export interface MedicalRecordEntry {
+/** 健康概况（后端 member_medical_record：每位成员一条，upsert 语义；summary 正文加密存储） */
+export interface MedicalProfile {
   id: string;
-  title?: string | null;
-  content: string;
-  recordDate?: string | null;
-  createdAt?: string;
+  memberId: string;
+  bloodType?: string | null; // A / B / AB / O / unknown
+  heightCm?: number | null;
+  weightKg?: number | null;
+  primaryHospital?: string | null;
+  summary?: string | null;
+  updatedAt?: string;
 }
 
 export interface Authorization {

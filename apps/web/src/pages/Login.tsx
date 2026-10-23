@@ -1,5 +1,5 @@
 import { FormEvent, useState } from 'react';
-import { authApi } from '../lib/endpoints';
+import { authApi, memberApi } from '../lib/endpoints';
 import { tokenStore } from '../lib/api';
 import { actions } from '../lib/store';
 import { navigate } from '../lib/router';
@@ -31,6 +31,12 @@ export default function Login() {
         } catch {
           /* me 失败时由 App 守卫兜底回登录页 */
         }
+      }
+      // 登录后立即装载成员（此前只有整页刷新时的启动流程才拉，初次登录全站显示「还没有成员」）
+      try {
+        actions.setMembers(await memberApi.list());
+      } catch {
+        /* 成员装载失败不阻断登录，页面内会再各自加载/提示 */
       }
       actions.toast('success', '登录成功');
       navigate('/');

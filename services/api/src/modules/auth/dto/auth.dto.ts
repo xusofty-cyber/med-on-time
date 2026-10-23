@@ -58,11 +58,14 @@ export class RegisterDto extends DeviceInfoDto {
   @Matches(/^(?=.*[A-Za-z])(?=.*\d).+$/, { message: '密码须同时包含字母与数字' })
   password!: string;
 
+  /** V1.3 裁定：短信网关未接前手机号可未验证注册；带码则校验并置已验证（网关接通后向前兼容）。 */
+  @IsOptional()
   @Matches(/^\d{6}$/, { message: '验证码为 6 位数字' })
-  smsCode!: string;
+  smsCode?: string;
 
+  @IsOptional()
   @IsIn(REGISTER_CHANNELS)
-  registerChannel!: string;
+  registerChannel?: string;
 
   @IsOptional()
   @IsString()

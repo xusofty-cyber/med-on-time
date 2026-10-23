@@ -1,16 +1,14 @@
 import { FormEvent, useState } from 'react';
-import { authApi } from '../lib/endpoints';
+import { authApi, memberApi } from '../lib/endpoints';
 import { tokenStore } from '../lib/api';
 import { actions } from '../lib/store';
 import { navigate } from '../lib/router';
 import { Button, Card, ErrorText, Field, TextInput } from '../components/ui';
-import { SmsCodeButton } from '../components/SmsCodeButton';
 import { EmailCodeButton } from '../components/EmailCodeButton';
 
 export default function Register() {
   const [mode, setMode] = useState<'phone' | 'email'>('phone');
   const [phone, setPhone] = useState('');
-  const [code, setCode] = useState('');
   const [email, setEmail] = useState('');
   const [emailCode, setEmailCode] = useState('');
   const [emailPhone, setEmailPhone] = useState('');
@@ -37,7 +35,7 @@ export default function Register() {
               nickname: nickname || undefined,
               phone: emailPhone || undefined,
             })
-          : await authApi.register({ phone, password, code, nickname: nickname || undefined });
+          : await authApi.register({ phone, password, nickname: nickname || undefined });
       tokenStore.set(result.accessToken, result.refreshToken);
       if (result.account) actions.setAccount(result.account);
       else {
@@ -46,6 +44,12 @@ export default function Register() {
         } catch {
           /* me 失败时由 App 守卫兜底回登录页 */
         }
+      }
+      // 注册即自动建有本人成员，立即装载（与 Login 同口径，避免初次进入显示「还没有成员」）
+      try {
+        actions.setMembers(await memberApi.list());
+      } catch {
+        /* 装载失败不阻断注册流程 */
       }
       actions.toast('success', '注册成功，请先添加要照护的成员');
       navigate('/members');
@@ -71,14 +75,8 @@ export default function Register() {
         <form className="flex flex-col gap-4" onSubmit={submit}>
           {mode === 'phone' ? (
             <>
-              <Field label="手机号">
+              <Field label="手机号" hint="短信通道开通前为未验证注册：暂不能用于短信提醒与找回密码，可日后补验">
                 <TextInput value={phone} onChange={setPhone} placeholder="11 位手机号" type="tel" required autoComplete="username" />
-              </Field>
-              <Field label="短信验证码">
-                <div className="flex gap-2">
-                  <TextInput value={code} onChange={setCode} placeholder="6 位验证码" required />
-                  <SmsCodeButton phone={phone} scene="register" />
-                </div>
               </Field>
             </>
           ) : (

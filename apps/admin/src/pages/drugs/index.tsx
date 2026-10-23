@@ -293,7 +293,13 @@ export default function DrugsPage() {
                 <span style={{ whiteSpace: 'pre-wrap' }}>{detail.efficacy ?? '-'}</span>
               </Descriptions.Item>
               <Descriptions.Item label="用法用量">
-                <span style={{ whiteSpace: 'pre-wrap' }}>{prettyJson(detail.usageDefault)}</span>
+                <span style={{ whiteSpace: 'pre-wrap' }}>
+                  {detail.usageDefault &&
+                  typeof detail.usageDefault === 'object' &&
+                  typeof (detail.usageDefault as { text?: unknown }).text === 'string'
+                    ? (detail.usageDefault as { text: string }).text
+                    : prettyJson(detail.usageDefault)}
+                </span>
               </Descriptions.Item>
               <Descriptions.Item label="禁忌">
                 <span style={{ whiteSpace: 'pre-wrap' }}>{detail.contraindications ?? '-'}</span>

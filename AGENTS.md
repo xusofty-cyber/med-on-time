@@ -10,11 +10,11 @@
 - **项目名称**：药准时 MedOnTime
 - **业务定位**：全平台用药提醒系统——帮助用户及家人按时服药；支持一个账号管理多位家庭成员用药，委托照护人（管家 / 保姆 / 子女 / 护工）经授权代配置、代打卡、代收提醒。
 - **核心维护者**：xusofty-cyber（ulife）
-- **代码仓库与默认分支**：https://github.com/xusofty-cyber/med-on-time；默认分支 `main`（`develop` 分支待建立）
+- **代码仓库与默认分支**：https://github.com/xusofty-cyber/med-on-time；默认分支 `main`，开发分支 `develop`（2026-10-23 已建立）
 
 ## 常用开发命令
 
-> 依据《docs/architecture/TECH_ARCHITECTURE.md》V1.0（待评审）。运行命令前先确认工作目录；必须采用过滤参数防日志刷屏，严禁将全量日志直接倒进上下文。
+> 依据《docs/architecture/TECH_ARCHITECTURE.md》V1.5（已确认冻结）。运行命令前先确认工作目录；必须采用过滤参数防日志刷屏，严禁将全量日志直接倒进上下文。接手先读 `docs/HANDOVER.md`。
 
 ```bash
 # 1. 依赖安装
@@ -52,7 +52,7 @@ pnpm --filter @med-on-time/api prisma migrate deploy   # 部署执行迁移
 | **移动端** | Android: Kotlin + Jetpack（Compose/Room/WorkManager/Hilt/Retrofit）；iOS: Swift + SwiftUI | 推送：APNs / FCM；国内安卓用极光·JPush 聚合 |
 | **桌面端** | Electron（复用 `apps/web` 代码） | Windows / Linux / macOS；定位为补充提醒 |
 | **共享包** | TypeScript + dayjs + zod；API 客户端由 OpenAPI 生成（orval） | `packages/shared` 枚举与 DB 枚举速查逐字一致 |
-| **持久层** | PostgreSQL 15+ | 34 张表 / 8 个域；UUIDv7 主键；软删除；大表按月分区 |
+| **持久层** | PostgreSQL 15+ | 56 张表 / 9 个域（DB V1.2）；UUIDv7 主键；软删除；大表按月分区 |
 | **接口** | RESTful over HTTPS，OpenAPI 为唯一契约 | 各端共用同一套后端 API |
 | **CI/CD** | GitHub Actions（lint/test/build）；CD 待定 | `main` 受保护，PR 合并 |
 

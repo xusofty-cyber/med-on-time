@@ -9,7 +9,7 @@
 - **JWT 定版（2026-10-23 集成收口）**：全仓唯一实现 `services/api/src/common/utils/jwt.ts`（TokenService 与 admin 登录均经其签发）；payload.type 三分——用户 access=`user`、用户 refresh=`refresh`（另带 sid/jti 与会话存储对应）、后台=`admin` 且 aud=`admin`。用户端守卫统一定版 `common/guards/jwt-auth.guard`（验签 + 账号状态回查：注销/冻结/软删拒绝），全部用户端模块只用这一套；后台守卫 `common/guards/admin-auth.guard`（密钥 ADMIN_JWT_SECRET 优先，未配置回退 JWT_ACCESS_SECRET）。
 - **响应信封定版**：成功统一 `{ code: 0, message: 'ok', traceId, data }`（全局 EnvelopeInterceptor）；错误 `{ code, message, traceId }`（AllExceptionsFilter）；traceId 取请求头 `x-trace-id`，无则服务端生成 UUID，成功/错误同口径。健康探针 /ops/health 等同样走信封。
 - **入参校验定版**：全局 ValidationPipe `whitelist: true`（未声明字段剥离）、`forbidNonWhitelisted: false`（各端可先行发送新字段，后端补声明后生效，不因未知字段 400）。
-- 分页：`?page=1&pageSize=20`，响应 data={items,total,page,pageSize}。
+- 分页：`?page=1&pageSize=20`，响应 data={items,total,page,pageSize}。**例外（2026-10-23 线上实测后定版，全表见 INTEGRATION_NOTES「线上巡检修复」节）**：GET /members 返回 `{own, authorized}` 分组、GET /authorizations 返回 `{granted, received}` 分组、GET /account/sessions 返回 `{items, total}`、reminders today/按日返回 `{date, timezone, items}`、adherence calendar 返回 `{month, timezone, days}` 且 summary/calendar 计数字段为 scheduled/taken/onTime/missed/skipped（无 Count 后缀）。各端消费前必须按此口径适配（Web 端适配集中在 `apps/web/src/lib/endpoints.ts` 归一化层）。
 - 枚举一律取 `packages/shared` 的 enums.ts（与 DB 附录 B 对齐），禁止自创取值。
 - DTO 用 class-validator；Controller 只做参数/权限，逻辑在 Service；Prisma 查询禁止跨成员泄漏（where 必带 memberId 且先过隔离校验）。
 
@@ -29,7 +29,7 @@
 - 生效解析顺序（生成 missed 判定 / 投递重复 / snooze 统一）：成员设置打底 → 计划覆盖预设整组替换 → 计划覆盖显式数值逐项替换。
 
 ## 用户端接口（account 主体）
-- auth: POST /auth/register（手机号+密码+短信验证码；验证码通道先走 dev stub：固定走 notification 短信接口抽象，生产接真实网关；注册即置 phone_verified_at）, POST /auth/login（{account, password}：account 含 @ 按邮箱查、否则按手机号查；旧 {phone, password} 兼容）, POST /auth/login/code（手机号+验证码）, POST /auth/refresh, POST /auth/logout, POST /auth/password/reset（验证码重置）, GET /auth/me
+- auth: POST /auth/register（手机号+密码；**2026-10-23 下午修正对齐 V1.3 裁定**：smsCode 可选——带码校验通过置 phone_verified_at，不带码为未验证注册、三受限生效；registerChannel 可选默认 web）, POST /auth/login（{account, password}：account 含 @ 按邮箱查、否则按手机号查；旧 {phone, password} 兼容）, POST /auth/login/code（手机号+验证码）, POST /auth/refresh, POST /auth/logout, POST /auth/password/reset（验证码重置）, GET /auth/me
 - auth（V1.3 注册验证通道，2026-10-23 定版，全文见 `docs/dev/AUTH_CHANNELS.md`）: POST /auth/email/send {email, scene}（scene: register/login/reset_password/bind；限频与短信同口径 60s/5 次每小时/5 分钟有效/5 次尝试）, POST /auth/register/email {email, code, password, nickname?, phone?}（邮箱已验证建号；phone 选填只登记不验证）, POST /auth/wechat/miniapp/login {code, phoneCode?}（code 换 openid 登录/建号；带 phoneCode 一并核验手机号；未配 appid/secret 返回 40312）, POST /auth/wechat/bind {code}（需登录；旧路径 POST /auth/bind/wechat 同实现）, POST /auth/phone/verify/wechat {phoneCode}（需登录；微信核验手机号落库/置验证，不一致返回 40910 不覆盖账号根）。账号视图（GET /auth/me、GET/PATCH /account/profile）含 phoneVerified/hasPhone/emailMasked/emailVerified/hasEmail/hasWechat。
 - auth 段业务码（禁止复用）: 40312 WechatNotConfigured（微信通道未配置）, 40320 PhoneNotVerified（手机号未验证：禁开短信提醒、禁短信找回密码）, 40321 PhoneVerificationRequired（接受照护授权前须完成手机号验证）, 40910 PhoneMismatch（微信核验号与登记号不一致）。
 - account: GET/PATCH /account/profile, POST /account/cancel（注销申请→30 天冷静期）, GET /account/sessions, DELETE /account/sessions/:id
@@ -41,7 +41,7 @@
 - checkin: POST /reminders/:instanceId/checkin（服药打卡：一实例仅一条有效 intake_record）, GET /members/:memberId/checkins?from&to
 - adherence: GET /members/:memberId/adherence/summary?range=week|month（应服/实服/按时率）, GET /members/:memberId/adherence/calendar?month=
 - stock: GET /members/:memberId/stock（库存+到期预警）, POST /members/:memberId/stock/adjust（增减流水）, 服药打卡自动扣减
-- ehr: 过敏档案 GET/PUT /members/:memberId/allergies；服药后不适记录 POST/GET /members/:memberId/adverse-records；紧急联系人 CRUD /members/:memberId/emergency-contacts；病历文本 POST/GET /members/:memberId/medical-records（正文字段加密存储，见需求口径）
+- ehr: 过敏档案 GET/PUT /members/:memberId/allergies；服药后不适记录 POST/GET /members/:memberId/adverse-records（**关联服药事件可选**：intakeRecordId/reminderInstanceId/prnIntakeId 三列 DB 可空，传了才校验归属，2026-10-23 修正）；紧急联系人 CRUD /members/:memberId/emergency-contacts；**健康概况** POST/GET /members/:memberId/medical-records（每位成员一条：bloodType/heightCm/weightKg/primaryHospital/summary，upsert 语义，summary 字段加密存储——非条目列表，Web 端已按此模型实现「健康概况」页签）
 - notification: GET /notifications（站内）, POST /notifications/:id/read, GET/PUT /notification-prefs（渠道：站内/短信（用户自选开启）/微信（占位））。V1.3：PUT 开启 sms 时账号手机号须已验证，未验证返回 40320；POST /auth/password/reset 同理（未验证返回 40320）。
 - content: GET /content/articles?locale=, GET /content/articles/:id（简/繁/英 locale 内容组）
 - ai: 全部返回「未开通」占位（POC-2 未评测 + 外部医学审校前入口不开）
@@ -63,7 +63,7 @@
 
 ## 前端结构口径
 - 后台（apps/admin，AntD Pro）：src/pages 下 dashboard/accounts/members/drugs/plans/content/disputes/audit/system；统一 request 封装走 /api/admin；医嘱绿 #0B6B4F。
-- Web（apps/web）：路由 /login /register /（今日提醒）/members /plans /adherence /stock /ehr /settings；data-care-mode 关怀模式（≥18pt/对比度≥7:1/点击区≥56）。
+- Web（apps/web）：路由 /login /register /（今日提醒）/members /plans /adherence /stock /ehr /authorizations /notifications /settings（hash 路由）；data-care-mode 关怀模式（≥18pt/对比度≥7:1/点击区≥56）；登录/注册成功后必须立即装载成员列表（memberApi.list），页面级 ErrorBoundary 兜底（单页异常不整站白屏）。
 - 小程序（apps/miniprogram，Taro）：pages/index（今日提醒）/plans/members/me 四 tab + 打卡与计划编辑页。
 - 桌面（apps/desktop，Electron）：主进程加载 Web 构建产物（或远程 URL 配置），托盘 + 到点本地通知。
 - Android（apps/android，Kotlin+Jetpack Compose）：登录/今日提醒/打卡/计划/我的 五模块，Retrofit 调 /api，WorkManager 本地提醒兜底。
