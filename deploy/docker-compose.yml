@@ -1,0 +1,95 @@
+# MedOnTime 部署编排（项目名 medontime，与服务器上既有容器组完全隔离）。
+# 使用方式：在 deploy/ 目录内执行 docker compose 命令（脚本已封装）。
+# PostgreSQL 不在本编排内：复用服务器既有容器 nexasx-postgres（PostgreSQL 16），
+# 本项目仅在其中新建 medontime 角色与 medontime 数据库（见 scripts/db-init.sh），
+# 严禁停止/修改该容器及其他任何既有容器。
+
+name: medontime
+
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: medontime-redis
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - medontime-redis:/data
+    networks:
+      - medontime-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    restart: unless-stopped
+
+  api:
+    build:
+      # monorepo 构建上下文为仓库根目录，Dockerfile 在 services/api 下
+      context: ..
+      dockerfile: services/api/Dockerfile
+      args:
+        NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmmirror.com}
+    container_name: medontime-api
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+    # 仅在 compose 网络内暴露，不直接映射宿主机端口（经 web/admin 的 nginx 访问）
+    expose:
+      - "3000"
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - medontime-net
+      # 加入既有外部网络以便用主机名 nexasx-postgres 连接既有 PG 容器；
+      # 本项目不会修改该网络与该容器，只新建自己的数据库与角色。
+      - nexasx-internal
+    healthcheck:
+      # 健康探针全路径 /api/ops/health（后端全局前缀 /api）；响应为信封 JSON
+      # {code:0,...}，探针只判 HTTP 200，不解析 body。
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:3000/api/ops/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    restart: unless-stopped
+
+  web:
+    build:
+      context: ..
+      dockerfile: apps/web/Dockerfile
+      args:
+        NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmmirror.com}
+    container_name: medontime-web
+    ports:
+      - "${WEB_PORT:-8080}:80"
+    depends_on:
+      - api
+    networks:
+      - medontime-net
+    restart: unless-stopped
+
+  admin:
+    build:
+      context: ..
+      dockerfile: apps/admin/Dockerfile
+      args:
+        NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmmirror.com}
+    container_name: medontime-admin
+    ports:
+      - "${ADMIN_PORT:-8081}:80"
+    depends_on:
+      - api
+    networks:
+      - medontime-net
+    restart: unless-stopped
+
+volumes:
+  medontime-redis:
+
+networks:
+  medontime-net:
+  nexasx-internal:
+    external: true
