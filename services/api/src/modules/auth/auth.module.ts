@@ -1,9 +1,17 @@
 import { Module } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { PhoneCryptoService } from './services/phone-crypto.service';
 import { TokenService } from './services/token.service';
+import { WechatMiniappService } from './services/wechat-miniapp.service';
+import {
+  DevStubMailSender,
+  MailSender,
+  SmtpMailSender,
+  isSmtpConfigured,
+} from './services/mail-sender.service';
 import {
   InMemoryRefreshSessionStore,
   RefreshSessionStore,
@@ -32,9 +40,17 @@ import {
     TokenService,
     SessionService,
     VerificationCodeService,
+    WechatMiniappService,
     { provide: RefreshSessionStore, useClass: InMemoryRefreshSessionStore },
     { provide: VerificationCodeStore, useClass: InMemoryVerificationCodeStore },
     { provide: SmsSender, useClass: DevStubSmsSender },
+    {
+      // SMTP 已配置 → 真实发送；未配置 → dev stub（掩码日志 + 启动警告），与短信 stub 同口径。
+      provide: MailSender,
+      useFactory: (config: ConfigService) =>
+        isSmtpConfigured(config) ? new SmtpMailSender(config) : new DevStubMailSender(),
+      inject: [ConfigService],
+    },
   ],
   exports: [
     AuthService,

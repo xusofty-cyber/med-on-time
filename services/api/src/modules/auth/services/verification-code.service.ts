@@ -6,10 +6,24 @@ import {
   BusinessException,
 } from '../../../common/exceptions/business.exception';
 import { PhoneCryptoService } from './phone-crypto.service';
+import { MailSender } from './mail-sender.service';
 
 export type SmsScene = 'register' | 'login' | 'reset';
 
 export const SMS_SCENES: SmsScene[] = ['register', 'login', 'reset'];
+
+/**
+ * 验证码场景定版（V1.3 泛化）：register / login / reset_password / bind。
+ * 短信侧历史场景名 'reset' 在服务入口统一归一为 'reset_password'（发送与校验同口径，
+ * 既有客户端仍可按 'reset' 调用 /auth/sms/send 与重置密码，不回归）。
+ */
+export type CodeScene = 'register' | 'login' | 'reset_password' | 'bind';
+
+export const CODE_SCENES: CodeScene[] = ['register', 'login', 'reset_password', 'bind'];
+
+function normalizeScene(scene: SmsScene | CodeScene): CodeScene {
+  return scene === 'reset' ? 'reset_password' : scene;
+}
 
 /**
  * 短信发送通道抽象（契约：验证码走 notification 短信接口抽象，生产接真实网关）。
@@ -43,7 +57,7 @@ interface CodeRecord {
 /**
  * 验证码存储抽象。契约口径优先 Redis；当前工程无 Redis 封装，先内存实现。
  * TODO(redis): 接入 Redis 封装后切换为 Redis 实现（TTL 与限频计数天然适配）。
- * 限频：同号同场景 60 秒重发间隔、1 小时最多 5 次；码 6 位、有效 5 分钟、最多试 5 次。
+ * 限频：同目标同场景 60 秒重发间隔、1 小时最多 5 次；码 6 位、有效 5 分钟、最多试 5 次。
  */
 export abstract class VerificationCodeStore {
   abstract get(key: string): Promise<CodeRecord | null>;
@@ -80,20 +94,45 @@ const RESEND_INTERVAL_MS = 60 * 1000;
 const HOURLY_LIMIT = 5;
 const MAX_ATTEMPTS = 5;
 
+/**
+ * 验证码服务（V1.3 泛化到 target = phone | email）。
+ * 存储键含通道前缀（sms:/mail:）与目标哈希，邮箱哈希本身另有 `email:` 域分隔，
+ * 两通道同场景互不串扰；限频口径两通道一致。
+ */
 @Injectable()
 export class VerificationCodeService {
   constructor(
     private readonly store: VerificationCodeStore,
     private readonly smsSender: SmsSender,
+    private readonly mailSender: MailSender,
   ) {}
 
-  private key(phoneHash: string, scene: SmsScene): string {
-    return `${scene}:${phoneHash}`;
+  private key(channel: 'sms' | 'mail', targetHash: string, scene: CodeScene): string {
+    return `${channel}:${scene}:${targetHash}`;
   }
 
+  /** 短信通道发送（既有入口，签名不变）。 */
   async send(phone: string, phoneHash: string, scene: SmsScene): Promise<{ expiresInSeconds: number }> {
+    return this.issue('sms', phoneHash, normalizeScene(scene), (code) =>
+      this.smsSender.sendVerificationCode(phone, code, scene),
+    );
+  }
+
+  /** 邮件通道发送。 */
+  async sendEmail(email: string, emailHash: string, scene: CodeScene): Promise<{ expiresInSeconds: number }> {
+    return this.issue('mail', emailHash, scene, (code) =>
+      this.mailSender.sendVerificationCode(email, code, scene),
+    );
+  }
+
+  private async issue(
+    channel: 'sms' | 'mail',
+    targetHash: string,
+    scene: CodeScene,
+    deliver: (code: string) => Promise<void>,
+  ): Promise<{ expiresInSeconds: number }> {
     const now = Date.now();
-    const historyKey = `hist:${this.key(phoneHash, scene)}`;
+    const historyKey = `hist:${this.key(channel, targetHash, scene)}`;
     const history = (await this.store.getSendHistory(historyKey)).filter(
       (t) => now - t < 60 * 60 * 1000,
     );
@@ -113,7 +152,7 @@ export class VerificationCodeService {
       );
     }
     const code = String(randomInt(0, 1_000_000)).padStart(6, '0');
-    await this.store.set(this.key(phoneHash, scene), {
+    await this.store.set(this.key(channel, targetHash, scene), {
       code,
       expiresAt: now + CODE_TTL_MS,
       attempts: 0,
@@ -121,13 +160,27 @@ export class VerificationCodeService {
     });
     history.push(now);
     await this.store.setSendHistory(historyKey, history);
-    await this.smsSender.sendVerificationCode(phone, code, scene);
+    await deliver(code);
     return { expiresInSeconds: CODE_TTL_MS / 1000 };
   }
 
-  /** 校验并一次性消费验证码；失败抛业务异常（错误/过期/次数超限）。 */
+  /** 短信码校验并一次性消费（既有入口，签名不变）。 */
   async verifyAndConsume(phoneHash: string, scene: SmsScene, code: string): Promise<void> {
-    const key = this.key(phoneHash, scene);
+    return this.consume('sms', phoneHash, normalizeScene(scene), code);
+  }
+
+  /** 邮箱码校验并一次性消费。 */
+  async verifyEmailAndConsume(emailHash: string, scene: CodeScene, code: string): Promise<void> {
+    return this.consume('mail', emailHash, scene, code);
+  }
+
+  private async consume(
+    channel: 'sms' | 'mail',
+    targetHash: string,
+    scene: CodeScene,
+    code: string,
+  ): Promise<void> {
+    const key = this.key(channel, targetHash, scene);
     const record = await this.store.get(key);
     if (!record || record.expiresAt < Date.now()) {
       throw new BusinessException(BusinessCode.BadRequest, '验证码已过期或未发送');

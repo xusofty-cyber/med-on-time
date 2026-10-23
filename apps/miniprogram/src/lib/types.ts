@@ -22,6 +22,12 @@ export interface Account {
   id: string;
   nickname: string;
   phoneMasked?: string;
+  /** 手机号是否已验证（微信 getPhoneNumber 核验 / 短信网关回填）；未验证时受限：不能开短信提醒、不能找回密码、接受照护授权前须先验证 */
+  phoneVerified?: boolean;
+  emailMasked?: string;
+  emailVerified?: boolean;
+  hasEmail?: boolean;
+  hasWechat?: boolean;
   status: string; // active / frozen / cancelling / cancelled
   timezone: string;
   registeredAt?: string;

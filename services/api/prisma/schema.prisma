@@ -34,6 +34,12 @@ model UserAccount {
   id             String    @id @db.Uuid
   phone          String?   @unique @db.VarChar(512) // 手机号密文（应用层加密）
   phoneHash      String?   @unique @map("phone_hash") @db.Char(64) // HMAC-SHA256，供登录精确查询
+  // V1.3（2026-10-23 注册验证通道迭代）：手机号验证时间；短信注册/微信 getPhoneNumber 核验后置值，
+  // 邮箱/微信先行登记的未验证手机号为空——未验证受限（短信提醒开启/短信找回密码/接受照护授权，见 docs/dev/AUTH_CHANNELS.md）
+  phoneVerifiedAt DateTime? @map("phone_verified_at") @db.Timestamptz(6)
+  email          String?   @db.VarChar(512) // 邮箱密文（应用层加密，与 phone 同口径）；唯一性由 email_hash 部分唯一索引保证（迁移 SQL，WHERE deleted_at IS NULL AND email_hash IS NOT NULL）
+  emailHash      String?   @map("email_hash") @db.Char(64) // HMAC-SHA256（HMAC 输入加 email: 域分隔前缀），供登录精确查询
+  emailVerifiedAt DateTime? @map("email_verified_at") @db.Timestamptz(6) // 邮箱验证码注册/绑定核验后置值
   passwordHash   String?   @map("password_hash") @db.VarChar(255) // Argon2id；纯第三方登录为空
   nickname       String    @db.VarChar(100)
   avatarFileId   String?   @map("avatar_file_id") @db.Uuid

@@ -47,18 +47,18 @@ export class PhoneCryptoService {
     return fromHex;
   }
 
-  encryptPhone(phone: string): string {
+  private encryptText(plain: string): string {
     const iv = randomBytes(12);
     const cipher = createCipheriv('aes-256-gcm', this.encKey, iv);
     const ciphertext = Buffer.concat([
-      cipher.update(phone, 'utf8'),
+      cipher.update(plain, 'utf8'),
       cipher.final(),
     ]);
     const tag = cipher.getAuthTag();
     return Buffer.concat([iv, tag, ciphertext]).toString('base64');
   }
 
-  decryptPhone(enc: string): string {
+  private decryptText(enc: string): string {
     const buf = Buffer.from(enc, 'base64');
     const iv = buf.subarray(0, 12);
     const tag = buf.subarray(12, 28);
@@ -70,13 +70,50 @@ export class PhoneCryptoService {
     );
   }
 
+  encryptPhone(phone: string): string {
+    return this.encryptText(phone);
+  }
+
+  decryptPhone(enc: string): string {
+    return this.decryptText(enc);
+  }
+
   hashPhone(phone: string): string {
     return createHmac('sha256', this.hmacKey).update(phone).digest('hex');
+  }
+
+  // ---- 邮箱（V1.3 注册验证通道）：与手机号同密钥同算法，哈希加域分隔前缀 ----
+
+  /** 邮箱规范化：去空白 + 全小写（登记与查询同口径，避免大小写双账号）。 */
+  static normalizeEmail(email: string): string {
+    return email.trim().toLowerCase();
+  }
+
+  encryptEmail(email: string): string {
+    return this.encryptText(PhoneCryptoService.normalizeEmail(email));
+  }
+
+  decryptEmail(enc: string): string {
+    return this.decryptText(enc);
+  }
+
+  /** HMAC 输入加 `email:` 域分隔前缀，与手机号哈希同值域不串味（同一字符串互不命中）。 */
+  hashEmail(email: string): string {
+    return createHmac('sha256', this.hmacKey)
+      .update(`email:${PhoneCryptoService.normalizeEmail(email)}`)
+      .digest('hex');
   }
 
   /** 138****1234 形式的日志/展示掩码 */
   static maskPhone(phone: string): string {
     if (phone.length < 7) return '***';
     return `${phone.slice(0, 3)}****${phone.slice(-4)}`;
+  }
+
+  /** a***@example.com 形式的日志/展示掩码 */
+  static maskEmail(email: string): string {
+    const at = email.indexOf('@');
+    if (at <= 0) return '***';
+    return `${email.slice(0, 1)}***${email.slice(at)}`;
   }
 }

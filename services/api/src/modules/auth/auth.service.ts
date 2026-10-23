@@ -5,6 +5,7 @@ import type { UserAccount } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { uuidv7 } from '../../common/utils/uuidv7';
 import {
+  AuthBusinessCode,
   BusinessCode,
   BusinessException,
 } from '../../common/exceptions/business.exception';
@@ -13,14 +14,18 @@ import { TokenService } from './services/token.service';
 import { SessionService } from './services/session.service';
 import {
   VerificationCodeService,
+  type CodeScene,
   type SmsScene,
 } from './services/verification-code.service';
+import { WechatMiniappService } from './services/wechat-miniapp.service';
 import type {
   DeviceInfoDto,
   LoginByCodeDto,
   LoginDto,
+  RegisterByEmailDto,
   RegisterDto,
   ResetPasswordDto,
+  WechatMiniappLoginDto,
 } from './dto/auth.dto';
 
 export interface TokenPair {
@@ -43,10 +48,16 @@ export class AuthService {
     private readonly tokenService: TokenService,
     private readonly sessions: SessionService,
     private readonly codes: VerificationCodeService,
+    private readonly wechat: WechatMiniappService,
   ) {}
 
   async sendSmsCode(phone: string, scene: SmsScene): Promise<{ expiresInSeconds: number }> {
     return this.codes.send(phone, this.phoneCrypto.hashPhone(phone), scene);
+  }
+
+  async sendEmailCode(email: string, scene: CodeScene): Promise<{ expiresInSeconds: number }> {
+    const normalized = PhoneCryptoService.normalizeEmail(email);
+    return this.codes.sendEmail(normalized, this.phoneCrypto.hashEmail(normalized), scene);
   }
 
   async register(dto: RegisterDto, ctx: RequestContext): Promise<TokenPair> {
@@ -72,6 +83,8 @@ export class AuthService {
           id: accountId,
           phone: this.phoneCrypto.encryptPhone(dto.phone),
           phoneHash,
+          // 短信验证码注册即完成手机号核验（V1.3）
+          phoneVerifiedAt: now,
           passwordHash,
           nickname,
           registerChannel: dto.registerChannel,
@@ -96,14 +109,91 @@ export class AuthService {
     return this.issueTokens(account as UserAccount, dto, ctx);
   }
 
+  /**
+   * 邮箱验证码注册（V1.3 先行通道）：邮箱经验证码核验即置 emailVerifiedAt；
+   * 选填手机号只登记不验证（phoneVerifiedAt=null，三受限生效，见 AUTH_CHANNELS.md）。
+   */
+  async registerByEmail(dto: RegisterByEmailDto, ctx: RequestContext): Promise<TokenPair> {
+    const email = PhoneCryptoService.normalizeEmail(dto.email);
+    const emailHash = this.phoneCrypto.hashEmail(email);
+    await this.codes.verifyEmailAndConsume(emailHash, 'register', dto.code);
+
+    const byEmail = await this.prisma.userAccount.findFirst({
+      where: { emailHash, deletedAt: null },
+    });
+    if (byEmail) {
+      throw new BusinessException(
+        BusinessCode.Conflict,
+        '该邮箱已注册，请直接登录',
+        HttpStatus.CONFLICT,
+      );
+    }
+
+    let phoneHash: string | null = null;
+    if (dto.phone) {
+      phoneHash = this.phoneCrypto.hashPhone(dto.phone);
+      const byPhone = await this.findAccountByPhoneHash(phoneHash);
+      if (byPhone) {
+        throw new BusinessException(
+          BusinessCode.Conflict,
+          '该手机号已被注册',
+          HttpStatus.CONFLICT,
+        );
+      }
+    }
+
+    const passwordHash = await argon2.hash(dto.password, { type: argon2.argon2id });
+    const now = new Date();
+    const accountId = uuidv7();
+    const nickname =
+      dto.nickname ??
+      (dto.phone ? `用户${dto.phone.slice(-4)}` : `用户${email.slice(0, email.indexOf('@')).slice(0, 20)}`);
+    await this.prisma.$transaction(async (tx) => {
+      await tx.userAccount.create({
+        data: {
+          id: accountId,
+          email: this.phoneCrypto.encryptEmail(email),
+          emailHash,
+          emailVerifiedAt: now,
+          phone: dto.phone ? this.phoneCrypto.encryptPhone(dto.phone) : null,
+          phoneHash,
+          phoneVerifiedAt: null,
+          passwordHash,
+          nickname,
+          registerChannel: dto.registerChannel ?? 'web',
+          registeredAt: now,
+          status: AccountStatus.Active,
+          lastLoginAt: now,
+        },
+      });
+      await tx.member.create({
+        data: {
+          id: uuidv7(),
+          accountId,
+          displayName: nickname,
+          relationship: 'self',
+          status: 'active',
+        },
+      });
+    });
+
+    const account = await this.findAccountById(accountId);
+    return this.issueTokens(account as UserAccount, dto, ctx);
+  }
+
   async login(dto: LoginDto, ctx: RequestContext): Promise<TokenPair> {
-    const account = await this.findAccountByPhoneHash(
-      this.phoneCrypto.hashPhone(dto.phone),
-    );
+    // V1.3：account 可为手机号或邮箱（含 @ 按邮箱查）；旧 {phone} 形状保持兼容。
+    const identifier = dto.account ?? dto.phone;
+    if (!identifier) {
+      throw new BusinessException(BusinessCode.BadRequest, '账号不能为空');
+    }
+    const account = identifier.includes('@')
+      ? await this.findAccountByEmailHash(this.phoneCrypto.hashEmail(identifier))
+      : await this.findAccountByPhoneHash(this.phoneCrypto.hashPhone(identifier));
     if (!account || !account.passwordHash) {
       throw new BusinessException(
         BusinessCode.Unauthorized,
-        '手机号或密码不正确',
+        '账号或密码不正确',
         HttpStatus.UNAUTHORIZED,
       );
     }
@@ -112,7 +202,7 @@ export class AuthService {
     if (!ok) {
       throw new BusinessException(
         BusinessCode.Unauthorized,
-        '手机号或密码不正确',
+        '账号或密码不正确',
         HttpStatus.UNAUTHORIZED,
       );
     }
@@ -194,6 +284,14 @@ export class AuthService {
         HttpStatus.NOT_FOUND,
       );
     }
+    // V1.3 三受限之二：手机号未验证的账号不得走短信找回密码（防冒用号码改密）。
+    if (!account.phoneVerifiedAt) {
+      throw new BusinessException(
+        AuthBusinessCode.PhoneNotVerified,
+        '该账号手机号未验证，暂不能通过短信重置密码',
+        HttpStatus.FORBIDDEN,
+      );
+    }
     const passwordHash = await argon2.hash(dto.newPassword, { type: argon2.argon2id });
     await this.prisma.userAccount.update({
       where: { id: account.id },
@@ -203,14 +301,162 @@ export class AuthService {
     await this.sessions.revokeAllSessions(account.id);
   }
 
-  /** 微信绑定占位（契约：未接真实微信前返回未开通，不写 oauth 绑定表）。 */
-  bindWechatPlaceholder(): { provider: string; available: boolean; bound: boolean; message: string } {
-    return {
-      provider: 'wechat',
-      available: false,
-      bound: false,
-      message: '微信绑定尚未开通',
-    };
+  /**
+   * 微信小程序登录（V1.3 先行通道）：code 换 openid → 按 user_oauth_binding 找账号，
+   * 无则建号（register_channel=wechat_miniapp，无手机无密码）+ 绑定 + self 成员。
+   * 带 phoneCode 时一并走微信核验手机号登记（规则见 applyWechatVerifiedPhone）。
+   * 未配置 appid/secret 时由 WechatMiniappService 抛 WechatNotConfigured(40312)。
+   */
+  async wechatMiniappLogin(
+    dto: WechatMiniappLoginDto,
+    ctx: RequestContext,
+  ): Promise<TokenPair & { account: Record<string, unknown> }> {
+    const session = await this.wechat.jscode2session(dto.code);
+    let account: UserAccount | null = null;
+    const binding = await this.prisma.userOauthBinding.findFirst({
+      where: { provider: 'wechat', openid: session.openid, unboundAt: null, deletedAt: null },
+    });
+    if (binding) {
+      account = await this.findAccountById(binding.accountId);
+    }
+    if (!account) {
+      const now = new Date();
+      const accountId = uuidv7();
+      const nickname = `微信用户${session.openid.slice(-4)}`;
+      await this.prisma.$transaction(async (tx) => {
+        await tx.userAccount.create({
+          data: {
+            id: accountId,
+            nickname,
+            registerChannel: 'wechat_miniapp',
+            registeredAt: now,
+            status: AccountStatus.Active,
+            lastLoginAt: now,
+          },
+        });
+        await tx.userOauthBinding.create({
+          data: {
+            id: uuidv7(),
+            accountId,
+            provider: 'wechat',
+            openid: session.openid,
+            unionid: session.unionid ?? null,
+            boundAt: now,
+          },
+        });
+        await tx.member.create({
+          data: {
+            id: uuidv7(),
+            accountId,
+            displayName: nickname,
+            relationship: 'self',
+            status: 'active',
+          },
+        });
+      });
+      account = await this.findAccountById(accountId);
+    }
+    const acc = account as UserAccount;
+    this.assertAccountUsable(acc);
+    let current = acc;
+    if (dto.phoneCode) {
+      const phone = await this.wechat.getPhoneNumber(dto.phoneCode);
+      current = await this.applyWechatVerifiedPhone(acc, phone);
+    }
+    await this.touchLogin(acc.id);
+    const tokens = await this.issueTokens(current, dto, ctx);
+    return { ...tokens, account: await this.buildAccountView(current) };
+  }
+
+  /** 微信绑定（需登录）：openid 已绑他人 → 冲突；已绑本人 → 幂等返回。 */
+  async bindWechat(
+    accountId: string,
+    code: string,
+  ): Promise<{ provider: string; bound: boolean }> {
+    const session = await this.wechat.jscode2session(code);
+    const existing = await this.prisma.userOauthBinding.findFirst({
+      where: { provider: 'wechat', openid: session.openid, unboundAt: null, deletedAt: null },
+    });
+    if (existing) {
+      if (existing.accountId !== accountId) {
+        throw new BusinessException(
+          BusinessCode.Conflict,
+          '该微信已绑定其他账号',
+          HttpStatus.CONFLICT,
+        );
+      }
+      return { provider: 'wechat', bound: true };
+    }
+    await this.prisma.userOauthBinding.create({
+      data: {
+        id: uuidv7(),
+        accountId,
+        provider: 'wechat',
+        openid: session.openid,
+        unionid: session.unionid ?? null,
+        boundAt: new Date(),
+      },
+    });
+    return { provider: 'wechat', bound: true };
+  }
+
+  /** 微信手机号验证（需登录）：getPhoneNumber 的 code 换真号后按统一规则落库/置验证。 */
+  async verifyPhoneByWechat(
+    accountId: string,
+    phoneCode: string,
+  ): Promise<Record<string, unknown>> {
+    const account = await this.findAccountById(accountId);
+    if (!account) {
+      throw new BusinessException(BusinessCode.NotFound, '账号不存在', HttpStatus.NOT_FOUND);
+    }
+    const phone = await this.wechat.getPhoneNumber(phoneCode);
+    const updated = await this.applyWechatVerifiedPhone(account, phone);
+    return this.buildAccountView(updated);
+  }
+
+  /**
+   * 微信核验手机号落库规则（账号根不可静默覆盖）：
+   * - 账号无手机号：落库并置已验证（号码被他人占用 → 冲突）；
+   * - 已有手机号且哈希一致：仅置已验证；
+   * - 已有手机号且不一致：PhoneMismatch(40910) 拒绝，不覆盖。
+   */
+  private async applyWechatVerifiedPhone(
+    account: UserAccount,
+    phone: string,
+  ): Promise<UserAccount> {
+    const phoneHash = this.phoneCrypto.hashPhone(phone);
+    if (account.phoneHash && account.phoneHash !== phoneHash) {
+      throw new BusinessException(
+        AuthBusinessCode.PhoneMismatch,
+        '微信手机号与账号登记手机号不一致，未做变更；如需更换手机号请联系客服',
+        HttpStatus.CONFLICT,
+      );
+    }
+    if (!account.phoneHash) {
+      const owner = await this.findAccountByPhoneHash(phoneHash);
+      if (owner && owner.id !== account.id) {
+        throw new BusinessException(
+          BusinessCode.Conflict,
+          '该手机号已被其他账号注册',
+          HttpStatus.CONFLICT,
+        );
+      }
+      return this.prisma.userAccount.update({
+        where: { id: account.id },
+        data: {
+          phone: this.phoneCrypto.encryptPhone(phone),
+          phoneHash,
+          phoneVerifiedAt: new Date(),
+        },
+      });
+    }
+    if (!account.phoneVerifiedAt) {
+      return this.prisma.userAccount.update({
+        where: { id: account.id },
+        data: { phoneVerifiedAt: new Date() },
+      });
+    }
+    return account;
   }
 
   async getMe(accountId: string): Promise<Record<string, unknown>> {
@@ -222,7 +468,16 @@ export class AuthService {
         HttpStatus.NOT_FOUND,
       );
     }
-    return this.toAccountView(account);
+    return this.buildAccountView(account);
+  }
+
+  /** 账号视图 + hasWechat（查有效微信绑定；me/profile 共用）。 */
+  async buildAccountView(account: UserAccount): Promise<Record<string, unknown>> {
+    const binding = await this.prisma.userOauthBinding.findFirst({
+      where: { accountId: account.id, provider: 'wechat', unboundAt: null, deletedAt: null },
+      select: { id: true },
+    });
+    return { ...this.toAccountView(account), hasWechat: Boolean(binding) };
   }
 
   toAccountView(account: UserAccount): Record<string, unknown> {
@@ -236,9 +491,27 @@ export class AuthService {
         phoneMasked = null;
       }
     }
+    let emailMasked: string | null = null;
+    if (account.email) {
+      try {
+        emailMasked = PhoneCryptoService.maskEmail(
+          this.phoneCrypto.decryptEmail(account.email),
+        );
+      } catch {
+        emailMasked = null;
+      }
+    }
     return {
       id: account.id,
       phoneMasked,
+      // V1.3 验证状态（hasWechat 由 buildAccountView 异步补齐）
+      hasPhone: Boolean(account.phone),
+      phoneVerified: Boolean(account.phoneVerifiedAt),
+      phoneVerifiedAt: account.phoneVerifiedAt,
+      emailMasked,
+      hasEmail: Boolean(account.email),
+      emailVerified: Boolean(account.emailVerifiedAt),
+      emailVerifiedAt: account.emailVerifiedAt,
       nickname: account.nickname,
       avatarFileId: account.avatarFileId,
       registerChannel: account.registerChannel,
@@ -308,6 +581,12 @@ export class AuthService {
   private async findAccountByPhoneHash(phoneHash: string): Promise<UserAccount | null> {
     return this.prisma.userAccount.findFirst({
       where: { phoneHash, deletedAt: null },
+    });
+  }
+
+  private async findAccountByEmailHash(emailHash: string): Promise<UserAccount | null> {
+    return this.prisma.userAccount.findFirst({
+      where: { emailHash, deletedAt: null },
     });
   }
 

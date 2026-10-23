@@ -35,12 +35,18 @@ const qs = (params: Record<string, string | number | undefined>) => {
   return s ? `?${s}` : '';
 };
 
+export type EmailCodeScene = 'register' | 'login' | 'reset_password' | 'bind';
+
 export const authApi = {
   sendSmsCode: (phone: string, scene: 'register' | 'login' | 'reset') =>
     http.post<{ sent: boolean }>('/auth/sms/send', { phone, scene }),
+  sendEmailCode: (email: string, scene: EmailCodeScene) =>
+    http.post<{ expiresInSeconds: number }>('/auth/email/send', { email, scene }),
   register: (body: { phone: string; password: string; code: string; nickname?: string }) =>
     http.post<AuthResult>('/auth/register', body),
-  login: (body: { phone: string; password: string }) => http.post<AuthResult>('/auth/login', body),
+  registerByEmail: (body: { email: string; code: string; password: string; nickname?: string; phone?: string }) =>
+    http.post<AuthResult>('/auth/register/email', body),
+  login: (body: { account: string; password: string }) => http.post<AuthResult>('/auth/login', body),
   loginByCode: (body: { phone: string; code: string }) => http.post<AuthResult>('/auth/login/code', body),
   resetPassword: (body: { phone: string; code: string; newPassword: string }) =>
     http.post<{ ok: boolean }>('/auth/password/reset', body),

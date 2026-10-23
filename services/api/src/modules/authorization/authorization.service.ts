@@ -4,6 +4,7 @@ import { AuthorizationStatus } from '@med-on-time/shared';
 import { PrismaService } from '../../prisma/prisma.service';
 import { uuidv7 } from '../../common/utils/uuidv7';
 import {
+  AuthBusinessCode,
   BusinessCode,
   BusinessException,
 } from '../../common/exceptions/business.exception';
@@ -154,6 +155,30 @@ export class AuthorizationService {
     }
     if (auth.status !== AuthorizationStatus.PendingAccept) {
       throw new BusinessException(BusinessCode.Conflict, `授权状态 ${auth.status} 不可接受`);
+    }
+    // V1.3 三受限之三：接受授权即取得他人用药数据的照护权限，接受者手机号必须
+    // 已验证（防未验证登记号码被冒领授权），且与邀请时解析的照护人手机号哈希一致。
+    const accepter = await this.prisma.userAccount.findFirst({
+      where: { id: accountId, deletedAt: null },
+      select: { phoneHash: true, phoneVerifiedAt: true },
+    });
+    if (!accepter?.phoneVerifiedAt) {
+      throw new BusinessException(
+        AuthBusinessCode.PhoneVerificationRequired,
+        '接受照护授权前须先完成手机号验证',
+        HttpStatus.FORBIDDEN,
+      );
+    }
+    const invitedCaregiver = await this.prisma.userAccount.findFirst({
+      where: { id: auth.caregiverAccountId, deletedAt: null },
+      select: { phoneHash: true },
+    });
+    if (!invitedCaregiver || accepter.phoneHash !== invitedCaregiver.phoneHash) {
+      throw new BusinessException(
+        AuthBusinessCode.PhoneMismatch,
+        '当前账号手机号与邀请手机号不一致，无法接受授权',
+        HttpStatus.CONFLICT,
+      );
     }
     const now = new Date();
     if (auth.expiresAt && auth.expiresAt.getTime() <= now.getTime()) {

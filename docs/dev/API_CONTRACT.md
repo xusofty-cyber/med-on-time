@@ -29,10 +29,12 @@
 - 生效解析顺序（生成 missed 判定 / 投递重复 / snooze 统一）：成员设置打底 → 计划覆盖预设整组替换 → 计划覆盖显式数值逐项替换。
 
 ## 用户端接口（account 主体）
-- auth: POST /auth/register（手机号+密码+短信验证码；验证码通道先走 dev stub：固定走 notification 短信接口抽象，生产接真实网关）, POST /auth/login（手机号+密码）, POST /auth/login/code（手机号+验证码）, POST /auth/refresh, POST /auth/logout, POST /auth/bind/wechat（占位：记录 openid 绑定流程，未接真实微信前返回未开通）, POST /auth/password/reset（验证码重置）, GET /auth/me
+- auth: POST /auth/register（手机号+密码+短信验证码；验证码通道先走 dev stub：固定走 notification 短信接口抽象，生产接真实网关；注册即置 phone_verified_at）, POST /auth/login（{account, password}：account 含 @ 按邮箱查、否则按手机号查；旧 {phone, password} 兼容）, POST /auth/login/code（手机号+验证码）, POST /auth/refresh, POST /auth/logout, POST /auth/password/reset（验证码重置）, GET /auth/me
+- auth（V1.3 注册验证通道，2026-10-23 定版，全文见 `docs/dev/AUTH_CHANNELS.md`）: POST /auth/email/send {email, scene}（scene: register/login/reset_password/bind；限频与短信同口径 60s/5 次每小时/5 分钟有效/5 次尝试）, POST /auth/register/email {email, code, password, nickname?, phone?}（邮箱已验证建号；phone 选填只登记不验证）, POST /auth/wechat/miniapp/login {code, phoneCode?}（code 换 openid 登录/建号；带 phoneCode 一并核验手机号；未配 appid/secret 返回 40312）, POST /auth/wechat/bind {code}（需登录；旧路径 POST /auth/bind/wechat 同实现）, POST /auth/phone/verify/wechat {phoneCode}（需登录；微信核验手机号落库/置验证，不一致返回 40910 不覆盖账号根）。账号视图（GET /auth/me、GET/PATCH /account/profile）含 phoneVerified/hasPhone/emailMasked/emailVerified/hasEmail/hasWechat。
+- auth 段业务码（禁止复用）: 40312 WechatNotConfigured（微信通道未配置）, 40320 PhoneNotVerified（手机号未验证：禁开短信提醒、禁短信找回密码）, 40321 PhoneVerificationRequired（接受照护授权前须完成手机号验证）, 40910 PhoneMismatch（微信核验号与登记号不一致）。
 - account: GET/PATCH /account/profile, POST /account/cancel（注销申请→30 天冷静期）, GET /account/sessions, DELETE /account/sessions/:id
 - member: POST /members（上限 10/账号）, GET /members, GET/PATCH/DELETE /members/:memberId, PUT /members/:memberId/care-settings（关怀模式/提醒偏好：cycle 预设 标准90/15、温和120/30、严格60/10，可按计划覆盖；锁屏显示药品详情默认 OFF）
-- authorization: POST /authorizations（发起照护授权）, GET /authorizations（我授权的/授权我的）, POST /authorizations/:id/accept|reject|revoke（上限 5 照护人/成员；一切代操作写 authorization_log 双记录）
+- authorization: POST /authorizations（发起照护授权）, GET /authorizations（我授权的/授权我的）, POST /authorizations/:id/accept|reject|revoke（上限 5 照护人/成员；一切代操作写 authorization_log 双记录）。V1.3：accept 要求接受者手机号已验证（未验证返回 40321），且其手机号哈希须与邀请的照护人手机号哈希一致（不一致返回 40910）；邀请创建不变。
 - drug: GET /drugs/search?q=&page（名称/通用名 trgm 模糊）, GET /drugs/:id（说明书层字段）, GET /drugs/:id/interactions（相互作用：说明书结构化字段 + ONC 高优先硬检标记）, POST /members/:memberId/drugs/custom（自建药品）
 - plan: POST /members/:memberId/plans（类型：常规/PRN 按需；含 course+dose phases 阶段数组、存放位置 storage_location、附加备注 note、cycle 覆盖）, GET /members/:memberId/plans, GET/PATCH/DELETE /plans/:planId, GET /plans/:planId/history（变更史）, POST /plans/:planId/pause|resume
 - reminder: GET /members/:memberId/reminders/today, GET /members/:memberId/reminders?date=, POST /reminders/:instanceId/snooze（按 cycle 顺延）, POST /reminders/:instanceId/skip
@@ -40,7 +42,7 @@
 - adherence: GET /members/:memberId/adherence/summary?range=week|month（应服/实服/按时率）, GET /members/:memberId/adherence/calendar?month=
 - stock: GET /members/:memberId/stock（库存+到期预警）, POST /members/:memberId/stock/adjust（增减流水）, 服药打卡自动扣减
 - ehr: 过敏档案 GET/PUT /members/:memberId/allergies；服药后不适记录 POST/GET /members/:memberId/adverse-records；紧急联系人 CRUD /members/:memberId/emergency-contacts；病历文本 POST/GET /members/:memberId/medical-records（正文字段加密存储，见需求口径）
-- notification: GET /notifications（站内）, POST /notifications/:id/read, GET/PUT /notification-prefs（渠道：站内/短信（用户自选开启）/微信（占位））
+- notification: GET /notifications（站内）, POST /notifications/:id/read, GET/PUT /notification-prefs（渠道：站内/短信（用户自选开启）/微信（占位））。V1.3：PUT 开启 sms 时账号手机号须已验证，未验证返回 40320；POST /auth/password/reset 同理（未验证返回 40320）。
 - content: GET /content/articles?locale=, GET /content/articles/:id（简/繁/英 locale 内容组）
 - ai: 全部返回「未开通」占位（POC-2 未评测 + 外部医学审校前入口不开）
 

@@ -1,4 +1,5 @@
 import {
+  IsEmail,
   IsIn,
   IsOptional,
   IsString,
@@ -6,7 +7,12 @@ import {
   Matches,
   MaxLength,
 } from 'class-validator';
-import { SMS_SCENES, type SmsScene } from '../services/verification-code.service';
+import {
+  CODE_SCENES,
+  SMS_SCENES,
+  type CodeScene,
+  type SmsScene,
+} from '../services/verification-code.service';
 
 /** 大陆手机号（账号根标识，DB 定版口径） */
 export const PHONE_REGEX = /^1[3-9]\d{9}$/;
@@ -65,8 +71,18 @@ export class RegisterDto extends DeviceInfoDto {
 }
 
 export class LoginDto extends DeviceInfoDto {
+  /**
+   * 账号（V1.3 扩展）：手机号或邮箱（含 @ 按邮箱查，否则按手机号查）。
+   * 与下方旧字段 phone 二选一，account 优先；旧客户端 {phone, password} 保持兼容。
+   */
+  @IsOptional()
+  @IsString()
+  @MaxLength(254)
+  account?: string;
+
+  @IsOptional()
   @Matches(PHONE_REGEX, { message: '手机号格式不正确' })
-  phone!: string;
+  phone?: string;
 
   @IsString()
   @Length(1, 64)
@@ -108,8 +124,66 @@ export class ResetPasswordDto {
 }
 
 export class BindWechatDto {
+  /** wx.login 的 code（V1.3 起绑定走真实换取 openid，code 必填） */
+  @IsString()
+  @Length(1, 256)
+  code!: string;
+}
+
+export class SendEmailCodeDto {
+  @IsEmail({}, { message: '邮箱格式不正确' })
+  @MaxLength(254)
+  email!: string;
+
+  @IsIn(CODE_SCENES)
+  scene!: CodeScene;
+}
+
+export class RegisterByEmailDto extends DeviceInfoDto {
+  @IsEmail({}, { message: '邮箱格式不正确' })
+  @MaxLength(254)
+  email!: string;
+
+  @Matches(/^\d{6}$/, { message: '验证码为 6 位数字' })
+  code!: string;
+
+  /** 密码口径与手机号注册一致：8–64 位，须同时含字母与数字 */
+  @IsString()
+  @Length(8, 64)
+  @Matches(/^(?=.*[A-Za-z])(?=.*\d).+$/, { message: '密码须同时包含字母与数字' })
+  password!: string;
+
   @IsOptional()
   @IsString()
-  @MaxLength(128)
-  code?: string;
+  @MaxLength(100)
+  nickname?: string;
+
+  /** 选填：登记为账号根手机号但不验证（phoneVerifiedAt 为空，三受限生效） */
+  @IsOptional()
+  @Matches(PHONE_REGEX, { message: '手机号格式不正确' })
+  phone?: string;
+
+  @IsOptional()
+  @IsIn(REGISTER_CHANNELS)
+  registerChannel?: string;
+}
+
+export class WechatMiniappLoginDto extends DeviceInfoDto {
+  /** wx.login 的 code */
+  @IsString()
+  @Length(1, 256)
+  code!: string;
+
+  /** getPhoneNumber 的 code（选填）：一并完成手机号核验登记 */
+  @IsOptional()
+  @IsString()
+  @Length(1, 256)
+  phoneCode?: string;
+}
+
+export class WechatPhoneVerifyDto {
+  /** getPhoneNumber 的 code */
+  @IsString()
+  @Length(1, 256)
+  phoneCode!: string;
 }

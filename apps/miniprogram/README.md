@@ -32,3 +32,9 @@ pnpm --filter @med-on-time/miniprogram typecheck  # tsc --noEmit
    注意平台规则：订阅消息必须由用户主动点击触发；小程序无本地定时通知 API，
    程序关闭后的到点触达依赖服务端按订阅授权下发，前台由今日页轮询 + 震动兜底。
 4. **tab 图标**：`src/app.config.ts` 的 tabBar 当前为纯文字，UI 图标资源到位后补 `iconPath`。
+5. **微信登录与手机号验证**：正式 appid 填 `project.config.json`（与第 1 项为同一 appid）；
+   后端 env 须配 `WECHAT_MINIAPP_APPID` / `WECHAT_MINIAPP_SECRET`（在微信公众平台
+   「开发管理 → 开发设置」获取，须与小程序 appid 为同一主体）；未配置时微信登录
+   返回业务码 40312（微信未配置），前端直接透出后端 message。手机号验证走
+   `getPhoneNumber`（微信核验真号，无需短信网关）：登录页微信一键登录后未验证时
+   先引导验证，设置页账号资料区也可随时补验。

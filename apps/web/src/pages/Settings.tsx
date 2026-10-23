@@ -88,14 +88,26 @@ export default function Settings() {
           <Spinner />
         ) : (
           <form className="flex flex-col gap-4" onSubmit={saveProfile}>
-            <div className="flex flex-wrap gap-2 text-neutral-600">
-              <span>
-                手机号：{account.phoneMasked ?? '—'}
-              </span>
-              <Badge tone={cancelling ? 'amber' : 'green'}>
-                {ACCOUNT_STATUS_LABELS[account.status] ?? account.status}
-              </Badge>
-              {account.registeredAt && <span>注册于 {fmtDateTime(account.registeredAt)}</span>}
+            <div className="flex flex-col gap-2 text-neutral-600">
+              <div className="flex flex-wrap items-center gap-2">
+                <span>
+                  手机号：{account.phoneMasked ?? '—'}
+                </span>
+                {typeof account.phoneVerified === 'boolean' &&
+                  (account.phoneVerified ? (
+                    <Badge tone="green">已验证</Badge>
+                  ) : (
+                    <Badge tone="amber">未验证</Badge>
+                  ))}
+                <Badge tone={cancelling ? 'amber' : 'green'}>
+                  {ACCOUNT_STATUS_LABELS[account.status] ?? account.status}
+                </Badge>
+                {account.registeredAt && <span>注册于 {fmtDateTime(account.registeredAt)}</span>}
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <span>邮箱：{account.emailMasked ?? '未绑定'}</span>
+                {account.emailVerified && <Badge tone="green">已验证</Badge>}
+              </div>
             </div>
             <Field label="昵称">
               <TextInput value={nickname} onChange={setNickname} />

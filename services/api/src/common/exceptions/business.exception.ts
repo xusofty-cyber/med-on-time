@@ -26,3 +26,14 @@ export const BusinessCode = {
   MemberAccessDenied: 40301, // 成员数据隔离拦截
   ReservedEnumValue: 40001, // 提交了预留枚举值（附录 B 纪律：拒绝并记审计）
 } as const;
+
+/**
+ * auth 段业务码（注册验证通道迭代，2026-10-23 定版；见 docs/dev/AUTH_CHANNELS.md）。
+ * 40312 与 ai 段 40310（NotEnabled）同为「通道未开通」族，禁止复用其值。
+ */
+export const AuthBusinessCode = {
+  WechatNotConfigured: 40312, // 微信小程序通道未配置（WECHAT_MINIAPP_APPID/SECRET 未配）
+  PhoneNotVerified: 40320, // 手机号未验证：禁止开启短信提醒 / 走短信找回密码
+  PhoneVerificationRequired: 40321, // 接受照护授权前须先完成手机号验证
+  PhoneMismatch: 40910, // 微信核验手机号与账号登记手机号不一致（不静默覆盖账号根）
+} as const;

@@ -72,6 +72,7 @@
 | ADMIN_USERNAME / ADMIN_PASSWORD / ADMIN_DISPLAY_NAME | 管理员播种（仅播种时用） | 无初始管理员，后台无法登录 |
 
 ## DB V1.3 候选清单（本次未动 schema，待升版统一处理）
+> 2026-10-23 追记：`user_account` 的 **email / email_hash / email_verified_at / phone_verified_at 四列已由 V1.3 迁移 `20261023110000_v13_auth_channels` 先行落地**（用户拍板注册验证通道先行，不等 V1.3 整批；含 email_hash 部分唯一索引与存量 phone_verified_at 回填，详见 `docs/dev/AUTH_CHANNELS.md`）。下列其余候选仍待升版统一处理。
 1. `user_session` 表：refresh 会话落库（现为内存实现，进程重启会话吊销失效，access 2h 兜底）。
 2. `member_care_setting` / `notification_pref` 专表：现以 system_config KV 过渡（键 member_care_settings:<memberId> / notification_prefs:<accountId>）。
 3. `medication_plan` 增加 cycle 覆盖列：现以 system_config 键 plan_cycle_override:<planId> 过渡。
@@ -81,6 +82,6 @@
 
 ## 生产待接项
 - 短信网关（腾讯云/阿里云）：现为 DevStubSmsSender 只记掩码日志，验证码不实际下发——**接入前普通用户无法自助注册/验证码登录**，临时开户办法见 docs/DEPLOY.md。
-- 微信：bind/wechat 占位、订阅消息通道占位（WECHAT_SUBSCRIBE_NOT_CONNECTED 留痕）。
+- 微信：bind/wechat 已于 2026-10-23 注册验证通道迭代实接（jscode2session + user_oauth_binding 落点，未配 appid/secret 返回 40312，见 `docs/dev/AUTH_CHANNELS.md`）；订阅消息通道仍占位（WECHAT_SUBSCRIBE_NOT_CONNECTED 留痕）。
 - 推送：APNs/FCM/厂商推送未接，客户端以本地排程兜底。
 - ops 队列深度指标为占位结构，待 BullMQ 队列对象导出后回填。

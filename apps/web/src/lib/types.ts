@@ -27,6 +27,13 @@ export interface Account {
   registeredAt?: string;
   lastLoginAt?: string | null;
   cancelApplyAt?: string | null;
+  // 注册验证通道新增字段（可选，兼容旧后端数据缺失时不渲染/不崩溃）
+  phoneVerified?: boolean;
+  hasPhone?: boolean;
+  emailMasked?: string | null;
+  emailVerified?: boolean;
+  hasEmail?: boolean;
+  hasWechat?: boolean;
 }
 
 export interface AuthResult {

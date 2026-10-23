@@ -45,7 +45,8 @@
 
 ## 五、当前断点与后续待执行事项
 
-1. **当前断点（2026-10-23）**：设计阶段评审全部收官（同前）。**开发脚手架已开工并落 `develop` 分支**：pnpm monorepo 全量脚手架（根工作区 + packages/shared 共享枚举 + packages/api-client 生成客户端骨架 + services/api NestJS 16 模块 + Prisma schema 落 56 表 + apps 五端最小脚手架，原生 Android/iOS 仍为 README 占位）与 LICENSE（MIT）已就绪。验证证据（助手 VM，2026-10-23）：`prisma validate` 通过、Prisma Client 生成成功、`pnpm -r build` 7/7 通过、`pnpm -r typecheck` 7/7 通过、api `eslint` 通过。助手 VM 无 Docker/PostgreSQL，迁移实跑与 API 启动冒烟待在有 Docker 的环境执行（迁移脚本已备，见后续下一步）。
+1. **当前断点（2026-10-23 晚）**：设计评审收官后已完成**全量开发与集成**（均落 `develop`）：后端四线（身份授权 / 药品计划库存 / 提醒引擎 / 档案内容后台）+ 后台管理端 + Web 用户端 + 桌面端 + 小程序 + Android/iOS 完整工程源码（原生两端无 SDK/Xcode，未编译验证，已如实标注）；集成收口十项销项（JWT 定版一套、关怀/偏好存储统一 system_config KV、frequency_rule 定版、计划级 cycle 覆盖、全局成功信封、启动路径、桌面提醒桥、管理员播种、seed 双实现对齐），结论见 `docs/dev/INTEGRATION_NOTES.md`；全仓 `pnpm -r build`/`typecheck` 7/7 与 api eslint 全绿（助手独立复验通过）。**部署资产已备**：三 Dockerfile + `deploy/docker-compose.yml` + 脚本组（bootstrap-env/db-init/deploy/update/backup/logs/stop）+ `docs/DEPLOY.md`。**服务器部署通道受限**：助手 VM 出口代理仅放行目标 443、SSH/22 不可达（服务器 443 为既有 n8n 服务，不可动），用户 2026-10-23 拍板**方案 A：用户在服务器按脚本自助部署**（clone → bootstrap-env → db-init → deploy 四步），助手待其输出后验收冒烟。**迁移与真实 DB 端到端尚未实跑**，随本次部署一并验证。
+   **注册验证通道迭代（2026-10-23 用户拍板并已落地）**：短信网关未接前注册验证微信/邮箱先行、手机号保持账号根可未验证登记、未验证三受限（不开短信提醒 / 不走手机找回 / 接受照护授权须先补验且号码须与邀请一致）。schema V1.3 迁移 `20261023110000_v13_auth_channels` 给 user_account 加 email（密文）/email_hash/email_verified_at/phone_verified_at；后端新端点（邮箱发码/注册、登录支持邮箱、微信小程序登录与绑定、微信手机号补验）与新业务码 40312/40320/40321/40910；Web 注册页双模式、小程序微信一键登录与补验引导已落地；口径全文见 `docs/dev/AUTH_CHANNELS.md`。未实测：微信真实接口（无正式 appid）、SMTP 实发、迁移实跑。
 2. **文档现行版本**：用户端需求 V1.8、后台需求 V1.5、数据库设计 V1.2（56 张表）、技术架构 V1.5（已推送 main，commit `c18ba30`）、UI 设计规范 V1.0、技术预研 V1.1（零预算版）。需求/数据库 PDF 为 artifact 构建产物，位于助手侧目标目录，未入仓（待发布到 Releases）。
 3. **POC 状态**：POC-1 已完成（说明书层有条件通过；质检管线已全量运行，报告见 `docs/research/`）；POC-2（模型评测）资产就绪、**经用户指示暂停**，恢复需用户提供智谱 API Key 与讯飞 APIPassword，不得擅自重启；POC-3（相互作用替代打法验证）未启动。
 4. **后续下一步（均待用户发令）**：
@@ -56,7 +57,11 @@
    - [x] 落 DDL 迁移脚本（2026-10-23 落 develop）：`services/api/prisma/migrations/` 两段——基线 `20261023090000_init`（prisma migrate diff 生成，56 表全量建表，372 条语句）+ 补充 `20261023090100_constraints_partitions`（101 条枚举 CHECK、7 处部分唯一索引、drug 名称 trgm GIN 索引、4 张大表按月分区转换并预建 2026-01~2027-12 分区 + DEFAULT 兜底）；两份 SQL 均经 pglast（PostgreSQL 语法）校验通过。分区取舍：reminder_instance 主键改 (id, scheduled_at_utc)、幂等唯一改 (idempotency_key, scheduled_at_utc)，4 条指向分区表的入向 FK 按 PG 限制删除（列与索引保留，完整性由应用保证），细节见补充迁移文件头注记。**迁移尚未在真实 PostgreSQL 上执行验证**（待 Docker 环境）。
    - [x] 设计 PDF 发布到 GitHub Releases（2026-10-23）：design-v1.0 标签（指向 main@a31d53c），5 份 PDF 附件齐全，地址 https://github.com/xusofty-cyber/med-on-time/releases/tag/design-v1.0
    - [x] 200 药首期队列处理（2026-10-23 落 develop，commit 916ca2c）：最终 seed `services/api/prisma/seeds/drug_seed_200.json` 200 条定版——175 直接入库 + 队列 11 条（4 误报澄清 approved：地屈孕酮/索利那新/噻托溴铵/坦索罗辛，污染源为噻托溴铵记录盗用证号 H20130110，已核证该证号确属地屈孕酮；4 补全后 pending：哌唑嗪/文拉法辛/培哚普利/沙库巴曲缬沙坦；3 别名 approved：替诺福韦/埃索美拉唑/沙美特罗）+ 人工补录稿 13 条（全 pending 待双人核验）+ 维生素D 以 D2 代表挂账 pending。合计 approved 182 / pending_review 18，pending 条目双人核验前不得上线展示。处置报告 `docs/research/POC1_QUEUE_PROCESSING.md`，逐药表 `docs/research/queue/queue_dispositions.csv`，别名表 `docs/research/queue/alias_map.csv`（含噻托溴铵南昌弘益污染记录隔离登记）。遗留人工项：甲基多巴国内注册状态存疑（公开渠道无大陆上市说明书，须 NMPA 核实后裁定剔除或另行建档）；德谷胰岛素/艾塞那肽/地西泮仅骨架稿待持原件补录；维生素D3 待补录后与 D2 拆分。
-   - [ ] API 启动冒烟（需 Docker 环境起 PostgreSQL 15 + Redis 7）与首批业务接口实现
+   - [x] API 启动冒烟（需 Docker 环境起 PostgreSQL 15 + Redis 7）与首批业务接口实现 → 业务接口已于 2026-10-23 全量实现（见当前断点）；真实环境启动冒烟随服务器部署（方案 A）执行，助手待验收
+   - [x] 全端开发与集成收口（2026-10-23 落 develop：后端四线 + 管理端 + Web + 桌面 + 小程序 + Android/iOS 源码；集成十项销项，全仓验证全绿）
+   - [x] 部署文档与脚本（2026-10-23 落 develop：docs/DEPLOY.md + deploy/ 全套脚本，含建库/迁移/种子/管理员/备份）
+   - [x] 注册验证通道迭代（2026-10-23 落 develop：微信/邮箱先行 + 手机号未验证受限 + schema V1.3 迁移，见 docs/dev/AUTH_CHANNELS.md）
+   - [ ] 服务器部署执行与上线冒烟验收（方案 A 进行中：用户在服务器执行四步脚本，助手待其输出后验收；验收通过后服务器执行一次 update.sh 同步注册通道迭代）
 5. **待文档小修（DB 设计 V1.3 候选，Prisma 落表时发现）**：
    - 四表（consent_document、ai_prompt_template、ai_safety_rule、app_version）业务 `version`（VARCHAR 版本号）与通用乐观锁 `version`（int）同名冲突：schema 暂以业务 version 占列名、乐观锁映射 `lock_version` 列，待文档裁定（改列名或豁免四表乐观锁）。
    - AI capability 六项取值文档未列全（附录 B 与 9.2 互相回指）：schema 按 9.1 scopes + 9.9 task_type 暂定六项（health_qa、lab_report_interpretation、medical_record_analysis、symptom_analysis、timeline_summary、adherence_insight），shared 枚举仅收前四项确证值，待文档定版统一。

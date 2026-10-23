@@ -9,6 +9,7 @@ import { ApiError } from '../lib/api';
 
 export default function Login() {
   const [mode, setMode] = useState<'password' | 'code'>('password');
+  const [account, setAccount] = useState('');
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [code, setCode] = useState('');
@@ -21,7 +22,7 @@ export default function Login() {
     setError(null);
     try {
       const result =
-        mode === 'password' ? await authApi.login({ phone, password }) : await authApi.loginByCode({ phone, code });
+        mode === 'password' ? await authApi.login({ account, password }) : await authApi.loginByCode({ phone, code });
       tokenStore.set(result.accessToken, result.refreshToken);
       if (result.account) actions.setAccount(result.account);
       else {
@@ -34,7 +35,7 @@ export default function Login() {
       actions.toast('success', '登录成功');
       navigate('/');
     } catch (err) {
-      if (err instanceof ApiError && err.code === 401) setError(new Error('手机号或密码不正确'));
+      if (err instanceof ApiError && err.code === 401) setError(new Error('账号或密码不正确'));
       else setError(err);
     } finally {
       setBusy(false);
@@ -55,20 +56,27 @@ export default function Login() {
           </Button>
         </div>
         <form className="flex flex-col gap-4" onSubmit={submit}>
-          <Field label="手机号">
-            <TextInput value={phone} onChange={setPhone} placeholder="请输入 11 位手机号" type="tel" required autoComplete="username" />
-          </Field>
           {mode === 'password' ? (
-            <Field label="密码">
-              <TextInput value={password} onChange={setPassword} placeholder="请输入密码" type="password" required autoComplete="current-password" />
-            </Field>
+            <>
+              <Field label="账号">
+                <TextInput value={account} onChange={setAccount} placeholder="手机号或邮箱" required autoComplete="username" />
+              </Field>
+              <Field label="密码">
+                <TextInput value={password} onChange={setPassword} placeholder="请输入密码" type="password" required autoComplete="current-password" />
+              </Field>
+            </>
           ) : (
-            <Field label="短信验证码">
-              <div className="flex gap-2">
-                <TextInput value={code} onChange={setCode} placeholder="6 位验证码" type="numeric" required />
-                <SmsCodeButton phone={phone} scene="login" />
-              </div>
-            </Field>
+            <>
+              <Field label="手机号">
+                <TextInput value={phone} onChange={setPhone} placeholder="请输入 11 位手机号" type="tel" required autoComplete="username" />
+              </Field>
+              <Field label="短信验证码">
+                <div className="flex gap-2">
+                  <TextInput value={code} onChange={setCode} placeholder="6 位验证码" type="numeric" required />
+                  <SmsCodeButton phone={phone} scene="login" />
+                </div>
+              </Field>
+            </>
           )}
           <ErrorText error={error} />
           <Button type="submit" disabled={busy}>

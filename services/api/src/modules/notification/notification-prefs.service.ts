@@ -1,7 +1,11 @@
-import { Injectable} from '@nestjs/common';
+import { HttpStatus, Injectable} from '@nestjs/common';
 import { Prisma} from '@prisma/client';
 import { PrismaService} from '../../prisma/prisma.service';
 import { uuidv7} from '../../common/utils/uuidv7';
+import {
+AuthBusinessCode,
+BusinessException,
+} from '../../common/exceptions/business.exception';
 
 /**
 * 通知偏好与成员关怀/提醒周期设置。
@@ -129,6 +133,21 @@ async updateNotificationPrefs(
 accountId: string,
 patch: Partial<NotificationPrefs>,
 ): Promise<NotificationPrefs> {
+// V1.3 三受限之一：手机号未验证的账号禁止开启短信提醒通道（号码未核验，
+// 短信可能发往他人或无效号码；验证路径见 docs/dev/AUTH_CHANNELS.md）。
+if (patch.sms === true) {
+const account = await this.prisma.userAccount.findFirst({
+where: { id: accountId, deletedAt: null },
+select: { phoneVerifiedAt: true },
+});
+if (!account?.phoneVerifiedAt) {
+throw new BusinessException(
+AuthBusinessCode.PhoneNotVerified,
+'手机号未验证，暂不能开启短信提醒',
+HttpStatus.FORBIDDEN,
+);
+}
+}
 const next = {...(await this.getNotificationPrefs(accountId)),...patch};
 await this.writeJson(
 this.prefsKey(accountId),

@@ -44,7 +44,15 @@ export const authApi = {
     http.post<{ ok: boolean }>('/auth/password/reset', body),
   logout: () => http.post<{ ok: boolean }>('/auth/logout'),
   me: () => http.get<Account>('/auth/me'),
-  bindWechat: () => http.post<{ ok: boolean; message?: string }>('/auth/bind/wechat', {}),
+  /** 微信小程序一键登录：code 来自 Taro.login()，phoneCode（可选）来自 getPhoneNumber。后端未配 appid/secret 时返回业务码 40312，message 直接透出。 */
+  wechatMiniappLogin: (body: { code: string; phoneCode?: string }) =>
+    http.post<AuthResult>('/auth/wechat/miniapp/login', body),
+  /** 微信核验手机号（需登录）：phoneCode 来自 getPhoneNumber；与账号已登记号码不一致时返回业务码 40910，message 直接透出。 */
+  verifyPhoneByWechat: (phoneCode: string) => http.post<Account>('/auth/phone/verify/wechat', { phoneCode }),
+  /** 绑定微信（需登录）：code 来自 Taro.login()。 */
+  wechatBind: (code: string) => http.post<{ ok: boolean; message?: string }>('/auth/wechat/bind', { code }),
+  /** @deprecated 旧占位名，改调正式 /auth/wechat/bind 且必须传 Taro.login() 的 code；新代码请用 wechatBind。 */
+  bindWechat: (code: string) => http.post<{ ok: boolean; message?: string }>('/auth/wechat/bind', { code }),
 };
 
 export const accountApi = {

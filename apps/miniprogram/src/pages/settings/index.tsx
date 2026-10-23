@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import Taro from '@tarojs/taro';
-import { Text, View } from '@tarojs/components';
+import { Button, Text, View } from '@tarojs/components';
 import { accountApi, authApi } from '../../lib/endpoints';
 import { tokenStore, toastError, toastInfo, toastOk } from '../../lib/api';
 import { actions, useApp } from '../../lib/store';
@@ -12,7 +12,7 @@ import { APP_VERSION } from '../../config';
 import type { UserSession } from '../../lib/types';
 import { Badge, Btn, Card, EmptyState, ErrorLine, Field, Loading, TxtInput } from '../../components/ui';
 
-/** 设置：账号资料、微信绑定（占位）、消息订阅、登录会话、注销说明与申请、退出登录。与 Web 端 Settings 同口径。 */
+/** 设置：账号资料（含手机号微信核验）、微信绑定、消息订阅、登录会话、注销说明与申请、退出登录。与 Web 端 Settings 同口径。 */
 export default function Settings() {
   useSessionGuard();
   const account = useApp((s) => s.account);
@@ -23,20 +23,48 @@ export default function Settings() {
   const [cancelReason, setCancelReason] = useState('');
   const [busy, setBusy] = useState(false);
 
+  /** 账号资料拉取（首屏与手机号验证后刷新共用）。 */
+  const loadProfile = async () => {
+    try {
+      const p = await accountApi.profile();
+      actions.setAccount(p);
+      setNickname(p.nickname);
+      setTimezone(p.timezone);
+    } catch (err) {
+      setProfileError(err);
+    }
+  };
+
   useEffect(() => {
-    accountApi
-      .profile()
-      .then((p) => {
-        actions.setAccount(p);
-        setNickname(p.nickname);
-        setTimezone(p.timezone);
-      })
-      .catch(setProfileError);
+    void loadProfile();
     accountApi
       .sessions()
       .then(setSessions)
       .catch(() => setSessions([]));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  /** getPhoneNumber 回调（必须原生 Button 触发）：微信核验真号后刷新资料。40910 等业务错误 message 直接透出。 */
+  const onGetPhoneNumber = async (e: { detail: { code?: string; errMsg?: string } }) => {
+    const errMsg = e.detail.errMsg ?? '';
+    if (errMsg.includes('deny')) {
+      toastInfo('已取消，可随时在此完成手机号验证');
+      return;
+    }
+    const phoneCode = e.detail.code;
+    if (!phoneCode) {
+      toastError(new Error('未获取到手机号授权，请重试'));
+      return;
+    }
+    try {
+      const updated = await authApi.verifyPhoneByWechat(phoneCode);
+      actions.setAccount(updated);
+      toastOk('手机号已验证');
+      await loadProfile();
+    } catch (err) {
+      toastError(err);
+    }
+  };
 
   const saveProfile = async () => {
     try {
@@ -60,10 +88,20 @@ export default function Settings() {
 
   const bindWechat = async () => {
     try {
-      const r = await authApi.bindWechat();
-      toastInfo(r.message ?? '微信绑定尚未开通');
+      let code: string;
+      try {
+        const res = await Taro.login();
+        if (!res.code) throw new Error('未获取到微信登录凭证');
+        code = res.code;
+      } catch {
+        toastError(new Error('微信登录失败，请重试'));
+        return;
+      }
+      const r = await authApi.wechatBind(code);
+      toastOk(r.message ?? '微信绑定成功');
+      await loadProfile();
     } catch (e) {
-      toastInfo(e instanceof Error ? e.message : '微信绑定尚未开通');
+      toastError(e);
     }
   };
 
@@ -125,11 +163,29 @@ export default function Settings() {
           <View className='col' style={{ gap: '24rpx' }}>
             <View className='row-wrap'>
               <Text className='tx-md tx-sub'>手机号：{account.phoneMasked ?? '—'}</Text>
+              <Badge tone={account.phoneVerified ? 'green' : 'amber'}>
+                {account.phoneVerified ? '已验证' : '未验证'}
+              </Badge>
               <Badge tone={cancelling ? 'amber' : 'green'}>
                 {ACCOUNT_STATUS_LABELS[account.status] ?? account.status}
               </Badge>
               {account.registeredAt && <Text className='tx-sm tx-sub'>注册于 {fmtDateTime(account.registeredAt)}</Text>}
             </View>
+            {account.phoneVerified === false && (
+              <View className='col' style={{ gap: '12rpx' }}>
+                <Text className='tx-sm tx-sub' style={{ lineHeight: 1.6 }}>
+                  手机号未验证：完成验证后可接收短信提醒并接受家人照护授权（微信核验真号，无需短信验证码）
+                </Text>
+                {/* getPhoneNumber 必须使用 @tarojs/components 原生 Button，项目 Btn（View 封装）无法触发微信授权 */}
+                <Button
+                  className='btn btn-soft btn-block'
+                  openType='getPhoneNumber'
+                  onGetPhoneNumber={onGetPhoneNumber}
+                >
+                  验证手机号
+                </Button>
+              </View>
+            )}
             <Field label='昵称'>
               <TxtInput value={nickname} onChange={setNickname} />
             </Field>
@@ -147,7 +203,9 @@ export default function Settings() {
         <View className='menu-row'>
           <View className='col' style={{ gap: '4rpx' }}>
             <Text className='tx-md tx-strong'>微信绑定</Text>
-            <Text className='tx-sm tx-sub'>绑定后可用微信登录并接收订阅消息提醒（尚未开通）</Text>
+            <Text className='tx-sm tx-sub'>
+              {account?.hasWechat ? '已绑定微信，可用微信一键登录并接收订阅消息提醒' : '绑定后可用微信登录并接收订阅消息提醒'}
+            </Text>
           </View>
           <Btn variant='soft' onClick={bindWechat}>
             绑定微信

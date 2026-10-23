@@ -13,9 +13,13 @@ import {
   LoginDto,
   LogoutDto,
   RefreshDto,
+  RegisterByEmailDto,
   RegisterDto,
   ResetPasswordDto,
+  SendEmailCodeDto,
   SendSmsCodeDto,
+  WechatMiniappLoginDto,
+  WechatPhoneVerifyDto,
 } from './dto/auth.dto';
 
 function requestContext(req: Request): RequestContext {
@@ -36,9 +40,27 @@ export class AuthController {
     return this.service.sendSmsCode(dto.phone, dto.scene);
   }
 
+  /** 发送邮箱验证码（register/login/reset_password/bind 四场景，限频同短信） */
+  @Post('email/send')
+  async sendEmailCode(@Body() dto: SendEmailCodeDto) {
+    return this.service.sendEmailCode(dto.email, dto.scene);
+  }
+
   @Post('register')
   async register(@Body() dto: RegisterDto, @Req() req: Request) {
     return this.service.register(dto, requestContext(req));
+  }
+
+  /** 邮箱验证码注册（V1.3 先行通道；手机号选填、登记不验证） */
+  @Post('register/email')
+  async registerByEmail(@Body() dto: RegisterByEmailDto, @Req() req: Request) {
+    return this.service.registerByEmail(dto, requestContext(req));
+  }
+
+  /** 微信小程序登录（V1.3 先行通道；未配置 appid/secret 返回 40312） */
+  @Post('wechat/miniapp/login')
+  async wechatMiniappLogin(@Body() dto: WechatMiniappLoginDto, @Req() req: Request) {
+    return this.service.wechatMiniappLogin(dto, requestContext(req));
   }
 
   @Post('login')
@@ -73,12 +95,36 @@ export class AuthController {
     return { reset: true };
   }
 
-  /** 占位：未接真实微信前返回未开通（契约） */
+  /** 微信绑定（V1.3 实接：code 换 openid 落 user_oauth_binding；旧路径保留同实现） */
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
   @Post('bind/wechat')
-  bindWechat(@Body() _dto: BindWechatDto) {
-    return this.service.bindWechatPlaceholder();
+  async bindWechatLegacy(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: BindWechatDto,
+  ) {
+    return this.service.bindWechat(user.accountId, dto.code);
+  }
+
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @Post('wechat/bind')
+  async bindWechat(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: BindWechatDto,
+  ) {
+    return this.service.bindWechat(user.accountId, dto.code);
+  }
+
+  /** 微信手机号验证（需登录）：getPhoneNumber 的 code 换真号落库/置验证 */
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @Post('phone/verify/wechat')
+  async verifyPhoneByWechat(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: WechatPhoneVerifyDto,
+  ) {
+    return this.service.verifyPhoneByWechat(user.accountId, dto.phoneCode);
   }
 
   @ApiBearerAuth()

@@ -27,7 +27,7 @@ export class AccountService {
     if (!account) {
       throw new BusinessException(BusinessCode.NotFound, '账号不存在', HttpStatus.NOT_FOUND);
     }
-    return this.authService.toAccountView(account);
+    return this.authService.buildAccountView(account);
   }
 
   async updateProfile(accountId: string, dto: UpdateProfileDto) {
@@ -39,7 +39,7 @@ export class AccountService {
         timezone: dto.timezone,
       },
     });
-    return this.authService.toAccountView(account);
+    return this.authService.buildAccountView(account);
   }
 
   /**
