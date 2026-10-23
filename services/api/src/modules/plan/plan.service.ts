@@ -487,7 +487,7 @@ export class PlanService {
         override.cycleIntervalMinutes === null;
       return empty ? null : override;
     }
-    throw this.validationError('cycleOverride must be a preset name or an object');
+    throw this.validationError('提醒周期覆盖须为预设名称或自定义对象');
   }
 
   /** 响应覆加计划级 cycle 覆盖原值（三项皆 null = 跟随成员设置）。 */
@@ -527,7 +527,7 @@ export class PlanService {
     const courseType = item.courseType ?? 'long_term';
     if (courseType === 'fixed_days') {
       if (!item.courseDays || item.courseDays <= 0) {
-        throw this.validationError('courseDays is required when courseType=fixed_days');
+        throw this.validationError('固定天数疗程须填写疗程天数');
       }
     } else if (item.courseDays !== undefined && item.courseDays !== null) {
       throw this.validationError(
@@ -643,34 +643,28 @@ export class PlanService {
     // 计划级一致性校验（PRN 参数 / 阶段禁挂 / 疗程日期）
     if (planType === PlanType.Prn) {
       if (!dto.prnMinIntervalMinutes || !dto.prnMaxPerDay) {
-        throw this.validationError(
-          'prnMinIntervalMinutes and prnMaxPerDay are required for prn plans',
-        );
+        throw this.validationError('按需（PRN）计划须设置最小服药间隔与每日最大次数');
       }
       if (dto.phases && dto.phases.length > 0) {
-        throw this.validationError('prn plans cannot have dose phases');
+        throw this.validationError('按需（PRN）计划不能设置剂量阶段');
       }
     } else {
-      if (
-        dto.prnMinIntervalMinutes !== undefined ||
-        dto.prnMaxPerDay !== undefined
-      ) {
-        throw this.validationError(
-          'prn parameters are only allowed for prn plans',
-        );
+      /* null 与缺省同义（旧客户端曾以 null 传参）：仅当真给了数值时才拒绝 */
+      if (dto.prnMinIntervalMinutes != null || dto.prnMaxPerDay != null) {
+        throw this.validationError('PRN 参数仅适用于按需（PRN）计划');
       }
     }
     const startDate = parseDateOnly(dto.startDate);
     const endDate = dto.endDate ? parseDateOnly(dto.endDate) : null;
     if (endDate && endDate.getTime() < startDate.getTime()) {
-      throw this.validationError('endDate must not be earlier than startDate');
+      throw this.validationError('结束日期不能早于开始日期');
     }
     if (!dto.items || dto.items.length === 0) {
-      throw this.validationError('plan requires at least one item');
+      throw this.validationError('计划至少需要一条药品明细');
     }
     for (const item of dto.items) {
       if (planType === PlanType.Prn && item.frequencyType !== 'on_demand') {
-        throw this.validationError('prn plan items must use frequencyType=on_demand');
+        throw this.validationError('按需（PRN）计划的明细频次必须为「按需」');
       }
       if (planType !== PlanType.Prn && item.frequencyType === 'on_demand') {
         throw this.validationError(
@@ -1015,7 +1009,7 @@ export class PlanService {
           ? (scalarData.endDate as Date | null)
           : plan.endDate;
       if (effEnd && effEnd.getTime() < effStart.getTime()) {
-        throw this.validationError('endDate must not be earlier than startDate');
+        throw this.validationError('结束日期不能早于开始日期');
       }
       for (const c of scalarChanges) {
         historyRows.push({
@@ -1057,7 +1051,7 @@ export class PlanService {
               effectivePlanType === PlanType.Prn &&
               merged.frequencyType !== 'on_demand'
             ) {
-              throw this.validationError('prn plan items must use frequencyType=on_demand');
+              throw this.validationError('按需（PRN）计划的明细频次必须为「按需」');
             }
             if (
               effectivePlanType !== PlanType.Prn &&
@@ -1224,7 +1218,7 @@ export class PlanService {
       /* ---- 阶段全量对齐 ---- */
       if (dto.phases !== undefined) {
         if (effectivePlanType === PlanType.Prn && dto.phases.length > 0) {
-          throw this.validationError('prn plans cannot have dose phases');
+          throw this.validationError('按需（PRN）计划不能设置剂量阶段');
         }
         const currentPhases = await tx.medicationPlanPhase.findMany({
           where: { planId, deletedAt: null },

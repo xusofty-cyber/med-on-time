@@ -1,8 +1,8 @@
 import { useCallback } from 'react';
 import Taro, { useDidShow } from '@tarojs/taro';
 import { Switch, Text, View } from '@tarojs/components';
-import { memberApi, notificationApi } from '../../lib/endpoints';
-import { toastError } from '../../lib/api';
+import { accountApi, authApi, memberApi, notificationApi } from '../../lib/endpoints';
+import { toastError, toastOk } from '../../lib/api';
 import { actions, useApp } from '../../lib/store';
 import { useSessionGuard } from '../../lib/hooks';
 import { ACCOUNT_STATUS_LABELS, RELATIONSHIP_LABELS } from '../../lib/dict';
@@ -29,6 +29,19 @@ export default function Me() {
     }
   }, []);
   useDidShow(() => void refreshUnread());
+
+  /** 绑定微信：Taro.login 取 code → 后端 code2session 绑定到本账号；此后微信一键登录即进本账号。 */
+  const bindWechat = async () => {
+    try {
+      const res = await Taro.login();
+      if (!res.code) throw new Error('未获取到微信登录凭证');
+      const r = await authApi.wechatBind(res.code);
+      toastOk(r.message ?? '微信绑定成功，今后可用微信一键登录');
+      actions.setAccount(await accountApi.profile());
+    } catch (e) {
+      toastError(e);
+    }
+  };
 
   const toggleCare = async (on: boolean) => {
     if (!currentMemberId || !care) return;
@@ -125,6 +138,23 @@ export default function Me() {
           url='/pages/notifications/index'
           badge={unread > 0 ? String(unread) : undefined}
         />
+        {account.hasWechat ? (
+          <View className='menu-row'>
+            <View className='col' style={{ gap: '4rpx' }}>
+              <Text className='tx-md tx-strong'>微信登录</Text>
+              <Text className='tx-sm tx-sub'>已绑定微信，可用微信一键登录本账号</Text>
+            </View>
+            <Badge tone='green'>已绑定</Badge>
+          </View>
+        ) : (
+          <View className='menu-row' onClick={() => void bindWechat()}>
+            <View className='col' style={{ gap: '4rpx' }}>
+              <Text className='tx-md tx-strong'>绑定微信</Text>
+              <Text className='tx-sm tx-sub'>绑定后可用微信一键登录本账号</Text>
+            </View>
+            <Text className='pick-arrow'>›</Text>
+          </View>
+        )}
         <MenuRow label='扫码登录网页版' desc='扫描网页版二维码，确认以本账号登录' url='/pages/scan-login/index' />
         <MenuRow label='设置' desc='账号资料、登录会话、消息订阅与注销说明' url='/pages/settings/index' last />
       </Card>

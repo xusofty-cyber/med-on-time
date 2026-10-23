@@ -126,8 +126,10 @@ export function PlanForm({
       endDate: endDate || null,
       storageLocation: storageLocation || undefined,
       additionalNote: additionalNote || undefined,
-      prnMinIntervalMinutes: planType === 'prn' ? Number(prnMinInterval) : null,
-      prnMaxPerDay: planType === 'prn' ? Number(prnMaxPerDay) : null,
+      /* 非 PRN 计划必须整字段缺省：传 null 会被后端按「已提供」拒绝（prn 参数仅限 prn 计划） */
+      ...(planType === 'prn'
+        ? { prnMinIntervalMinutes: Number(prnMinInterval), prnMaxPerDay: Number(prnMaxPerDay) }
+        : {}),
       cyclePreset: cycleOverride === 'member' ? null : cycleOverride,
       cycleWindowMinutes:
         cycleOverride === 'member' ? null : CYCLE_PRESETS[cycleOverride as CyclePresetKey].windowMinutes,
