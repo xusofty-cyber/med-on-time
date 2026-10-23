@@ -38,7 +38,8 @@ export const authApi = {
     http.post<{ sent: boolean }>('/auth/sms/send', { phone, scene }),
   register: (body: { phone: string; password: string; code: string; nickname?: string }) =>
     http.post<AuthResult>('/auth/register', body),
-  login: (body: { phone: string; password: string }) => http.post<AuthResult>('/auth/login', body),
+  /** 密码登录：account 可为手机号或邮箱（与 Web 同口径，后端按 @ 分流查账号） */
+  login: (body: { account: string; password: string }) => http.post<AuthResult>('/auth/login', body),
   loginByCode: (body: { phone: string; code: string }) => http.post<AuthResult>('/auth/login/code', body),
   resetPassword: (body: { phone: string; code: string; newPassword: string }) =>
     http.post<{ ok: boolean }>('/auth/password/reset', body),

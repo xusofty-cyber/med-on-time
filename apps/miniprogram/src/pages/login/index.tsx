@@ -9,12 +9,13 @@ import type { Account, AuthResult } from '../../lib/types';
 import { Btn, Card, ErrorLine, Field, SegTabs, TxtInput } from '../../components/ui';
 import { SmsCodeButton } from '../../components/SmsCodeButton';
 
-/** 登录：手机号 + 密码 / 短信验证码双模式；含忘记密码（验证码重置）。与 Web 端 Login 同逻辑。 */
+/** 登录：手机号/邮箱 + 密码 / 短信验证码双模式；含忘记密码（验证码重置）。与 Web 端 Login 同逻辑。 */
 export default function Login() {
   const booted = useApp((s) => s.booted);
   const account = useApp((s) => s.account);
   const [mode, setMode] = useState<'password' | 'code'>('password');
-  const [phone, setPhone] = useState('');
+  /* 密码模式为「手机号或邮箱」，验证码模式仅手机号；同一输入框按模式校验 */
+  const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [code, setCode] = useState('');
   const [error, setError] = useState<unknown>(null);
@@ -52,8 +53,17 @@ export default function Login() {
   };
 
   const submit = async () => {
-    if (!/^1\d{10}$/.test(phone)) {
+    const isEmail = identifier.includes('@');
+    if (mode === 'code' && !/^1\d{10}$/.test(identifier)) {
       setError(new Error('请输入正确的 11 位手机号'));
+      return;
+    }
+    if (mode === 'password' && isEmail && !/^\S+@\S+\.\S+$/.test(identifier)) {
+      setError(new Error('请输入正确的邮箱地址'));
+      return;
+    }
+    if (mode === 'password' && !isEmail && !/^1\d{10}$/.test(identifier)) {
+      setError(new Error('请输入正确的手机号或邮箱'));
       return;
     }
     if (mode === 'password' && !password) {
@@ -68,12 +78,14 @@ export default function Login() {
     setError(null);
     try {
       const result =
-        mode === 'password' ? await authApi.login({ phone, password }) : await authApi.loginByCode({ phone, code });
+        mode === 'password'
+          ? await authApi.login({ account: identifier, password })
+          : await authApi.loginByCode({ phone: identifier, code });
       await persistSession(result);
       toastOk('登录成功');
       Taro.switchTab({ url: HOME_TAB });
     } catch (err) {
-      if (err instanceof ApiError && err.code === 401) setError(new Error('手机号或密码不正确'));
+      if (err instanceof ApiError && err.code === 401) setError(new Error('账号或密码不正确'));
       else setError(err);
     } finally {
       setBusy(false);
@@ -159,9 +171,15 @@ export default function Login() {
             value={mode}
             onChange={(v) => setMode(v as 'password' | 'code')}
           />
-          <Field label='手机号'>
-            <TxtInput value={phone} onChange={setPhone} placeholder='请输入 11 位手机号' type='number' maxlength={11} />
-          </Field>
+          {mode === 'password' ? (
+            <Field label='账号'>
+              <TxtInput value={identifier} onChange={setIdentifier} placeholder='手机号或邮箱' maxlength={64} />
+            </Field>
+          ) : (
+            <Field label='手机号'>
+              <TxtInput value={identifier} onChange={setIdentifier} placeholder='请输入 11 位手机号' type='number' maxlength={11} />
+            </Field>
+          )}
           {mode === 'password' ? (
             <Field label='密码'>
               <TxtInput value={password} onChange={setPassword} placeholder='请输入密码' password />
@@ -172,7 +190,7 @@ export default function Login() {
                 <View className='grow'>
                   <TxtInput value={code} onChange={setCode} placeholder='6 位验证码' type='number' maxlength={6} />
                 </View>
-                <SmsCodeButton phone={phone} scene='login' />
+                <SmsCodeButton phone={identifier} scene='login' />
               </View>
             </Field>
           )}

@@ -6,7 +6,7 @@
  * - 生产环境：必须是 HTTPS 域名，且已在微信公众平台「开发管理 → 开发设置 →
  *   服务器域名」中登记为 request 合法域名，否则真机请求会被平台拦截。
  */
-export const API_BASE = 'http://localhost:3000/api';
+export const API_BASE = 'https://mot.ulife.vip/api';
 
 /**
  * 微信订阅消息模板 ID（用药提醒）。
