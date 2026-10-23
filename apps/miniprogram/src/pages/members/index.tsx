@@ -6,7 +6,7 @@ import { toastError, toastOk } from '../../lib/api';
 import { actions, useApp } from '../../lib/store';
 import { useSessionGuard } from '../../lib/hooks';
 import { GENDER_LABELS, RELATIONSHIP_LABELS } from '../../lib/dict';
-import { CYCLE_PRESETS, type CareSettings, type CyclePresetKey, type Member } from '../../lib/types';
+import { CYCLE_PRESETS, STRONG_ALERT_LABELS, type CareSettings, type CyclePresetKey, type Member, type StrongAlertMode } from '../../lib/types';
 import { Badge, Btn, Card, DatePick, EmptyState, ErrorLine, Field, Loading, Pick, Sheet, SwitchRow, TxtInput } from '../../components/ui';
 
 const MAX_MEMBERS = 10;
@@ -16,6 +16,7 @@ const DEFAULT_CARE: CareSettings = {
   cycleWindowMinutes: 90,
   cycleIntervalMinutes: 15,
   lockScreenShowDrugDetail: false,
+  strongAlertMode: 'none',
 };
 
 /** 成员管理：列表（上限 10 自有成员）、新建/编辑/删除、切换当前成员、关怀与提醒设置。与 Web 端 Members 同逻辑。 */
@@ -335,6 +336,19 @@ function CareSettingsSheet({
             checked={settings.lockScreenShowDrugDetail}
             onChange={(v) => setSettings((s) => ({ ...s, lockScreenShowDrugDetail: v }))}
           />
+          <Field label='强提醒方式（安卓 / 桌面端生效）'>
+            <Pick
+              value={settings.strongAlertMode}
+              onChange={(v) => setSettings((s) => ({ ...s, strongAlertMode: v as StrongAlertMode }))}
+              options={(Object.keys(STRONG_ALERT_LABELS) as StrongAlertMode[]).map((value) => ({
+                value,
+                label: STRONG_ALERT_LABELS[value],
+              }))}
+            />
+          </Field>
+          <Text className='tx-sm tx-sub'>
+            弹窗通知始终开启；闹钟与语音二选一。小程序内提醒不受此设置影响。
+          </Text>
           <ErrorLine error={error} />
           <View className='row' style={{ gap: '12rpx' }}>
             <View className='grow'>

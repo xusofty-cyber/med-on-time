@@ -3,7 +3,7 @@ import { memberApi } from '../lib/endpoints';
 import { actions, useApp } from '../lib/store';
 import { Badge, Button, Card, EmptyState, ErrorText, Field, Modal, Select, Spinner, TextInput } from '../components/ui';
 import { GENDER_LABELS, RELATIONSHIP_LABELS } from '../lib/dict';
-import { CYCLE_PRESETS, type CareSettings, type CyclePresetKey, type Member } from '../lib/types';
+import { CYCLE_PRESETS, STRONG_ALERT_LABELS, type CareSettings, type CyclePresetKey, type Member, type StrongAlertMode } from '../lib/types';
 
 const MAX_MEMBERS = 10;
 
@@ -13,6 +13,7 @@ const DEFAULT_CARE: CareSettings = {
   cycleWindowMinutes: 90,
   cycleIntervalMinutes: 15,
   lockScreenShowDrugDetail: false,
+  strongAlertMode: 'none',
 };
 
 export default function Members() {
@@ -314,6 +315,28 @@ export function CareSettingsEditor({
               onChange={(e) => setSettings((s) => ({ ...s, lockScreenShowDrugDetail: e.target.checked }))}
             />
           </label>
+          <div>
+            <span className="block font-medium">强提醒方式（安卓 / 桌面端）</span>
+            <span className="block text-sm text-neutral-500">
+              弹窗通知始终开启；闹钟与语音二选一：闹钟 = 全屏持续响铃到处理为止，语音 = 直接念出药名与剂量。小程序与网页端不受此设置影响。
+            </span>
+            <div className="mt-2 grid grid-cols-3 gap-2">
+              {(Object.keys(STRONG_ALERT_LABELS) as StrongAlertMode[]).map((mode) => (
+                <button
+                  key={mode}
+                  type="button"
+                  onClick={() => setSettings((s) => ({ ...s, strongAlertMode: mode }))}
+                  className={`rounded-lg border px-2 py-2 text-sm ${
+                    settings.strongAlertMode === mode
+                      ? 'border-[#0B6B4F] bg-[#E6F4EA] font-medium text-[#0B6B4F]'
+                      : 'border-neutral-300 text-neutral-600'
+                  }`}
+                >
+                  {STRONG_ALERT_LABELS[mode]}
+                </button>
+              ))}
+            </div>
+          </div>
           <ErrorText error={error} />
           <div className="flex gap-2">
             <Button variant="ghost" className="flex-1" onClick={onClose}>

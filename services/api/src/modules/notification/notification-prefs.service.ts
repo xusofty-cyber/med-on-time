@@ -45,11 +45,22 @@ gentle: { windowMinutes: 120, intervalMinutes: 30},
 strict: { windowMinutes: 60, intervalMinutes: 10},
 };
 
+/**
+ * 强提醒方式（2026-10-23 负责人裁定，原生/桌面端适用）：弹窗恒为基础层，
+ * 强提醒三态单选——none 无 / alarm 闹钟（全屏+持续响铃）/ voice 语音播报；
+ * 闹钟与语音互斥由单选枚举天然保证。小程序受平台限制不适用。
+ */
+export type StrongAlertMode = 'none' | 'alarm' | 'voice';
+
+export const STRONG_ALERT_MODES: StrongAlertMode[] = ['none', 'alarm', 'voice'];
+
 export interface CareSettings {
 /** 关怀模式（大字/高对比，由各端按此渲染） */
 careMode: boolean;
 /** 锁屏显示药品详情：默认 OFF（需求定版） */
 lockScreenShowDrugDetail: boolean;
+/** 强提醒方式（成员级默认）：默认 none；计划级可覆盖 */
+strongAlertMode: StrongAlertMode;
 cyclePreset: CyclePreset;
 /** 显式覆盖值（分钟）；为空走预设 */
 cycleWindowMinutes: number | null;
@@ -59,6 +70,7 @@ cycleIntervalMinutes: number | null;
 export const DEFAULT_CARE_SETTINGS: CareSettings = {
 careMode: false,
 lockScreenShowDrugDetail: false,
+strongAlertMode: 'none',
 cyclePreset: 'standard',
 cycleWindowMinutes: null,
 cycleIntervalMinutes: null,
@@ -269,6 +281,58 @@ if (override.cycleIntervalMinutes !== null) {
 resolved.intervalMinutes = override.cycleIntervalMinutes;
 }
 return resolved;
+}
+
+// ------------------------------------------------------------------
+// 计划级强提醒覆盖（2026-10-24，与 cycle 覆盖同存储口径）
+// 存储键 plan_strong_alert_override:<planId> → { strongAlertMode }
+// strongAlertMode 为 null = 不覆盖（跟随成员关怀设置）。
+// 本字段只决定原生/桌面端的呈现方式，服务端投递渠道不消费。
+// ------------------------------------------------------------------
+
+private planStrongAlertKey(planId: string): string {
+return `plan_strong_alert_override:${planId}`;
+}
+
+async getPlanStrongAlertOverride(
+planId: string,
+): Promise<StrongAlertMode | null> {
+const stored = await this.readJson<{ strongAlertMode?: unknown }>(
+this.planStrongAlertKey(planId),
+);
+const value = stored?.strongAlertMode;
+return value === 'alarm' || value === 'voice' || value === 'none'
+? value
+: null;
+}
+
+async setPlanStrongAlertOverride(
+planId: string,
+mode: StrongAlertMode | null,
+): Promise<void> {
+await this.writeJson(
+this.planStrongAlertKey(planId),
+{ strongAlertMode: mode },
+'计划级强提醒方式覆盖（过渡存储，与 plan_cycle_override 同口径）',
+);
+}
+
+async deletePlanStrongAlertOverride(planId: string): Promise<void> {
+await this.prisma.systemConfig.updateMany({
+where: { configKey: this.planStrongAlertKey(planId), deletedAt: null },
+data: { deletedAt: new Date() },
+});
+}
+
+/** 计划生效的强提醒方式：计划覆盖优先，否则成员关怀设置 */
+async getResolvedStrongAlertMode(
+memberId: string,
+planId: string,
+): Promise<StrongAlertMode> {
+const override = await this.getPlanStrongAlertOverride(planId);
+if (override !== null) return override;
+const settings = await this.getCareSettings(memberId);
+return settings.strongAlertMode ?? 'none';
 }
 
 async markRead(accountId: string, notificationId: string): Promise<void> {

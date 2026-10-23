@@ -17,6 +17,7 @@ import type {
   NotificationItem,
   NotificationPrefs,
   PageResult,
+  PhotoRecognizeResult,
   Plan,
   PlanChangeHistoryEntry,
   PlanPayload,
@@ -123,6 +124,9 @@ export const authorizationApi = {
 
 export const drugApi = {
   search: (q: string, page = 1) => http.get<PageResult<Drug>>(`/drugs/search${qs({ q, page, pageSize: 20 })}`),
+  /** 拍照录入：照片 base64 直传识别药名候选（不落盘），命中项仍须用户点选确认 */
+  photoRecognize: (imageBase64: string, mimeType: string) =>
+    http.post<PhotoRecognizeResult>('/drugs/photo-recognize', { imageBase64, mimeType }),
   detail: (id: string) => http.get<Drug>(`/drugs/${id}`),
   interactions: (id: string) => http.get<DrugInteractions>(`/drugs/${id}/interactions`),
   createCustom: (memberId: string, body: Partial<Drug> & { genericName: string; specification: string; unit: string; dosageForm: string }) =>

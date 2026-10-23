@@ -122,4 +122,9 @@ export class CareSettingsDto {
   @IsOptional()
   @IsBoolean()
   lockScreenShowDrugDetail?: boolean;
+
+  /** 强提醒方式（原生/桌面端）：none 无 / alarm 闹钟 / voice 语音，互斥单选 */
+  @IsOptional()
+  @IsIn(['none', 'alarm', 'voice'])
+  strongAlertMode?: 'none' | 'alarm' | 'voice';
 }

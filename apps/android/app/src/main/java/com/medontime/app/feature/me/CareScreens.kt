@@ -30,6 +30,7 @@ import com.medontime.app.core.LocalAppContainer
 import com.medontime.app.data.local.SessionStore
 import com.medontime.app.data.model.CareSettingsDto
 import com.medontime.app.data.model.CyclePreset
+import com.medontime.app.data.model.StrongAlertMode
 import com.medontime.app.data.model.NotificationPrefsDto
 import com.medontime.app.data.model.UpdateCareSettingsRequest
 import com.medontime.app.data.model.UpdateNotificationPrefsRequest
@@ -101,6 +102,7 @@ class CareViewModel(
     fun setCareMode(on: Boolean) = updateCare(UpdateCareSettingsRequest(careMode = on))
     fun setPreset(preset: CyclePreset) = updateCare(UpdateCareSettingsRequest(cyclePreset = preset))
     fun setLockScreen(on: Boolean) = updateCare(UpdateCareSettingsRequest(lockScreenShowDrugDetail = on))
+    fun setStrongAlert(mode: StrongAlertMode) = updateCare(UpdateCareSettingsRequest(strongAlertMode = mode))
 
     private fun updatePrefs(request: UpdateNotificationPrefsRequest) {
         viewModelScope.launch {
@@ -170,6 +172,27 @@ fun CareScreen() {
                 }
                 Text(
                     "含义：到点后 ${care?.cycleWindowMinutes ?: 90} 分钟窗口内，每 ${care?.cycleIntervalMinutes ?: 15} 分钟重复提醒一次，超窗记漏服。",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 4.dp),
+                )
+
+                SectionTitle("强提醒方式（弹窗打底，闹钟与语音二选一）")
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf(
+                        StrongAlertMode.None to "无",
+                        StrongAlertMode.Alarm to "闹钟",
+                        StrongAlertMode.Voice to "语音",
+                    ).forEach { (mode, label) ->
+                        FilterChip(
+                            selected = (care?.strongAlertMode ?: StrongAlertMode.None) == mode,
+                            onClick = { vm.setStrongAlert(mode) },
+                            label = { Text(label) },
+                        )
+                    }
+                }
+                Text(
+                    "弹窗通知始终开启；闹钟 = 全屏持续响铃到处理为止；语音 = 到点念出药名与剂量。单个计划可在其他端（Web/小程序）的计划编辑里覆盖。",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 4.dp),

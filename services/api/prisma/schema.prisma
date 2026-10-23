@@ -1203,6 +1203,28 @@ model AiModelConfig {
   @@map("ai_model_config")
 }
 
+/// 9.2b 后台可配的大模型接入（2026-10-24 负责人要求：后台管理可配模型名称/API key/请求 URL）。
+/// 与 ai_model_config 分工：后者是能力路由与灰度（存托管引用），本表是运营直配的
+/// OpenAI 兼容接入点。api_key 只落 FieldCrypto 密文（enc:v1:），另存尾 4 位供界面掩码展示；
+/// 明文禁止落库与进日志。同 capability 至多一条 is_active（应用层保证）。
+model AiProviderConfig {
+  id           String    @id @db.Uuid
+  name         String    @db.VarChar(100) // 展示名，如「智谱 GLM」
+  modelName    String    @map("model_name") @db.VarChar(100) // 如 glm-4-flash / glm-4v-flash
+  baseUrl      String    @map("base_url") @db.VarChar(500) // OpenAI 兼容根 URL，如 https://open.bigmodel.cn/api/paas/v4
+  apiKeyCipher String    @map("api_key_cipher") // FieldCrypto 密文，禁止明文
+  apiKeyLast4  String    @map("api_key_last4") @db.VarChar(8)
+  capability   String    @default("general") @db.VarChar(48) // general / photo_recognize / health_qa
+  isActive     Boolean   @default(false) @map("is_active")
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt    DateTime? @map("deleted_at") @db.Timestamptz(6)
+  version      Int       @default(1)
+
+  @@index([capability, isActive])
+  @@map("ai_provider_config")
+}
+
 /// 9.3 提示词模板表（P1）：已发布版本禁止原地改内容，改动一律新建版本行；回滚 = 旧版重发布。
 /// V1.2：locale 列加入唯一口径，(capability, version, locale) 组合唯一。
 model AiPromptTemplate {

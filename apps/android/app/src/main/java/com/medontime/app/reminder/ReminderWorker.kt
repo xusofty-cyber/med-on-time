@@ -20,6 +20,8 @@ class ReminderWorker(
         val app = applicationContext as? MedOnTimeApp ?: return Result.failure()
         val showDetail = app.container.sessionStore.lockScreenShowDrugFlow.first()
         NotificationHelper.showDoseNotification(applicationContext, payload, showDetail)
+        // 强提醒层（弹窗打底之上）：闹钟全屏响铃 / 语音播报，二选一
+        DoseAlerter.presentStrong(applicationContext, payload, showDetail)
         runCatching { app.container.reminderScheduler.syncTimeline() }
         return Result.success()
     }
@@ -31,6 +33,7 @@ class ReminderWorker(
         const val KEY_DOSE_UNIT = "dose_unit"
         const val KEY_LOCAL_TIME = "local_time"
         const val KEY_TRIGGER_AT = "trigger_at"
+        const val KEY_STRONG_MODE = "strong_mode"
     }
 }
 

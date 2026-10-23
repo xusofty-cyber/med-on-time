@@ -250,6 +250,16 @@ export class CreatePlanDto {
   @Max(1440)
   cycleIntervalMinutes?: number | null;
 
+  @ApiPropertyOptional({
+    enum: ['none', 'alarm', 'voice'],
+    nullable: true,
+    description: '计划级强提醒方式覆盖（原生/桌面端呈现）：none 无 / alarm 闹钟 / voice 语音；null = 跟随成员关怀设置',
+  })
+  @IsOptional()
+  @ValidateIf((o: CreatePlanDto) => o.strongAlertMode !== null)
+  @IsIn(['none', 'alarm', 'voice'])
+  strongAlertMode?: string | null;
+
   @ApiProperty({ type: [PlanItemInputDto] })
   @IsArray()
   @ValidateNested({ each: true })

@@ -242,6 +242,16 @@ export class UpdatePlanDto {
   @Max(1440)
   cycleIntervalMinutes?: number | null;
 
+  @ApiPropertyOptional({
+    enum: ['none', 'alarm', 'voice'],
+    nullable: true,
+    description: '计划级强提醒方式覆盖（原生/桌面端呈现）：缺省 = 不改；null = 清除覆盖跟随成员；none/alarm/voice = 覆盖值',
+  })
+  @IsOptional()
+  @ValidateIf((o: UpdatePlanDto) => o.strongAlertMode !== null)
+  @IsIn(['none', 'alarm', 'voice'])
+  strongAlertMode?: string | null;
+
   @ApiPropertyOptional({ type: [PlanItemPatchDto] })
   @IsOptional()
   @IsArray()

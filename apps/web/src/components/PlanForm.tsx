@@ -4,7 +4,7 @@ import { actions } from '../lib/store';
 import { Button, ErrorText, Field, Select, TextInput } from './ui';
 import { DrugPicker } from './DrugPicker';
 import { COURSE_LABELS, FREQUENCY_LABELS, MEAL_LABELS, WEEKDAY_LABELS } from '../lib/dict';
-import { CYCLE_PRESETS, type CyclePresetKey, type Drug, type Plan, type PlanItemInput, type PlanPayload, type PlanPhaseInput } from '../lib/types';
+import { CYCLE_PRESETS, STRONG_ALERT_LABELS, type CyclePresetKey, type Drug, type Plan, type PlanItemInput, type PlanPayload, type PlanPhaseInput, type StrongAlertMode } from '../lib/types';
 
 interface ItemDraft extends PlanItemInput {
   key: number;
@@ -65,6 +65,7 @@ export function PlanForm({
   const [storageLocation, setStorageLocation] = useState('');
   const [additionalNote, setAdditionalNote] = useState('');
   const [cycleOverride, setCycleOverride] = useState<'member' | CyclePresetKey>('member');
+  const [strongAlert, setStrongAlert] = useState<'member' | StrongAlertMode>('member');
   const [error, setError] = useState<unknown>(null);
   const [busy, setBusy] = useState(false);
 
@@ -90,6 +91,7 @@ export function PlanForm({
       setStorageLocation(plan.storageLocation ?? '');
       setAdditionalNote(plan.additionalNote ?? plan.note ?? '');
       setCycleOverride(plan.cyclePreset ?? 'member');
+      setStrongAlert(plan.strongAlertModeOverride ?? 'member');
     }
   }, [plan]);
 
@@ -135,6 +137,7 @@ export function PlanForm({
         cycleOverride === 'member' ? null : CYCLE_PRESETS[cycleOverride as CyclePresetKey].windowMinutes,
       cycleIntervalMinutes:
         cycleOverride === 'member' ? null : CYCLE_PRESETS[cycleOverride as CyclePresetKey].intervalMinutes,
+      strongAlertMode: strongAlert === 'member' ? null : strongAlert,
       items: items.map((it) => ({
         drugId: it.drug?.id ?? it.drugId,
         doseAmount: Number(it.doseAmount),
@@ -419,6 +422,19 @@ export function PlanForm({
             options={[
               { value: 'member', label: '跟随成员设置' },
               ...Object.entries(CYCLE_PRESETS).map(([value, p]) => ({ value, label: p.label })),
+            ]}
+          />
+        </Field>
+        <Field label="强提醒方式覆盖（安卓/桌面端）" hint="闹钟与语音互斥，二选一">
+          <Select
+            value={strongAlert}
+            onChange={(v) => setStrongAlert(v as 'member' | StrongAlertMode)}
+            options={[
+              { value: 'member', label: '跟随成员设置' },
+              ...(Object.keys(STRONG_ALERT_LABELS) as StrongAlertMode[]).map((value) => ({
+                value,
+                label: STRONG_ALERT_LABELS[value],
+              })),
             ]}
           />
         </Field>

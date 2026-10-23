@@ -1,12 +1,20 @@
 import { Module } from '@nestjs/common';
 import { AiController } from './ai.controller';
 import { AiService } from './ai.service';
+import { AiProviderConfigService } from './ai-provider-config.service';
+import { AiGatewayService } from './ai-gateway.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { MemberAccessGuard } from '../../common/guards/member-access.guard';
 
 @Module({
   controllers: [AiController],
-  providers: [AiService, JwtAuthGuard, MemberAccessGuard],
-  exports: [AiService],
+  providers: [
+    AiService,
+    AiProviderConfigService,
+    AiGatewayService,
+    JwtAuthGuard,
+    MemberAccessGuard,
+  ],
+  exports: [AiService, AiProviderConfigService, AiGatewayService],
 })
 export class AiModule {}

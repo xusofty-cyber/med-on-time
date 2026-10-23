@@ -31,6 +31,8 @@ export interface CareSettings {
   cycleWindowMinutes: number;
   cycleIntervalMinutes: number;
   lockScreenShowDrugDetail: boolean;
+  /** 强提醒方式（成员级默认）：none / alarm / voice */
+  strongAlertMode: StoredCareSettings['strongAlertMode'];
 }
 
 /** 成员上限（需求定版口径：10 名/账号） */
@@ -202,6 +204,7 @@ export class MemberService {
       careMode: dto.careMode ?? stored.careMode,
       lockScreenShowDrugDetail:
         dto.lockScreenShowDrugDetail ?? stored.lockScreenShowDrugDetail,
+      strongAlertMode: dto.strongAlertMode ?? stored.strongAlertMode ?? 'none',
       cyclePreset: preset,
       cycleWindowMinutes: nextWindow,
       cycleIntervalMinutes: nextInterval,
@@ -223,6 +226,7 @@ export class MemberService {
       cycleIntervalMinutes:
         stored.cycleIntervalMinutes ?? presetValues.intervalMinutes,
       lockScreenShowDrugDetail: stored.lockScreenShowDrugDetail,
+      strongAlertMode: stored.strongAlertMode ?? 'none',
     };
   }
 

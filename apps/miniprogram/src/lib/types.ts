@@ -59,12 +59,27 @@ export interface Member {
 
 export type CyclePresetKey = 'standard' | 'gentle' | 'strict';
 
+/** 强提醒方式（2026-10-24 定版，原生/桌面端）：弹窗打底 + 三态单选，闹钟与语音互斥 */
+export type StrongAlertMode = 'none' | 'alarm' | 'voice';
+
+export const STRONG_ALERT_LABELS: Record<StrongAlertMode, string> = {
+  none: '无（仅弹窗通知）',
+  alarm: '闹钟（全屏 + 持续响铃）',
+  voice: '语音播报',
+};
+
 export interface CareSettings {
   careMode: boolean;
   cyclePreset: CyclePresetKey;
   cycleWindowMinutes: number;
   cycleIntervalMinutes: number;
   lockScreenShowDrugDetail: boolean;
+  strongAlertMode: StrongAlertMode;
+}
+
+/** 拍照识别结果：候选药名 + 药品库命中项（须用户点选确认） */
+export interface PhotoRecognizeResult {
+  candidates: { text: string; matches: Drug[] }[];
 }
 
 export const CYCLE_PRESETS: Record<CyclePresetKey, { label: string; windowMinutes: number; intervalMinutes: number }> = {
@@ -133,6 +148,8 @@ export interface Plan {
   cyclePreset?: CyclePresetKey | null;
   cycleWindowMinutes?: number | null;
   cycleIntervalMinutes?: number | null;
+  /** 强提醒方式覆盖原值：null = 跟随成员关怀设置 */
+  strongAlertModeOverride?: StrongAlertMode | null;
   items?: PlanItem[];
   phases?: PlanPhase[];
   createdAt?: string;
@@ -165,6 +182,7 @@ export interface PlanPayload {
   cyclePreset?: CyclePresetKey | null;
   cycleWindowMinutes?: number | null;
   cycleIntervalMinutes?: number | null;
+  strongAlertMode?: StrongAlertMode | null;
   items: PlanItemInput[];
   phases?: PlanPhaseInput[];
 }

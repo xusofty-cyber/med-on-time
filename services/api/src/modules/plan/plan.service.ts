@@ -490,17 +490,21 @@ export class PlanService {
     throw this.validationError('提醒周期覆盖须为预设名称或自定义对象');
   }
 
-  /** 响应覆加计划级 cycle 覆盖原值（三项皆 null = 跟随成员设置）。 */
+  /** 响应覆加计划级 cycle 覆盖原值（三项皆 null = 跟随成员设置）与强提醒覆盖原值。 */
   private async withCycleFields<T extends object>(
     response: T,
     planId: string,
   ): Promise<T> {
     const override = await this.prefs.getPlanCycleOverride(planId);
+    const strongAlertOverride =
+      await this.prefs.getPlanStrongAlertOverride(planId);
     return {
       ...response,
       cyclePreset: override?.cyclePreset ?? null,
       cycleWindowMinutes: override?.cycleWindowMinutes ?? null,
       cycleIntervalMinutes: override?.cycleIntervalMinutes ?? null,
+      /** 强提醒方式覆盖（原生/桌面端呈现）：null = 跟随成员关怀设置 */
+      strongAlertModeOverride: strongAlertOverride,
     } as T;
   }
 
@@ -787,6 +791,12 @@ export class PlanService {
     });
     if (cycleInput.present && cycleInput.override) {
       await this.prefs.setPlanCycleOverride(planId, cycleInput.override);
+    }
+    if (dto.strongAlertMode !== undefined) {
+      await this.prefs.setPlanStrongAlertOverride(
+        planId,
+        dto.strongAlertMode as 'none' | 'alarm' | 'voice' | null,
+      );
     }
     // 当日即时生效：新建计划立即补生成今天未到点剂量（生成器内过滤非 Active/PRN）
     await this.triggerSameDayGeneration(memberId);
@@ -1400,6 +1410,12 @@ export class PlanService {
         await this.prefs.deletePlanCycleOverride(planId);
       }
     }
+    if (dto.strongAlertMode !== undefined) {
+      await this.prefs.setPlanStrongAlertOverride(
+        planId,
+        dto.strongAlertMode as 'none' | 'alarm' | 'voice' | null,
+      );
+    }
     // 当日即时生效：排程变更后补生成今天未到点剂量（幂等，只补缺）
     await this.triggerSameDayGeneration(existing.memberId);
     return this.withCycleFields(updated, planId);
@@ -1539,6 +1555,7 @@ export class PlanService {
     });
     if (action === 'delete') {
       await this.prefs.deletePlanCycleOverride(planId);
+      await this.prefs.deletePlanStrongAlertOverride(planId);
       return result;
     }
     if (action === 'resume') {

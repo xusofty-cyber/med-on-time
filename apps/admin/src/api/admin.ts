@@ -3,6 +3,8 @@ import type {
   AccountDetail,
   AccountItem,
   AdminLoginResult,
+  AiProviderItem,
+  AiProviderPayload,
   AppVersionItem,
   AppVersionPayload,
   ArticleItem,
@@ -174,4 +176,29 @@ export function updateAppVersion(id: string, payload: AppVersionPayload) {
 
 export function deleteAppVersion(id: string) {
   return request<{ id: string }>(`/admin/app-versions/${id}`, { method: 'DELETE' });
+}
+
+/* ---------------- 大模型配置（2026-10-24） ---------------- */
+
+export function listAiProviders() {
+  return request<AiProviderItem[]>('/admin/ai-providers');
+}
+
+export function createAiProvider(payload: AiProviderPayload) {
+  return request<AiProviderItem>('/admin/ai-providers', { method: 'POST', body: payload });
+}
+
+export function updateAiProvider(id: string, payload: Partial<AiProviderPayload>) {
+  return request<AiProviderItem>(`/admin/ai-providers/${id}`, { method: 'PATCH', body: payload });
+}
+
+export function deleteAiProvider(id: string) {
+  return request<{ id: string }>(`/admin/ai-providers/${id}`, { method: 'DELETE' });
+}
+
+export function testAiProvider(id: string) {
+  return request<{ ok: boolean; model: string; latencyMs: number }>(
+    `/admin/ai-providers/${id}/test`,
+    { method: 'POST' },
+  );
 }

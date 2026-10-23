@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Text, View } from '@tarojs/components';
+import Taro from '@tarojs/taro';
 import { drugApi } from '../lib/endpoints';
 import { toastError, toastOk } from '../lib/api';
 import { DOSAGE_FORM_LABELS } from '../lib/dict';
@@ -20,7 +21,52 @@ export function DrugPicker({
   const [results, setResults] = useState<Drug[]>([]);
   const [searching, setSearching] = useState(false);
   const [showCustom, setShowCustom] = useState(false);
+  const [photoBusy, setPhotoBusy] = useState(false);
+  const [photoHint, setPhotoHint] = useState('');
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  /**
+   * 拍照录入（2026-10-24）：拍药盒 → 服务端识别药名 → 回填搜索框自动检索。
+   * 红线：识别只回填，必须用户点选药品库命中项确认；照片不留存。
+   */
+  const takePhoto = async () => {
+    try {
+      const chosen = await Taro.chooseMedia({
+        count: 1,
+        mediaType: ['image'],
+        sourceType: ['camera', 'album'],
+        sizeType: ['compressed'],
+      });
+      const file = chosen.tempFiles[0];
+      if (!file) return;
+      setPhotoBusy(true);
+      const base64 = await new Promise<string>((resolve, reject) => {
+        Taro.getFileSystemManager().readFile({
+          filePath: file.tempFilePath,
+          encoding: 'base64',
+          success: (r) => resolve(r.data as string),
+          fail: reject,
+        });
+      });
+      const mimeType = file.tempFilePath.toLowerCase().endsWith('.png')
+        ? 'image/png'
+        : 'image/jpeg';
+      const res = await drugApi.photoRecognize(base64, mimeType);
+      const first =
+        res.candidates.find((c) => c.matches.length > 0) ?? res.candidates[0];
+      if (!first) {
+        toastError(new Error('没认出药名，请对准药盒上的药名重拍，或手动输入'));
+        return;
+      }
+      setKeyword(first.text);
+      setPhotoHint(`已按识别结果「${first.text}」搜索，请在下方点选正确的药品确认`);
+      toastOk('识别完成，请点选药品确认');
+    } catch (e) {
+      toastError(e);
+    } finally {
+      setPhotoBusy(false);
+    }
+  };
 
   useEffect(() => {
     if (!keyword.trim()) {
@@ -70,6 +116,12 @@ export function DrugPicker({
   return (
     <View className='col' style={{ gap: '12rpx' }}>
       <TxtInput value={keyword} onChange={setKeyword} placeholder='输入药名或通用名搜索，如：二甲双胍' />
+      <View>
+        <Btn variant='ghost' disabled={photoBusy} onClick={() => void takePhoto()}>
+          {photoBusy ? '识别中…' : '📷 拍照录入（拍药盒自动填药名）'}
+        </Btn>
+      </View>
+      {photoHint ? <Text className='tx-sm' style={{ color: '#0B6B4F' }}>{photoHint}</Text> : null}
       {searching && <Text className='tx-sm tx-sub'>搜索中…</Text>}
       {results.length > 0 && (
         <View className='col' style={{ border: '1rpx solid #E3E8E5', borderRadius: '20rpx', overflow: 'hidden' }}>

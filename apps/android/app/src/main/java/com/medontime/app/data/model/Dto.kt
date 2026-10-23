@@ -165,6 +165,8 @@ data class CareSettingsDto(
     val cycleWindowMinutes: Int = 90,
     val cycleIntervalMinutes: Int = 15,
     val lockScreenShowDrugDetail: Boolean = false,
+    /** 强提醒方式（成员级默认）：none / alarm / voice */
+    val strongAlertMode: StrongAlertMode = StrongAlertMode.None,
     val updatedAt: String? = null,
 )
 
@@ -173,6 +175,7 @@ data class UpdateCareSettingsRequest(
     val careMode: Boolean? = null,
     val cyclePreset: CyclePreset? = null,
     val lockScreenShowDrugDetail: Boolean? = null,
+    val strongAlertMode: StrongAlertMode? = null,
 )
 
 // ---------- authorization ----------
@@ -338,6 +341,8 @@ data class PlanDto(
     val version: Int = 1,
     val items: List<PlanItemDto> = emptyList(),
     val phases: List<PlanPhaseDto> = emptyList(),
+    /** 强提醒方式覆盖（后端 withCycleFields 覆加）：null = 跟随成员关怀设置 */
+    val strongAlertModeOverride: StrongAlertMode? = null,
     val createdAt: String? = null,
     val updatedAt: String? = null,
 )

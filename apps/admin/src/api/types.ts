@@ -365,6 +365,28 @@ export interface AppVersionPayload {
   status: string;
 }
 
+/** 大模型配置（2026-10-24）：apiKey 只写不回显，列表只回掩码 */
+export interface AiProviderItem {
+  id: string;
+  name: string;
+  modelName: string;
+  baseUrl: string;
+  apiKeyMasked: string;
+  capability: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AiProviderPayload {
+  name: string;
+  modelName: string;
+  baseUrl: string;
+  apiKey?: string;
+  capability?: string;
+  isActive?: boolean;
+}
+
 /** 列表查询通用参数（契约分页 ?page=&pageSize=） */
 export interface ListQuery {
   page?: number;

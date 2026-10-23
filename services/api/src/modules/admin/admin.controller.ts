@@ -34,6 +34,12 @@ import {
   ResolveDisputeDto,
   UpdateAppVersionDto,
 } from './dto/admin.dto';
+import {
+  CreateAiProviderDto,
+  UpdateAiProviderDto,
+} from './dto/ai-provider.dto';
+import { AiProviderConfigService } from '../ai/ai-provider-config.service';
+import { AiGatewayService } from '../ai/ai-gateway.service';
 
 function requestContext(req: Request): AdminRequestContext {
   return {
@@ -65,7 +71,45 @@ export class AdminAuthController {
 @UseGuards(AdminAuthGuard)
 @Controller('admin')
 export class AdminController {
-  constructor(private readonly service: AdminService) {}
+  constructor(
+    private readonly service: AdminService,
+    private readonly aiProviders: AiProviderConfigService,
+    private readonly aiGateway: AiGatewayService,
+  ) {}
+
+  /* ---------------- 大模型配置（2026-10-24：名称/模型/URL/key 后台可配） ---------------- */
+
+  @Get('ai-providers')
+  listAiProviders() {
+    return this.aiProviders.list();
+  }
+
+  @Post('ai-providers')
+  @AdminRoles('operator')
+  createAiProvider(@Body() dto: CreateAiProviderDto) {
+    return this.aiProviders.create(dto);
+  }
+
+  @Patch('ai-providers/:id')
+  @AdminRoles('operator')
+  updateAiProvider(
+    @Param('id') id: string,
+    @Body() dto: UpdateAiProviderDto,
+  ) {
+    return this.aiProviders.update(id, dto);
+  }
+
+  @Delete('ai-providers/:id')
+  @AdminRoles('operator')
+  removeAiProvider(@Param('id') id: string) {
+    return this.aiProviders.remove(id);
+  }
+
+  @Post('ai-providers/:id/test')
+  @AdminRoles('operator')
+  testAiProvider(@Param('id') id: string) {
+    return this.aiGateway.testConnection(id);
+  }
 
   @Get('dashboard')
   dashboard() {

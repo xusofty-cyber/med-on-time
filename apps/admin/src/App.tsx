@@ -11,6 +11,7 @@ import LoginPage from './pages/login';
 import MembersPage from './pages/members';
 import PlansPage from './pages/plans';
 import AppVersionsPage from './pages/system';
+import AiProvidersPage from './pages/ai-providers';
 
 /**
  * 后台管理平台路由。
@@ -38,6 +39,7 @@ export default function App() {
         <Route path="/disputes" element={<DisputesPage />} />
         <Route path="/audit" element={<AuditPage />} />
         <Route path="/system/app-versions" element={<AppVersionsPage />} />
+        <Route path="/system/ai-providers" element={<AiProvidersPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>

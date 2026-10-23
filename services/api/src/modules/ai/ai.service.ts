@@ -8,6 +8,8 @@ import { BusinessException } from '../../common/exceptions/business.exception';
 export const AiBusinessCode = {
   NotEnabled: 40310, // AI 未开通（总开关关闭）
   QuotaExceeded: 42901, // 配额耗尽（开通后启用）
+  NotConfigured: 50311, // 未配置可用的大模型接入（ai_provider_config 无生效行/密钥不可用）
+  UpstreamError: 50211, // 大模型上游调用失败（网关统一口径，细节只进日志不回前端）
 } as const;
 
 /** 免费口径配额（需求定版：健康问答 20 次/日、报告解读 10 次/月，按成员计） */

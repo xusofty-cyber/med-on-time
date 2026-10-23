@@ -25,6 +25,7 @@ const MENU_ROUTES = [
   { path: '/disputes', name: '客服裁决', icon: <CustomerServiceOutlined /> },
   { path: '/audit', name: '审计日志', icon: <AuditOutlined /> },
   { path: '/system/app-versions', name: '应用版本', icon: <SettingOutlined /> },
+  { path: '/system/ai-providers', name: '大模型配置', icon: <RobotOutlined /> },
 ];
 
 /** 全局布局：ProLayout 侧边菜单 + 顶栏管理员信息/退出 */

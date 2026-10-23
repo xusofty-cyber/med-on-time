@@ -1,6 +1,7 @@
 import { ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
+import type { NestExpressApplication } from '@nestjs/platform-express';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
@@ -8,7 +9,10 @@ import { EnvelopeInterceptor } from './common/interceptors/envelope.interceptor'
 import { LoggingMaskInterceptor } from './common/interceptors/logging-mask.interceptor';
 
 async function bootstrap(): Promise<void> {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  // 拍照录入走 base64 JSON 直传（单张 ≤5MB → body ≤ ~7MB）；仅放大 JSON 上限，
+  // 其余端点本就无大 body 场景，超限由 express 直接 413。
+  app.useBodyParser('json', { limit: '8mb' });
   app.setGlobalPrefix('api');
   app.useGlobalPipes(
     // 定版：whitelist 剥离未声明字段；forbidNonWhitelisted 不开——各端可先行

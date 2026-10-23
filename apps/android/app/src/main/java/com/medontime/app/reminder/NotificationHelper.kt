@@ -20,6 +20,8 @@ data class DosePayload(
     val doseUnit: String,
     val localTime: String,
     val triggerAtMillis: Long,
+    /** 强提醒方式（调度时已按 计划覆盖 > 成员设置 解析）：none / alarm / voice */
+    val strongMode: String = "none",
 ) {
     val doseText: String get() = "$doseAmount$doseUnit"
     val displayTime: String get() = localTime.take(5)

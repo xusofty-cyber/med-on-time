@@ -45,13 +45,22 @@ class ReminderScheduler(
             result.onSuccess { instances += it.items }
         }
         // 同步关怀设置缓存（锁屏药名展示开关供通知层读取）。
-        runCatching { container.memberRepository.careSettings(memberId) }
+        val care = runCatching { container.memberRepository.careSettings(memberId) }.getOrNull()
+        // 强提醒方式解析（2026-10-24）：计划覆盖 > 成员关怀设置，调度时定格进载荷，
+        // 到点离线呈现（闹钟/语音）不依赖当时网络。计划拉取失败则全体回落成员级。
+        val memberMode = care?.strongAlertMode?.name?.lowercase() ?: "none"
+        val planModes = runCatching { container.planRepository.listPlans(memberId) }
+            .getOrNull()
+            ?.associate { it.id to it.strongAlertModeOverride }
+            ?: emptyMap()
+        fun effectiveMode(instance: ReminderInstanceDto): String =
+            planModes[instance.planId]?.name?.lowercase() ?: memberMode
 
         val now = System.currentTimeMillis()
         val payloads = instances
             .asSequence()
             .filter { it.actionable }
-            .map { it.toPayload() }
+            .map { it.toPayload(effectiveMode(it)) }
             .filter { it.triggerAtMillis > now - DUE_GRACE_MS }
             .distinctBy { it.instanceId }
             .sortedBy { it.triggerAtMillis }
@@ -72,7 +81,7 @@ class ReminderScheduler(
         return first.id
     }
 
-    private fun ReminderInstanceDto.toPayload(): DosePayload {
+    private fun ReminderInstanceDto.toPayload(strongMode: String = "none"): DosePayload {
         val trigger = snoozeUntil?.let { runCatching { Instant.parse(it).toEpochMilli() }.getOrNull() }
             ?: runCatching { Instant.parse(scheduledAtUtc).toEpochMilli() }.getOrNull()
             ?: fallbackTriggerMillis()
@@ -83,6 +92,7 @@ class ReminderScheduler(
             doseUnit = doseUnit,
             localTime = localTime,
             triggerAtMillis = trigger,
+            strongMode = strongMode,
         )
     }
 
@@ -126,6 +136,7 @@ class ReminderScheduler(
             putExtra(ExactAlarmReceiver.EXTRA_DOSE_UNIT, payload.doseUnit)
             putExtra(ExactAlarmReceiver.EXTRA_LOCAL_TIME, payload.localTime)
             putExtra(ExactAlarmReceiver.EXTRA_TRIGGER_AT, payload.triggerAtMillis)
+            putExtra(ExactAlarmReceiver.EXTRA_STRONG_MODE, payload.strongMode)
         }
         return PendingIntent.getBroadcast(
             context,
@@ -174,6 +185,7 @@ fun DosePayload.toWorkData(): Data = Data.Builder()
     .putString(ReminderWorker.KEY_DOSE_UNIT, doseUnit)
     .putString(ReminderWorker.KEY_LOCAL_TIME, localTime)
     .putLong(ReminderWorker.KEY_TRIGGER_AT, triggerAtMillis)
+    .putString(ReminderWorker.KEY_STRONG_MODE, strongMode)
     .build()
 
 fun Data.toDosePayload(): DosePayload? {
@@ -185,5 +197,6 @@ fun Data.toDosePayload(): DosePayload? {
         doseUnit = getString(ReminderWorker.KEY_DOSE_UNIT) ?: "",
         localTime = getString(ReminderWorker.KEY_LOCAL_TIME) ?: "",
         triggerAtMillis = getLong(ReminderWorker.KEY_TRIGGER_AT, 0L),
+        strongMode = getString(ReminderWorker.KEY_STRONG_MODE) ?: "none",
     )
 }

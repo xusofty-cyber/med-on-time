@@ -18,8 +18,10 @@ import { MemberAccessGuard } from '../../common/guards/member-access.guard';
 import { BusinessCode, BusinessException } from '../../common/exceptions/business.exception';
 import { HttpStatus } from '@nestjs/common';
 import { DrugService } from './drug.service';
+import { DrugPhotoService } from './drug-photo.service';
 import { CreateCustomDrugDto } from './dto/create-custom-drug.dto';
 import { SearchDrugsQueryDto } from './dto/search-drugs.query';
+import { PhotoRecognizeDto } from './dto/photo-recognize.dto';
 
 /**
  * 药品接口（契约 drug 组）。注意路由声明顺序：search 必须在 :id 之前，
@@ -32,11 +34,26 @@ import { SearchDrugsQueryDto } from './dto/search-drugs.query';
 @UseGuards(JwtAuthGuard)
 @Controller()
 export class DrugController {
-  constructor(private readonly service: DrugService) {}
+  constructor(
+    private readonly service: DrugService,
+    private readonly photo: DrugPhotoService,
+  ) {}
 
   @Get('drugs/search')
   search(@Query() query: SearchDrugsQueryDto, @CurrentUser() user?: AuthenticatedUser) {
     return this.service.search(query, user);
+  }
+
+  /**
+   * 拍照录入：识别药盒照片中的药名候选，并附药品库命中项。
+   * 红线：识别结果只作搜索回填，须用户点选命中项确认；照片不落盘不留存。
+   */
+  @Post('drugs/photo-recognize')
+  photoRecognize(
+    @Body() dto: PhotoRecognizeDto,
+    @CurrentUser() user?: AuthenticatedUser,
+  ) {
+    return this.photo.recognize(dto, user);
   }
 
   @Get('drugs/:id')

@@ -22,12 +22,15 @@ class ExactAlarmReceiver : BroadcastReceiver() {
             doseUnit = intent.getStringExtra(EXTRA_DOSE_UNIT) ?: "",
             localTime = intent.getStringExtra(EXTRA_LOCAL_TIME) ?: "",
             triggerAtMillis = intent.getLongExtra(EXTRA_TRIGGER_AT, 0L),
+            strongMode = intent.getStringExtra(EXTRA_STRONG_MODE) ?: "none",
         )
         val app = context.applicationContext as? MedOnTimeApp
         val showDetail = app?.let {
             runBlocking { it.container.sessionStore.lockScreenShowDrugFlow.first() }
         } ?: false
         NotificationHelper.showDoseNotification(context, payload, showDetail)
+        // 强提醒层与 Worker 通道同口径（双通道同实例去重靠同一通知 id + 闹钟页 singleInstance）
+        DoseAlerter.presentStrong(context, payload, showDetail)
     }
 
     companion object {
@@ -38,6 +41,7 @@ class ExactAlarmReceiver : BroadcastReceiver() {
         const val EXTRA_DOSE_UNIT = "dose_unit"
         const val EXTRA_LOCAL_TIME = "local_time"
         const val EXTRA_TRIGGER_AT = "trigger_at"
+        const val EXTRA_STRONG_MODE = "strong_mode"
     }
 }
 

@@ -159,6 +159,17 @@ enum class CyclePreset {
     @SerialName("strict") Strict,
 }
 
+/**
+ * 强提醒方式（2026-10-24 定版）：弹窗恒为基础层，强提醒三态单选，闹钟与语音互斥。
+ * none = 仅弹窗通知；alarm = 全屏闹钟持续响铃；voice = 语音播报药名与剂量。
+ */
+@Serializable
+enum class StrongAlertMode {
+    @SerialName("none") None,
+    @SerialName("alarm") Alarm,
+    @SerialName("voice") Voice,
+}
+
 /** 剂型（schema drug.dosage_form / create-custom-drug.dto DOSAGE_FORMS）。 */
 @Serializable
 enum class DosageForm {
