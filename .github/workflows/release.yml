@@ -94,6 +94,8 @@ jobs:
           distribution: temurin
           java-version: '17'
       - uses: android-actions/setup-android@v3
+        with:
+          packages: 'platform-tools platforms;android-34 build-tools;34.0.0'
       - name: 安装 Gradle 8.7（仓库只有 wrapper properties、未提交 gradlew）
         uses: gradle/actions/setup-gradle@v4
         with:
