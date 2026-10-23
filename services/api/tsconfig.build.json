@@ -1,1 +1,10 @@
-{"exclude":["node_modules","test","dist","**/*spec.ts"],"extends":"./tsconfig.json"}
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "paths": {
+      "@med-on-time/shared": ["../../packages/shared/dist/index.d.ts"]
+    }
+  },
+  "exclude": ["node_modules", "test", "dist", "**/*spec.ts"]
+}

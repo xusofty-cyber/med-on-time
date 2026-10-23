@@ -20,7 +20,9 @@ export class AllExceptionsFilter implements ExceptionFilter {
     const response = ctx.getResponse<Response>();
     const request = ctx.getRequest<Request>();
     const traceId =
-      (request.headers['x-trace-id'] as string | undefined) ?? randomUUID();
+      (request as { traceId?: string }).traceId ??
+      (request.headers['x-trace-id'] as string | undefined) ??
+      randomUUID();
 
     let status = HttpStatus.INTERNAL_SERVER_ERROR;
     let code = 50000;

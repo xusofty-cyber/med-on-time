@@ -1,0 +1,7 @@
+.git
+**/node_modules
+**/dist
+deploy/.env
+deploy/backups
+*.log
+.DS_Store

@@ -4,16 +4,20 @@ import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
+import { EnvelopeInterceptor } from './common/interceptors/envelope.interceptor';
 import { LoggingMaskInterceptor } from './common/interceptors/logging-mask.interceptor';
 
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule);
   app.setGlobalPrefix('api');
   app.useGlobalPipes(
-    new ValidationPipe({ whitelist: true, transform: true }),
+    // 定版：whitelist 剥离未声明字段；forbidNonWhitelisted 不开——各端可先行
+    // 发送新字段（如计划 cycle 覆盖），后端补声明后即生效，不因未知字段 400。
+    new ValidationPipe({ whitelist: true, transform: true, forbidNonWhitelisted: false }),
   );
   app.useGlobalFilters(new AllExceptionsFilter());
-  app.useGlobalInterceptors(new LoggingMaskInterceptor());
+  // 信封拦截器在最外层：成功响应统一 { code: 0, message: 'ok', traceId, data }
+  app.useGlobalInterceptors(new EnvelopeInterceptor(), new LoggingMaskInterceptor());
   app.enableShutdownHooks();
 
   // OpenAPI 为前后端唯一契约（架构 §四）：/api/docs 页面，/api/docs-json 供 orval 生成客户端
