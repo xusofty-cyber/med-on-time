@@ -47,7 +47,7 @@
 ## 五、桌面端 apps/desktop（Electron）
 
 - 主进程加载 Web 构建产物（或远程 URL），托盘 + 到点本地通知桥；图标资源（tray.png / build/icon.png）为本地二进制资产，未入 GitHub 快照推送（见 SESSION_STATE）。
-- 状态：源码就绪，未打安装包实测。
+- 状态（2026-10-23 补验）：**Linux AppImage 已打包成功（107 MB）并启动冒烟通过**——Xvfb 下运行解包产物，内嵌 Web 经 medontime:// 协议加载至登录页（标题「药准时 MedOnTime」）。Windows NSIS 在 Linux 上交叉构建失败（exe 元数据/签名需 wine），macOS DMG 无法在 Linux 构建——两者改由 `.github/workflows/release.yml` 的原生 runner 打包（待首跑验证）。小瑕疵：Linux 解包可执行文件名取自包名（@med-on-timedesktop），AppImage 文件名正常；可在 electron-builder.yml 设 linux.executableName 修正。
 
 ## 六、Android（Kotlin + Jetpack Compose）/ iOS（Swift + SwiftUI）
 

@@ -63,7 +63,7 @@
 | P1 | 提醒到点全流程实测（打卡扣库存、snooze/missed、推送兜底）——D5/D6 |
 | P2 | DB V1.3 候选整批升版（user_session 落库、care/prefs 专表、plan cycle 列、drug.precautions 列、dispute 表，清单在 INTEGRATION_NOTES）；会话列表补 current 标记 |
 | P2 | POC-3（相互作用替代打法验证）；pending 药品双人核验推进；甲基多巴 NMPA 状态核实、维生素 D3 补录 |
-| P2 | 桌面端安装包构建与实测；后台安全组收紧（8081/28081 仅运维 IP）待负责人拍板 |
+| P2 | 桌面端：Linux 包已验（见 ENDS_OVERVIEW 五）；Windows/macOS 包走 `.github/workflows/release.yml`（Actions 页一键触发，待首跑验证）；后台安全组收紧（8081/28081 仅运维 IP）待负责人拍板 |
 
 ## 七、故障定位速查
 

@@ -116,4 +116,4 @@
 
 ## K. 未覆盖面汇总（接手后排期）
 
-微信真实接口全链路、短信网关全链路、推送（APNs/FCM/厂商）、Android/iOS 真机构建与功能、小程序真机、桌面端安装包、AI 网关（POC-2：GLM 通道 2026-10-23 已跑全量，结果见 docs/research/POC2 报告；星火通道待 APIPassword 核对后补跑）、D5/D6 提醒到点全流程（待次日实例）、C3/C4/G4/G5 等边界与状态流转用例、I2/I3/I5 修复的页面级复点（已以接口级证据闭环）。
+微信真实接口全链路、短信网关全链路、推送（APNs/FCM/厂商）、Android/iOS 真机构建与功能、小程序真机、桌面端 Windows/macOS 安装包（待 release.yml 首跑；Linux AppImage 已打包 + 启动冒烟通过，见 ENDS_OVERVIEW 五）、AI 网关（POC-2：GLM 通道 2026-10-23 已跑全量，结果见 docs/research/POC2 报告；星火通道待 APIPassword 核对后补跑）、D5/D6 提醒到点全流程（待次日实例）、C3/C4/G4/G5 等边界与状态流转用例、I2/I3/I5 修复的页面级复点（已以接口级证据闭环）。
