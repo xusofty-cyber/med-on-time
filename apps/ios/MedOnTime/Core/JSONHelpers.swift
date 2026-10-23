@@ -99,11 +99,12 @@ extension KeyedDecodingContainer {
     }
 
     func decodeFlexibleDoubleIfPresent(forKey key: Key) throws -> Double? {
-        if let value = try? decodeIfPresent(Double.self, forKey: key), let unwrapped = value {
-            return unwrapped
+        // 注：Swift 6 语言模式下 try? 结果扁平化，不得再叠一层条件绑定（Xcode 26 实测报错点）。
+        if let value = try? decodeIfPresent(Double.self, forKey: key) {
+            return value
         }
-        if let raw = try? decodeIfPresent(String.self, forKey: key), let string = raw {
-            return Double(string)
+        if let raw = try? decodeIfPresent(String.self, forKey: key) {
+            return Double(raw)
         }
         return nil
     }
