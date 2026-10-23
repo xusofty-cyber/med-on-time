@@ -387,6 +387,30 @@ export interface AiProviderPayload {
   isActive?: boolean;
 }
 
+/** 公众号文章（2026-10-24：后台写稿 → 同步公众号草稿箱） */
+export interface OaArticleItem {
+  id: string;
+  title: string;
+  author: string | null;
+  digest: string | null;
+  contentSource: string;
+  coverMediaId: string | null;
+  coverUrl: string | null;
+  wxDraftMediaId: string | null;
+  syncState: 'local' | 'synced' | 'dirty';
+  lastSyncedAt: string | null;
+  createdBy: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface OaArticlePayload {
+  title: string;
+  author?: string;
+  digest?: string;
+  contentSource: string;
+}
+
 /** 列表查询通用参数（契约分页 ?page=&pageSize=） */
 export interface ListQuery {
   page?: number;

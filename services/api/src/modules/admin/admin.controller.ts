@@ -40,6 +40,12 @@ import {
 } from './dto/ai-provider.dto';
 import { AiProviderConfigService } from '../ai/ai-provider-config.service';
 import { AiGatewayService } from '../ai/ai-gateway.service';
+import { WechatOaService } from '../wechat-oa/wechat-oa.service';
+import {
+  CreateOaArticleDto,
+  UpdateOaArticleDto,
+  UploadOaCoverDto,
+} from '../wechat-oa/dto/oa-article.dto';
 
 function requestContext(req: Request): AdminRequestContext {
   return {
@@ -75,6 +81,7 @@ export class AdminController {
     private readonly service: AdminService,
     private readonly aiProviders: AiProviderConfigService,
     private readonly aiGateway: AiGatewayService,
+    private readonly wechatOa: WechatOaService,
   ) {}
 
   /* ---------------- 大模型配置（2026-10-24：名称/模型/URL/key 后台可配） ---------------- */
@@ -109,6 +116,57 @@ export class AdminController {
   @AdminRoles('operator')
   testAiProvider(@Param('id') id: string) {
     return this.aiGateway.testConnection(id);
+  }
+
+  /* ---------------- 公众号文章（2026-10-24：后台写稿 → 同步公众号草稿箱；发布在公众号侧人工确认） ---------------- */
+
+  @Get('oa-articles')
+  listOaArticles() {
+    return this.wechatOa.list();
+  }
+
+  @Get('oa-articles/:id')
+  getOaArticle(@Param('id') id: string) {
+    return this.wechatOa.get(id);
+  }
+
+  @Post('oa-articles')
+  @AdminRoles('operator')
+  createOaArticle(
+    @CurrentAdmin() admin: AuthenticatedAdmin,
+    @Body() dto: CreateOaArticleDto,
+  ) {
+    return this.wechatOa.create(dto, admin?.username ?? null);
+  }
+
+  @Patch('oa-articles/:id')
+  @AdminRoles('operator')
+  updateOaArticle(@Param('id') id: string, @Body() dto: UpdateOaArticleDto) {
+    return this.wechatOa.update(id, dto);
+  }
+
+  @Delete('oa-articles/:id')
+  @AdminRoles('operator')
+  removeOaArticle(@Param('id') id: string) {
+    return this.wechatOa.remove(id);
+  }
+
+  @Post('oa-articles/:id/cover')
+  @AdminRoles('operator')
+  uploadOaCover(@Param('id') id: string, @Body() dto: UploadOaCoverDto) {
+    return this.wechatOa.uploadCover(id, dto.imageBase64, dto.mimeType);
+  }
+
+  @Post('oa-articles/:id/sync')
+  @AdminRoles('operator')
+  syncOaArticle(@Param('id') id: string) {
+    return this.wechatOa.sync(id);
+  }
+
+  @Post('oa-articles/:id/unsync')
+  @AdminRoles('operator')
+  unsyncOaArticle(@Param('id') id: string) {
+    return this.wechatOa.unsync(id);
   }
 
   @Get('dashboard')

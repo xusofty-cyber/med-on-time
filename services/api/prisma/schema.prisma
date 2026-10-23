@@ -1225,6 +1225,28 @@ model AiProviderConfig {
   @@map("ai_provider_config")
 }
 
+// 公众号文章（2026-10-24）：管理后台写稿 → 同步到微信公众号草稿箱；发布仍在公众号侧人工确认（freepublish 接口未认证无权限）。
+model OaArticle {
+  id             String    @id @db.Uuid
+  title          String    @db.VarChar(64) // 微信图文标题上限 64 字
+  author         String?   @db.VarChar(16)
+  digest         String?   @db.VarChar(120) // 摘要（空时微信取正文首段）
+  contentSource  String    @map("content_source") // 纯文本源稿：空行分段，同步时转 HTML
+  contentHtml    String?   @map("content_html") // 最近一次同步生成的 HTML 快照
+  coverMediaId   String?   @map("cover_media_id") @db.VarChar(128) // 微信永久素材 media_id
+  coverUrl       String?   @map("cover_url") @db.VarChar(500)
+  wxDraftMediaId String?   @map("wx_draft_media_id") @db.VarChar(128) // 微信草稿 media_id（已同步时有值）
+  lastSyncedAt   DateTime? @map("last_synced_at") @db.Timestamptz(6)
+  createdBy      String?   @map("created_by") @db.VarChar(64) // 管理员账号名
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt      DateTime? @map("deleted_at") @db.Timestamptz(6)
+  version        Int       @default(1)
+
+  @@index([deletedAt, updatedAt])
+  @@map("oa_article")
+}
+
 /// 9.3 提示词模板表（P1）：已发布版本禁止原地改内容，改动一律新建版本行；回滚 = 旧版重发布。
 /// V1.2：locale 列加入唯一口径，(capability, version, locale) 组合唯一。
 model AiPromptTemplate {

@@ -5,6 +5,8 @@ import type {
   AdminLoginResult,
   AiProviderItem,
   AiProviderPayload,
+  OaArticleItem,
+  OaArticlePayload,
   AppVersionItem,
   AppVersionPayload,
   ArticleItem,
@@ -201,4 +203,37 @@ export function testAiProvider(id: string) {
     `/admin/ai-providers/${id}/test`,
     { method: 'POST' },
   );
+}
+
+/* ---------------- 公众号文章（2026-10-24） ---------------- */
+
+export function listOaArticles() {
+  return request<OaArticleItem[]>('/admin/oa-articles');
+}
+
+export function createOaArticle(payload: OaArticlePayload) {
+  return request<OaArticleItem>('/admin/oa-articles', { method: 'POST', body: payload });
+}
+
+export function updateOaArticle(id: string, payload: Partial<OaArticlePayload>) {
+  return request<OaArticleItem>(`/admin/oa-articles/${id}`, { method: 'PATCH', body: payload });
+}
+
+export function deleteOaArticle(id: string) {
+  return request<{ deleted: boolean }>(`/admin/oa-articles/${id}`, { method: 'DELETE' });
+}
+
+export function uploadOaCover(id: string, imageBase64: string, mimeType: string) {
+  return request<OaArticleItem>(`/admin/oa-articles/${id}/cover`, {
+    method: 'POST',
+    body: { imageBase64, mimeType },
+  });
+}
+
+export function syncOaArticle(id: string) {
+  return request<OaArticleItem>(`/admin/oa-articles/${id}/sync`, { method: 'POST' });
+}
+
+export function unsyncOaArticle(id: string) {
+  return request<OaArticleItem>(`/admin/oa-articles/${id}/unsync`, { method: 'POST' });
 }
