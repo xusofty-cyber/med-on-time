@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">药准时</string>
+    <string name="notification_channel_reminders">用药提醒</string>
+    <string name="notification_channel_reminders_desc">到点服药提醒（本地兜底，与服务端投递去重）</string>
+    <string name="notification_generic_title">用药提醒</string>
+    <string name="notification_generic_text">有一次用药提醒，点击查看</string>
+</resources>

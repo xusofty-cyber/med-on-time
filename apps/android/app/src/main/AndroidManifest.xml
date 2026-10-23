@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- 运行时动态申请（Android 13+），见 NotificationHelper.ensurePermission -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- 精确闹钟：用药提醒属健康强提醒场景。SCHEDULE_EXACT_ALARM 需用户在系统设置中授权，
+         App 内会检测 canScheduleExactAlarms() 并引导；未授权时自动降级为非精确闹钟 + WorkManager 兜底。
+         未声明 USE_EXACT_ALARM（Play 对该权限限制严格， medication reminder 不在默认豁免清单时需审核）。 -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.VIBRATE" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+
+    <application
+        android:name=".MedOnTimeApp"
+        android:allowBackup="true"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.MedOnTime"
+        tools:targetApi="34">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:launchMode="singleTop"
+            android:theme="@style/Theme.MedOnTime">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <!-- 通知点击深链：medontime://today 直达今日提醒页（Navigation Compose 同步声明） -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data
+                    android:host="today"
+                    android:scheme="medontime" />
+            </intent-filter>
+        </activity>
+
+        <!-- 精确闹钟到点接收：仅展示本地通知，不做耗时操作 -->
+        <receiver
+            android:name=".reminder.ExactAlarmReceiver"
+            android:exported="false" />
+
+        <!-- 开机/应用更新后重新拉取当日时间线并重排本地提醒 -->
+        <receiver
+            android:name=".reminder.BootReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
+    </application>
+</manifest>

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- APNs 远程推送（服务端投递通道 app_push）；本地通知兜底本身不依赖此项。
+	     上线时按环境改为 production，并由发布方确认签名描述文件包含 Push 能力。 -->
+	<key>aps-environment</key>
+	<string>development</string>
+</dict>
+</plist>
