@@ -1,6 +1,7 @@
 import SwiftUI
 
-/// 登录：手机号 + 密码，或手机号 + 短信验证码（双通道，与注册口径一致）。
+/// 登录：手机号/邮箱 + 密码，或邮箱 + 邮箱验证码（邮箱为唯一可用验证码通道，与 Web 端同口径）。
+/// 短信通道暂未开通：入口保留并标注，点发码/提交时提示并切回邮箱。
 struct LoginView: View {
     @StateObject private var viewModel = AuthViewModel()
     @State private var mode: LoginMode = .password
@@ -22,32 +23,73 @@ struct LoginView: View {
                     }
                     .pickerStyle(.segmented)
 
-                    VStack(spacing: 12) {
-                        TextField("手机号", text: $viewModel.phone)
-                            .keyboardType(.phonePad)
-                            .textContentType(.telephoneNumber)
-                            .padding(12)
-                            .background(Color(.secondarySystemBackground))
-                            .clipShape(RoundedRectangle(cornerRadius: 10))
+                    if mode == .password {
+                        VStack(spacing: 12) {
+                            TextField("手机号或邮箱", text: $viewModel.account)
+                                .keyboardType(.emailAddress)
+                                .textContentType(.username)
+                                .autocapitalization(.none)
+                                .padding(12)
+                                .background(Color(.secondarySystemBackground))
+                                .clipShape(RoundedRectangle(cornerRadius: 10))
 
-                        if mode == .password {
                             SecureField("密码", text: $viewModel.password)
                                 .textContentType(.password)
                                 .padding(12)
                                 .background(Color(.secondarySystemBackground))
                                 .clipShape(RoundedRectangle(cornerRadius: 10))
-                        } else {
-                            HStack(spacing: 12) {
-                                TextField("验证码", text: $viewModel.code)
-                                    .keyboardType(.numberPad)
+                        }
+                    } else {
+                        VStack(spacing: 12) {
+                            Picker("验证码接收方式", selection: $viewModel.codeChannel) {
+                                ForEach(AuthViewModel.CodeChannel.allCases, id: \.self) { item in
+                                    Text(item.rawValue).tag(item)
+                                }
+                            }
+                            .pickerStyle(.segmented)
+
+                            if viewModel.codeChannel == .phone {
+                                Text("短信通道暂未开通，请使用邮箱验证码")
+                                    .font(.footnote)
+                                    .foregroundStyle(.red)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                TextField("手机号", text: $viewModel.phone)
+                                    .keyboardType(.phonePad)
+                                    .textContentType(.telephoneNumber)
                                     .padding(12)
                                     .background(Color(.secondarySystemBackground))
                                     .clipShape(RoundedRectangle(cornerRadius: 10))
-                                Button(viewModel.codeCountdown > 0 ? "\(viewModel.codeCountdown)s" : "发送验证码") {
-                                    Task { await viewModel.sendCode(scene: .login) }
+                                HStack(spacing: 12) {
+                                    TextField("验证码", text: $viewModel.code)
+                                        .keyboardType(.numberPad)
+                                        .padding(12)
+                                        .background(Color(.secondarySystemBackground))
+                                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                                    Button("发送验证码") {
+                                        viewModel.smsUnavailable()
+                                    }
+                                    .foregroundStyle(Theme.primary)
                                 }
-                                .disabled(viewModel.codeCountdown > 0)
-                                .foregroundStyle(Theme.primary)
+                            } else {
+                                TextField("邮箱", text: $viewModel.email)
+                                    .keyboardType(.emailAddress)
+                                    .textContentType(.emailAddress)
+                                    .autocapitalization(.none)
+                                    .padding(12)
+                                    .background(Color(.secondarySystemBackground))
+                                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                                HStack(spacing: 12) {
+                                    TextField("邮箱验证码", text: $viewModel.emailCode)
+                                        .keyboardType(.numberPad)
+                                        .padding(12)
+                                        .background(Color(.secondarySystemBackground))
+                                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                                    Button(viewModel.emailCountdown > 0 ? "\(viewModel.emailCountdown)s" : "发送验证码") {
+                                        Task { await viewModel.sendEmailCode(scene: .login) }
+                                    }
+                                    .disabled(viewModel.emailCountdown > 0)
+                                    .foregroundStyle(Theme.primary)
+                                }
                             }
                         }
                     }
@@ -76,7 +118,7 @@ struct LoginView: View {
                     }
                     .buttonStyle(.borderedProminent)
                     .tint(Theme.primary)
-                    .disabled(viewModel.isSubmitting || !viewModel.phoneIsValid)
+                    .disabled(viewModel.isSubmitting || !canSubmit)
 
                     HStack {
                         NavigationLink("忘记密码") { ResetPasswordView() }
@@ -90,6 +132,13 @@ struct LoginView: View {
             }
             .navigationTitle("药准时")
         }
+    }
+
+    /// 短信通道下提交按钮保持可点：点击后提示未开通并切回邮箱（见 ViewModel.smsUnavailable）。
+    private var canSubmit: Bool {
+        if mode == .password { return viewModel.accountIsValid }
+        if viewModel.codeChannel == .phone { return true }
+        return viewModel.emailIsValid && !viewModel.emailCode.isEmpty
     }
 
     private var header: some View {

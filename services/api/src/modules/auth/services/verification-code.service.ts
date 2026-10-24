@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { randomInt } from 'crypto';
 import { HttpStatus } from '@nestjs/common';
 import {
+  AuthBusinessCode,
   BusinessCode,
   BusinessException,
 } from '../../../common/exceptions/business.exception';
@@ -27,8 +28,9 @@ function normalizeScene(scene: SmsScene | CodeScene): 'register' | 'login' | 're
 
 /**
  * 短信发送通道抽象（契约：验证码走 notification 短信接口抽象，生产接真实网关）。
- * 当前 notification 模块尚无短信实现，本线内先落抽象 + dev stub；
- * TODO(notification): notification 模块短信网关就绪后，将 SMS_SENDER 绑定切换至其实现。
+ * 腾讯云短信实现见 tencent-sms.service.ts（TencentSmsSender，配置开关后启用）；
+ * 未配置时绑定本 stub——它不再“只打日志记 success”，而是明确抛 40313
+ * （短信通道未开通），发码接口如实返回失败；邮箱通道是当前唯一可用验证码通道。
  */
 export abstract class SmsSender {
   abstract sendVerificationCode(phone: string, code: string, scene: SmsScene): Promise<void>;
@@ -38,16 +40,28 @@ export abstract class SmsSender {
 export class DevStubSmsSender extends SmsSender {
   private readonly logger = new Logger(DevStubSmsSender.name);
 
+  constructor() {
+    super();
+    this.logger.warn(
+      '腾讯云短信未配置（TENCENT_SMS_SECRET_ID 等为空），短信验证码通道不可用：发码请求将返回 40313，请引导用户使用邮箱验证码（个人暂无法申请腾讯云短信签名/模板，需企业认证）',
+    );
+  }
+
   async sendVerificationCode(phone: string, code: string, scene: SmsScene): Promise<void> {
-    // dev stub：不真实下发；仅打掩码日志（红线 4：日志脱敏，验证码不落日志明文）。
-    this.logger.log(
-      `[SMS stub] scene=${scene} phone=${PhoneCryptoService.maskPhone(phone)} code=******（未真实下发）`,
+    // 诚实不可用：不写“已发送”日志、不返回成功，明确抛通道未开通（40313）。
+    this.logger.warn(
+      `[SMS stub] scene=${scene} phone=${PhoneCryptoService.maskPhone(phone)} 短信通道未开通，拒绝发送（40313）`,
     );
     void code;
+    throw new BusinessException(
+      AuthBusinessCode.SmsNotConfigured,
+      '短信验证码尚未开通（服务端未配置腾讯云短信），请使用邮箱验证码',
+      HttpStatus.FORBIDDEN,
+    );
   }
 }
 
-interface CodeRecord {
+export interface CodeRecord {
   code: string;
   expiresAt: number;
   attempts: number;
@@ -153,7 +167,8 @@ export class VerificationCodeService {
       );
     }
     const code = String(randomInt(0, 1_000_000)).padStart(6, '0');
-    await this.store.set(this.key(channel, targetHash, scene), {
+    const codeKey = this.key(channel, targetHash, scene);
+    await this.store.set(codeKey, {
       code,
       expiresAt: now + CODE_TTL_MS,
       attempts: 0,
@@ -161,7 +176,14 @@ export class VerificationCodeService {
     });
     history.push(now);
     await this.store.setSendHistory(historyKey, history);
-    await deliver(code);
+    try {
+      await deliver(code);
+    } catch (err) {
+      // 投递失败必须如实返回失败：删掉刚写入、用户从未收到的码，避免
+      // “接口报错但码仍有效”的不一致；限频历史保留（计入 1 小时 5 次），防刷爆失败网关。
+      await this.store.delete(codeKey).catch(() => undefined);
+      throw err;
+    }
     return { expiresInSeconds: CODE_TTL_MS / 1000 };
   }
 

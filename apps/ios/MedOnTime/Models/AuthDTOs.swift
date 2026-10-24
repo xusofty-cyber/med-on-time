@@ -46,9 +46,22 @@ enum SmsScene: String, Encodable {
     case reset
 }
 
+/// 邮箱验证码场景：register / login / reset（后端 CodeScene；'reset' 由后端归一为 reset_password）。
+enum EmailCodeScene: String, Encodable {
+    case register
+    case login
+    case reset
+}
+
 struct SendSmsCodeRequest: Encodable {
     let phone: String
     let scene: SmsScene
+}
+
+/// 邮箱验证码发送（POST /auth/email/send；与 Web 端 sendEmailCode 同口径）。
+struct SendEmailCodeRequest: Encodable {
+    let email: String
+    let scene: EmailCodeScene
 }
 
 struct RegisterRequest: Encodable {
@@ -67,8 +80,28 @@ struct RegisterRequest: Encodable {
     }
 }
 
+/// 邮箱注册（POST /auth/register/email；code 必验，phone 选填仅登记不验证）。
+struct RegisterByEmailRequest: Encodable {
+    let email: String
+    let code: String
+    let password: String
+    let registerChannel: String
+    let nickname: String?
+    let phone: String?
+
+    init(email: String, code: String, password: String, registerChannel: String = "ios", nickname: String? = nil, phone: String? = nil) {
+        self.email = email
+        self.code = code
+        self.password = password
+        self.registerChannel = registerChannel
+        self.nickname = nickname
+        self.phone = phone
+    }
+}
+
+/// 密码登录（POST /auth/login）：account 为手机号或邮箱，后端含 @ 按邮箱查（与 Web 端同口径）。
 struct LoginRequest: Encodable {
-    let phone: String
+    let account: String
     let password: String
 }
 
@@ -80,6 +113,12 @@ struct CodeLoginRequest: Encodable {
         self.phone = phone
         self.smsCode = smsCode
     }
+}
+
+/// 邮箱验证码登录（POST /auth/login/code，{email, code}）。
+struct EmailCodeLoginRequest: Encodable {
+    let email: String
+    let code: String
 }
 
 struct RefreshRequest: Encodable {
@@ -96,6 +135,13 @@ struct PasswordResetRequest: Encodable {
         self.smsCode = smsCode
         self.newPassword = newPassword
     }
+}
+
+/// 邮箱找回（POST /auth/password/reset，{email, code, newPassword}）。
+struct EmailPasswordResetRequest: Encodable {
+    let email: String
+    let code: String
+    let newPassword: String
 }
 
 struct UpdateProfileRequest: Encodable {

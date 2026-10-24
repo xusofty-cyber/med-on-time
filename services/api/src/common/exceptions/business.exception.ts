@@ -34,6 +34,7 @@ export const BusinessCode = {
  */
 export const AuthBusinessCode = {
   WechatNotConfigured: 40312, // 微信小程序通道未配置（WECHAT_MINIAPP_APPID/SECRET 未配）
+  SmsNotConfigured: 40313, // 短信通道未配置（腾讯云短信未配，个人暂无法申请签名/模板，企业认证后启用）
   PhoneNotVerified: 40320, // 手机号未验证：禁止开启短信提醒 / 走短信找回密码
   PhoneVerificationRequired: 40321, // 接受照护授权前须先完成手机号验证
   PhoneMismatch: 40910, // 微信核验手机号与账号登记手机号不一致（不静默覆盖账号根）

@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import configuration from './config/configuration';
 import { PrismaModule } from './prisma/prisma.module';
+import { RedisModule } from './common/redis/redis.module';
 import { AccountModule } from './modules/account/account.module';
 import { AdherenceModule } from './modules/adherence/adherence.module';
 import { AdminModule } from './modules/admin/admin.module';
@@ -28,6 +29,7 @@ import { StockModule } from './modules/stock/stock.module';
   imports: [
     ConfigModule.forRoot({ isGlobal: true, load: [configuration] }),
     PrismaModule,
+    RedisModule,
     AuthModule,
     AccountModule,
     MemberModule,

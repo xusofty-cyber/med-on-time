@@ -130,6 +130,16 @@ enum class SmsScene {
     @SerialName("reset") Reset,
 }
 
+/**
+ * 邮箱验证码场景（后端 CodeScene；Web 端发码用 'reset'，后端归一为 reset_password）。
+ */
+@Serializable
+enum class EmailCodeScene {
+    @SerialName("register") Register,
+    @SerialName("login") Login,
+    @SerialName("reset") Reset,
+}
+
 /** 成员关系（schema member.relationship / member.dto MEMBER_RELATIONSHIPS）。 */
 @Serializable
 enum class MemberRelationship {

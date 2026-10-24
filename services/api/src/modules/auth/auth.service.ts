@@ -619,7 +619,7 @@ export class AuthService {
   }> {
     const ticketId = randomUUID();
     const now = Date.now();
-    this.scanTickets.create({
+    await this.scanTickets.create({
       id: ticketId,
       status: 'pending',
       purpose: 'login',
@@ -644,7 +644,7 @@ export class AuthService {
     ticketId: string,
     ctx: RequestContext,
   ): Promise<{ status: 'pending' } | ({ status: 'confirmed' } & TokenPair)> {
-    const ticket = this.scanTickets.get(ticketId);
+    const ticket = await this.scanTickets.get(ticketId);
     if (!ticket || ticket.purpose === 'bind_wechat') {
       throw new BusinessException(
         BusinessCode.NotFound,
@@ -654,7 +654,7 @@ export class AuthService {
     }
     if (ticket.status === 'pending') return { status: 'pending' };
     // 立即同步摘除已确认票据，防止并发轮询重复签发多套会话令牌
-    this.scanTickets.delete(ticketId);
+    await this.scanTickets.delete(ticketId);
     const account = await this.prisma.userAccount.findFirst({
       where: { id: ticket.accountId!, deletedAt: null },
     });
@@ -680,7 +680,7 @@ export class AuthService {
     ticketId: string,
     accountId: string,
   ): Promise<{ status: 'confirmed'; nickname: string }> {
-    const ticket = this.scanTickets.get(ticketId);
+    const ticket = await this.scanTickets.get(ticketId);
     if (!ticket || ticket.purpose === 'bind_wechat') {
       throw new BusinessException(
         BusinessCode.NotFound,
@@ -708,6 +708,8 @@ export class AuthService {
     this.assertAccountUsable(account);
     ticket.status = 'confirmed';
     ticket.accountId = accountId;
+    // Redis 存储取出的对象是副本，原地改动须回写才生效
+    await this.scanTickets.save(ticket);
     return { status: 'confirmed', nickname: account.nickname };
   }
 
@@ -728,7 +730,7 @@ export class AuthService {
     this.assertAccountUsable(account);
     const ticketId = randomUUID();
     const now = Date.now();
-    this.scanTickets.create({
+    await this.scanTickets.create({
       id: ticketId,
       status: 'pending',
       purpose: 'bind_wechat',
@@ -747,7 +749,7 @@ export class AuthService {
     ticketId: string,
     currentAccountId: string,
   ): Promise<{ status: 'pending' | 'confirmed' | 'expired' }> {
-    const ticket = this.scanTickets.getRaw(ticketId);
+    const ticket = await this.scanTickets.getRaw(ticketId);
     if (!ticket || ticket.purpose !== 'bind_wechat') {
       return { status: 'expired' };
     }
@@ -759,7 +761,7 @@ export class AuthService {
       );
     }
     if (Date.now() > ticket.expiresAt) {
-      this.scanTickets.delete(ticketId);
+      await this.scanTickets.delete(ticketId);
       return { status: 'expired' };
     }
     return { status: ticket.status };
@@ -769,7 +771,7 @@ export class AuthService {
     ticketId: string,
     code: string,
   ): Promise<{ status: 'confirmed'; bound: boolean }> {
-    const ticket = this.scanTickets.get(ticketId);
+    const ticket = await this.scanTickets.get(ticketId);
     if (!ticket || ticket.purpose !== 'bind_wechat') {
       throw new BusinessException(
         BusinessCode.NotFound,
@@ -793,6 +795,8 @@ export class AuthService {
     }
     const result = await this.bindWechat(ticket.ownerAccountId, code);
     ticket.status = 'confirmed';
+    // Redis 存储取出的对象是副本，原地改动须回写才生效
+    await this.scanTickets.save(ticket);
     return { status: 'confirmed', bound: result.bound };
   }
 

@@ -1,7 +1,13 @@
-import { Logger} from '@nestjs/common';
-import { uuidv7} from '../../common/utils/uuidv7';
-import type { PrismaService} from '../../prisma/prisma.service';
-import type { WechatMiniappService} from '../auth/services/wechat-miniapp.service';
+import { Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { uuidv7 } from '../../common/utils/uuidv7';
+import type { PrismaService } from '../../prisma/prisma.service';
+import type { WechatMiniappService } from '../auth/services/wechat-miniapp.service';
+import { PhoneCryptoService } from '../auth/services/phone-crypto.service';
+import {
+  TencentSmsGateway,
+  isTencentSmsConfigured,
+} from '../auth/services/tencent-sms.service';
 
 /**
 * 通知渠道 Provider 抽象：投递器只面向本接口写 reminder_delivery_log，
@@ -43,21 +49,62 @@ return { result: 'success', providerMsgId: `inapp:${uuidv7()}`};
 }
 
 /**
-* 短信渠道：与 auth 验证码 dev stub 同口径——当前只写日志并返回
-* 桩消息号，不真实下发。生产环境替换为真实短信网关（腾讯云/阿里云短信）
-* 实现同一接口即可，须同时提供手机号解密能力（user_account.phone 为密文）。
-*/
-export class LogSmsProvider implements NotificationChannelProvider {
-readonly channel = 'sms';
-private readonly logger = new Logger(LogSmsProvider.name);
+ * 短信渠道：腾讯云短信网关（TencentSmsGateway，配置开关后启用）+ 手机号解密。
+ * 未配置 / 模板未配 / 手机号未验证 / 解密失败 / 网关失败时一律返回 failed
+ * （errorCode 见下），绝不再像旧 LogSmsProvider 那样只打日志就记 success——
+ * 失败行会如实落库（result='failed'），且站内通知列表默认不再展示失败行。
+ * 提醒模板 TENCENT_SMS_TEMPLATE_ID_REMINDER 的变量须与此处 TemplateParamSet
+ * 逐字对应：{1}=药品名 {2}=剂量 {3}=服药时间 HH:mm（企业认证过审后方可申请）。
+ */
+export class TencentSmsReminderProvider implements NotificationChannelProvider {
+  readonly channel = 'sms';
+  private readonly logger = new Logger(TencentSmsReminderProvider.name);
 
-async send(ctx: ReminderChannelContext): Promise<ChannelSendResult> {
-const providerMsgId = `log-stub:${uuidv7()}`;
-this.logger.log(
-`[sms-stub] would send reminder sms instance=${ctx.instanceId} recipient=${ctx.recipientAccountId} msg=${providerMsgId}`,
-);
-return { result: 'success', providerMsgId};
-}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly phoneCrypto: PhoneCryptoService,
+    private readonly config: ConfigService,
+    private readonly gateway: TencentSmsGateway,
+  ) {}
+
+  async send(ctx: ReminderChannelContext): Promise<ChannelSendResult> {
+    if (!isTencentSmsConfigured(this.config)) {
+      this.logger.warn(
+        `[sms] 腾讯云短信未配置，提醒短信未发送 instance=${ctx.instanceId} recipient=${ctx.recipientAccountId}（SMS_NOT_CONFIGURED）`,
+      );
+      return { result: 'failed', errorCode: 'SMS_NOT_CONFIGURED' };
+    }
+    const templateId = this.config.get<string>('TENCENT_SMS_TEMPLATE_ID_REMINDER');
+    if (!templateId) {
+      return { result: 'failed', errorCode: 'SMS_TEMPLATE_NOT_CONFIGURED' };
+    }
+    const account = await this.prisma.userAccount.findUnique({
+      where: { id: ctx.recipientAccountId },
+      select: { phone: true, phoneVerifiedAt: true },
+    });
+    if (!account?.phone || !account.phoneVerifiedAt) {
+      return { result: 'failed', errorCode: 'SMS_PHONE_NOT_VERIFIED' };
+    }
+    let phone: string;
+    try {
+      phone = this.phoneCrypto.decryptPhone(account.phone);
+    } catch {
+      return { result: 'failed', errorCode: 'SMS_PHONE_DECRYPT_FAILED' };
+    }
+    try {
+      const { requestId } = await this.gateway.sendSms(
+        phone,
+        templateId,
+        [ctx.drugNameSnapshot, ctx.doseText, ctx.localTimeText],
+      );
+      return { result: 'success', providerMsgId: `sms:${requestId}` };
+    } catch (err) {
+      this.logger.warn(
+        `[sms] 提醒短信发送失败 instance=${ctx.instanceId} recipient=${ctx.recipientAccountId}: ${String(err)}`,
+      );
+      return { result: 'failed', errorCode: 'SMS_SEND_FAILED' };
+    }
+  }
 }
 
 /**

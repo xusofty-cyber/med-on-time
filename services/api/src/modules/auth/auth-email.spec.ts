@@ -14,7 +14,6 @@ import { ConfigService } from '@nestjs/config';
 import {
   BusinessCode,
   BusinessException,
-  AuthBusinessCode,
 } from '../../common/exceptions/business.exception';
 
 describe('Auth Email Dual-Channel Extensions', () => {

@@ -90,10 +90,11 @@ fun CareButton(
 }
 
 @Composable
-fun CareTextButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
+fun CareTextButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true) {
     val care = LocalCareMode.current
     TextButton(
         onClick = onClick,
+        enabled = enabled,
         modifier = modifier.heightIn(min = if (care) 56.dp else 40.dp),
     ) {
         Text(text, style = MaterialTheme.typography.labelLarge)

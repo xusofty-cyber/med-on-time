@@ -39,6 +39,13 @@ data class SendSmsCodeRequest(val phone: String, val scene: SmsScene)
 @Serializable
 data class SendSmsCodeResponse(val expiresInSeconds: Int = 60)
 
+/** 邮箱验证码发送（POST /auth/email/send；与 Web 端 sendEmailCode 同口径）。 */
+@Serializable
+data class SendEmailCodeRequest(val email: String, val scene: EmailCodeScene)
+
+@Serializable
+data class SendEmailCodeResponse(val expiresInSeconds: Int = 300)
+
 @Serializable
 data class RegisterRequest(
     val phone: String,
@@ -50,9 +57,26 @@ data class RegisterRequest(
     val deviceName: String? = null,
 )
 
+/** 邮箱注册（POST /auth/register/email；code 必验，phone 选填仅登记不验证）。 */
+@Serializable
+data class RegisterByEmailRequest(
+    val email: String,
+    val code: String,
+    val password: String,
+    val registerChannel: String = "android",
+    val nickname: String? = null,
+    val phone: String? = null,
+    val platform: String? = "android",
+    val deviceName: String? = null,
+)
+
+/**
+ * 密码登录（POST /auth/login）：account 为手机号或邮箱，后端含 @ 按邮箱查；
+ * 与 Web 端 login({ account, password }) 同口径，旧 {phone} 字段不再发送。
+ */
 @Serializable
 data class LoginRequest(
-    val phone: String,
+    val account: String,
     val password: String,
     val platform: String? = "android",
     val deviceName: String? = null,
@@ -66,6 +90,15 @@ data class LoginByCodeRequest(
     val deviceName: String? = null,
 )
 
+/** 邮箱验证码登录（POST /auth/login/code，{email, code}）。 */
+@Serializable
+data class LoginByEmailCodeRequest(
+    val email: String,
+    val code: String,
+    val platform: String? = "android",
+    val deviceName: String? = null,
+)
+
 @Serializable
 data class RefreshRequest(val refreshToken: String)
 
@@ -74,6 +107,10 @@ data class LogoutRequest(val refreshToken: String? = null)
 
 @Serializable
 data class ResetPasswordRequest(val phone: String, val smsCode: String, val newPassword: String)
+
+/** 邮箱找回（POST /auth/password/reset，{email, code, newPassword}）。 */
+@Serializable
+data class ResetPasswordByEmailRequest(val email: String, val code: String, val newPassword: String)
 
 @Serializable
 data class BindWechatRequest(val code: String? = null)

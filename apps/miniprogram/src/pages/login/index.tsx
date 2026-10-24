@@ -7,17 +7,23 @@ import { actions, useApp } from '../../lib/store';
 import { navigateAfterAuth } from '../../lib/hooks';
 import type { Account, AuthResult } from '../../lib/types';
 import { Btn, Card, ErrorLine, Field, PageShell, SegTabs, TxtInput } from '../../components/ui';
-import { SmsCodeButton } from '../../components/SmsCodeButton';
+import { EmailCodeButton } from '../../components/EmailCodeButton';
 
-/** 登录：手机号/邮箱 + 密码 / 短信验证码双模式；含忘记密码（验证码重置）。与 Web 端 Login 同逻辑。 */
+/** 登录：手机号/邮箱 + 密码 / 邮箱验证码双模式；含忘记密码（验证码重置）。与 Web 端 Login 同逻辑。
+ * 验证码通道：邮箱为唯一可用通道（默认）；短信通道暂未开通（个人拿不到腾讯云短信签名/模板），
+ * 短信入口保留并标注，发码/提交一律拦截提示并切回邮箱 tab，不调后端接口。 */
 export default function Login() {
   const booted = useApp((s) => s.booted);
   const account = useApp((s) => s.account);
   const [mode, setMode] = useState<'password' | 'code'>('password');
-  /* 密码模式为「手机号或邮箱」，验证码模式仅手机号；同一输入框按模式校验 */
+  /* 验证码通道：默认邮箱（唯一可用通道）；手机号入口保留但暂未开通 */
+  const [codeChannel, setCodeChannel] = useState<'phone' | 'email'>('email');
+  /* 密码模式为「手机号或邮箱」，验证码模式默认邮箱；同一输入框按模式校验 */
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [code, setCode] = useState('');
+  const [email, setEmail] = useState('');
+  const [emailCode, setEmailCode] = useState('');
   const [error, setError] = useState<unknown>(null);
   const [busy, setBusy] = useState(false);
   const [wxBusy, setWxBusy] = useState(false);
@@ -54,8 +60,18 @@ export default function Login() {
 
   const submit = async () => {
     const isEmail = identifier.includes('@');
-    if (mode === 'code' && !/^1\d{10}$/.test(identifier)) {
-      setError(new Error('请输入正确的 11 位手机号'));
+    if (mode === 'code' && codeChannel === 'phone') {
+      /* 短信通道暂未开通：不调接口，提示并切回邮箱 tab */
+      toastError(new Error('短信通道暂未开通，请使用邮箱验证码'));
+      setCodeChannel('email');
+      return;
+    }
+    if (mode === 'code' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setError(new Error('请输入正确的邮箱地址'));
+      return;
+    }
+    if (mode === 'code' && !emailCode) {
+      setError(new Error('请输入邮箱验证码'));
       return;
     }
     if (mode === 'password' && isEmail && !/^\S+@\S+\.\S+$/.test(identifier)) {
@@ -70,17 +86,13 @@ export default function Login() {
       setError(new Error('请输入密码'));
       return;
     }
-    if (mode === 'code' && !code) {
-      setError(new Error('请输入短信验证码'));
-      return;
-    }
     setBusy(true);
     setError(null);
     try {
       const result =
         mode === 'password'
           ? await authApi.login({ account: identifier, password })
-          : await authApi.loginByCode({ phone: identifier, code });
+          : await authApi.loginByCode({ email, code: emailCode });
       await persistSession(result);
       toastOk('登录成功');
       navigateAfterAuth();
@@ -176,22 +188,60 @@ export default function Login() {
               <TxtInput value={identifier} onChange={setIdentifier} placeholder='手机号或邮箱' maxlength={64} />
             </Field>
           ) : (
-            <Field label='手机号'>
-              <TxtInput value={identifier} onChange={setIdentifier} placeholder='请输入 11 位手机号' type='number' maxlength={11} />
-            </Field>
+            <>
+              <SegTabs
+                options={[
+                  { value: 'phone', label: '手机号（暂未开通）' },
+                  { value: 'email', label: '邮箱' },
+                ]}
+                value={codeChannel}
+                onChange={(v) => setCodeChannel(v as 'phone' | 'email')}
+              />
+              {codeChannel === 'phone' ? (
+                <>
+                  <Text className='tx-sm' style={{ color: '#c0392b' }}>
+                    短信通道暂未开通，请使用邮箱验证码
+                  </Text>
+                  <Field label='手机号'>
+                    <TxtInput value={identifier} onChange={setIdentifier} placeholder='请输入 11 位手机号' type='number' maxlength={11} />
+                  </Field>
+                  <Field label='短信验证码'>
+                    <View className='row' style={{ gap: '12rpx' }}>
+                      <View className='grow'>
+                        <TxtInput value={code} onChange={setCode} placeholder='6 位验证码' type='number' maxlength={6} />
+                      </View>
+                      <Btn
+                        variant='soft'
+                        onClick={() => {
+                          toastError(new Error('短信通道暂未开通，请使用邮箱验证码'));
+                          setCodeChannel('email');
+                        }}
+                      >
+                        发送验证码
+                      </Btn>
+                    </View>
+                  </Field>
+                </>
+              ) : (
+                <>
+                  <Field label='邮箱'>
+                    <TxtInput value={email} onChange={setEmail} placeholder='请输入邮箱地址' maxlength={254} />
+                  </Field>
+                  <Field label='邮箱验证码'>
+                    <View className='row' style={{ gap: '12rpx' }}>
+                      <View className='grow'>
+                        <TxtInput value={emailCode} onChange={setEmailCode} placeholder='6 位验证码' type='number' maxlength={6} />
+                      </View>
+                      <EmailCodeButton email={email} scene='login' />
+                    </View>
+                  </Field>
+                </>
+              )}
+            </>
           )}
-          {mode === 'password' ? (
+          {mode === 'password' && (
             <Field label='密码'>
               <TxtInput value={password} onChange={setPassword} placeholder='请输入密码' password />
-            </Field>
-          ) : (
-            <Field label='短信验证码'>
-              <View className='row' style={{ gap: '12rpx' }}>
-                <View className='grow'>
-                  <TxtInput value={code} onChange={setCode} placeholder='6 位验证码' type='number' maxlength={6} />
-                </View>
-                <SmsCodeButton phone={identifier} scene='login' />
-              </View>
             </Field>
           )}
           <ErrorLine error={error} />
@@ -241,17 +291,27 @@ export default function Login() {
 }
 
 function ResetPasswordForm({ onDone }: { onDone: () => void }) {
+  /* 找回通道：默认邮箱（唯一可用通道）；手机号入口保留但暂未开通 */
+  const [channel, setChannel] = useState<'phone' | 'email'>('email');
   const [phone, setPhone] = useState('');
   const [code, setCode] = useState('');
+  const [email, setEmail] = useState('');
+  const [emailCode, setEmailCode] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const submit = async () => {
-    if (!/^1\d{10}$/.test(phone)) {
-      toastError(new Error('请输入正确的 11 位手机号'));
+    if (channel === 'phone') {
+      /* 短信通道暂未开通：不调接口，提示并切回邮箱 tab */
+      toastError(new Error('短信通道暂未开通，请使用邮箱验证码'));
+      setChannel('email');
       return;
     }
-    if (!code.trim()) {
-      toastError(new Error('请输入短信验证码'));
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      toastError(new Error('请输入正确的邮箱地址'));
+      return;
+    }
+    if (!emailCode.trim()) {
+      toastError(new Error('请输入邮箱验证码'));
       return;
     }
     if (newPassword.length < 8) {
@@ -260,7 +320,7 @@ function ResetPasswordForm({ onDone }: { onDone: () => void }) {
     }
     setBusy(true);
     try {
-      await authApi.resetPassword({ phone, code, newPassword });
+      await authApi.resetPassword({ email, code: emailCode, newPassword });
       toastOk('密码已重置，请用新密码登录');
       onDone();
     } catch (e) {
@@ -272,17 +332,54 @@ function ResetPasswordForm({ onDone }: { onDone: () => void }) {
   return (
     <View className='col' style={{ gap: '20rpx', borderTop: '1rpx solid #eef1ef', paddingTop: '24rpx' }}>
       <Text className='tx-h'>重置密码</Text>
-      <Field label='手机号'>
-        <TxtInput value={phone} onChange={setPhone} placeholder='注册手机号' type='number' maxlength={11} />
-      </Field>
-      <Field label='短信验证码'>
-        <View className='row' style={{ gap: '12rpx' }}>
-          <View className='grow'>
-            <TxtInput value={code} onChange={setCode} placeholder='6 位验证码' type='number' maxlength={6} />
-          </View>
-          <SmsCodeButton phone={phone} scene='reset' />
-        </View>
-      </Field>
+      <SegTabs
+        options={[
+          { value: 'phone', label: '手机号（暂未开通）' },
+          { value: 'email', label: '邮箱' },
+        ]}
+        value={channel}
+        onChange={(v) => setChannel(v as 'phone' | 'email')}
+      />
+      {channel === 'phone' ? (
+        <>
+          <Text className='tx-sm' style={{ color: '#c0392b' }}>
+            短信通道暂未开通，请使用邮箱验证码
+          </Text>
+          <Field label='手机号'>
+            <TxtInput value={phone} onChange={setPhone} placeholder='注册手机号' type='number' maxlength={11} />
+          </Field>
+          <Field label='短信验证码'>
+            <View className='row' style={{ gap: '12rpx' }}>
+              <View className='grow'>
+                <TxtInput value={code} onChange={setCode} placeholder='6 位验证码' type='number' maxlength={6} />
+              </View>
+              <Btn
+                variant='soft'
+                onClick={() => {
+                  toastError(new Error('短信通道暂未开通，请使用邮箱验证码'));
+                  setChannel('email');
+                }}
+              >
+                发送验证码
+              </Btn>
+            </View>
+          </Field>
+        </>
+      ) : (
+        <>
+          <Field label='邮箱'>
+            <TxtInput value={email} onChange={setEmail} placeholder='注册邮箱地址' maxlength={254} />
+          </Field>
+          <Field label='邮箱验证码'>
+            <View className='row' style={{ gap: '12rpx' }}>
+              <View className='grow'>
+                <TxtInput value={emailCode} onChange={setEmailCode} placeholder='6 位验证码' type='number' maxlength={6} />
+              </View>
+              <EmailCodeButton email={email} scene='reset' />
+            </View>
+          </Field>
+        </>
+      )}
       <Field label='新密码'>
         <TxtInput value={newPassword} onChange={setNewPassword} placeholder='至少 8 位' password />
       </Field>
