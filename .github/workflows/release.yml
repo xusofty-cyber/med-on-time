@@ -116,8 +116,8 @@ jobs:
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: gradle :app:assembleRelease --no-daemon
       - name: 上传产物
+        uses: actions/upload-artifact@v4
         with:
-        
           name: android-apk
           path: apps/android/app/build/outputs/apk/release/*.apk
           if-no-files-found: error
