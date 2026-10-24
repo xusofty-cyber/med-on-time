@@ -35,6 +35,38 @@ const revokedSessionIds = new Map<string, number>();
 const revokedAccountBeforeSec = new Map<string, number>();
 const REVOKED_RETENTION_MS = 2 * 60 * 60 * 1000; // 与 access token 2h TTL 对齐
 
+/** 吊销状态的 Redis 键（P1 迁移：重启后吊销仍生效的事实来源） */
+export const SESSION_REDIS_KEYS = {
+  /** 单个会话吊销：medontime:revoked:session:<sid> → '1'，TTL = 吊销保留期 */
+  revokedSession: (id: string): string => `medontime:revoked:session:${id}`,
+  /** 账号级全量吊销：medontime:revoked:account:<accountId> → 吊销时刻（秒），TTL = 吊销保留期 */
+  revokedAccount: (accountId: string): string =>
+    `medontime:revoked:account:${accountId}`,
+} as const;
+
+/** 供 RedisRefreshSessionStore 同步更新进程内守卫镜像（JwtAuthGuard 的同步回退路径） */
+export function markSessionActiveInMirror(id: string): void {
+  activeSessionIds.add(id);
+  revokedSessionIds.delete(id);
+}
+
+export function markSessionRevokedInMirror(id: string, revokedAtMs: number): void {
+  activeSessionIds.delete(id);
+  revokedSessionIds.set(id, revokedAtMs);
+}
+
+export function markAccountRevokedBeforeInMirror(
+  accountId: string,
+  cutoffSec: number,
+): void {
+  revokedAccountBeforeSec.set(accountId, cutoffSec);
+}
+
+/** 吊销保留期（毫秒），Redis 吊销键 TTL 与内存镜像清理同口径 */
+export function getRevokedRetentionMs(): number {
+  return REVOKED_RETENTION_MS;
+}
+
 /**
  * 供 JwtAuthGuard 同步判断会话是否已吊销：
  * - 明确吊销的 sid 立即拒绝；
@@ -53,6 +85,37 @@ export function isSessionRevoked(
     const cutoffSec = revokedAccountBeforeSec.get(accountId);
     if (cutoffSec !== undefined && (tokenIatSec === undefined || tokenIatSec <= cutoffSec)) {
       return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Redis 吊销检查（异步，JwtAuthGuard 用）：查重启后仍有效的吊销记录。
+ * redis 参数为 RedisService（类型 import，避免循环依赖由调用方传入实例）。
+ * Redis 不可用时抛错，由调用方降级为进程内同步检查（isSessionRevoked）。
+ */
+export async function isSessionRevokedInRedis(
+  redis: { getClient(): { get(key: string): Promise<string | null> } },
+  sessionId?: string,
+  accountId?: string,
+  tokenIatSec?: number,
+): Promise<boolean> {
+  const client = redis.getClient();
+  if (sessionId) {
+    const revoked = await client.get(SESSION_REDIS_KEYS.revokedSession(sessionId));
+    if (revoked !== null) return true;
+  }
+  if (accountId) {
+    const cutoffRaw = await client.get(SESSION_REDIS_KEYS.revokedAccount(accountId));
+    if (cutoffRaw !== null) {
+      const cutoffSec = parseInt(cutoffRaw, 10);
+      if (
+        !Number.isNaN(cutoffSec) &&
+        (tokenIatSec === undefined || tokenIatSec <= cutoffSec)
+      ) {
+        return true;
+      }
     }
   }
   return false;

@@ -2,13 +2,19 @@ import {
   CanActivate,
   ExecutionContext,
   Injectable,
+  Logger,
+  Optional,
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AccountStatus } from '@med-on-time/shared';
 import { PrismaService } from '../../prisma/prisma.service';
 import { DEV_ACCESS_SECRET_FALLBACK, verifyJwt } from '../utils/jwt';
-import { isSessionRevoked } from '../../modules/auth/services/session.service';
+import {
+  isSessionRevoked,
+  isSessionRevokedInRedis,
+} from '../../modules/auth/services/session.service';
+import { RedisService } from '../redis/redis.service';
 import type { AuthenticatedUser } from '../decorators/current-user.decorator';
 
 /**
@@ -22,9 +28,13 @@ import type { AuthenticatedUser } from '../decorators/current-user.decorator';
  */
 @Injectable()
 export class JwtAuthGuard implements CanActivate {
+  private readonly logger = new Logger(JwtAuthGuard.name);
+
   constructor(
     private readonly config: ConfigService,
     private readonly prisma: PrismaService,
+    // RedisService 全局提供；单测直接 new 时缺省 → 仅走进程内同步检查
+    @Optional() private readonly redis?: RedisService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -58,6 +68,21 @@ export class JwtAuthGuard implements CanActivate {
 
     if (isSessionRevoked(sessionId, accountId, tokenIat)) {
       throw new UnauthorizedException('session has been revoked');
+    }
+
+    // Redis 吊销检查：覆盖重启前发生的吊销（进程内镜像重启即失）。
+    // Redis 不可用时记 warn 并降级为进程内检查（不因此锁死全部请求）。
+    if (this.redis) {
+      try {
+        if (await isSessionRevokedInRedis(this.redis, sessionId, accountId, tokenIat)) {
+          throw new UnauthorizedException('session has been revoked');
+        }
+      } catch (err) {
+        if (err instanceof UnauthorizedException) throw err;
+        this.logger.warn(
+          `Redis 吊销检查失败，降级为进程内检查: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
     }
 
     const account = await this.prisma.userAccount.findFirst({

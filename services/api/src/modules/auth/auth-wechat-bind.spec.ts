@@ -1,10 +1,9 @@
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
-import { HttpStatus } from '@nestjs/common';
 import { BindWechatConfirmDto } from './dto/auth.dto';
-import { ScanLoginTicketStore } from './scan-login-ticket.store';
+import { InMemoryScanLoginTicketStore, ScanLoginTicketStore } from './scan-login-ticket.store';
 import { AuthService } from './auth.service';
-import { BusinessException, BusinessCode } from '../../common/exceptions/business.exception';
+import { BusinessException } from '../../common/exceptions/business.exception';
 
 describe('Auth WeChat Bind Scan Confirmation', () => {
   describe('BindWechatConfirmDto validation', () => {
@@ -46,11 +45,11 @@ describe('Auth WeChat Bind Scan Confirmation', () => {
     let store: ScanLoginTicketStore;
 
     beforeEach(() => {
-      store = new ScanLoginTicketStore();
+      store = new InMemoryScanLoginTicketStore();
     });
 
-    it('separates bind_wechat and login purpose', () => {
-      store.create({
+    it('separates bind_wechat and login purpose', async () => {
+      await store.create({
         id: 'ticket-1',
         status: 'pending',
         purpose: 'bind_wechat',
@@ -59,7 +58,7 @@ describe('Auth WeChat Bind Scan Confirmation', () => {
         expiresAt: Date.now() + 300_000,
       });
 
-      const raw = store.getRaw('ticket-1');
+      const raw = await store.getRaw('ticket-1');
       expect(raw).toBeDefined();
       expect(raw?.purpose).toBe('bind_wechat');
       expect(raw?.ownerAccountId).toBe('acc-1');
@@ -73,7 +72,7 @@ describe('Auth WeChat Bind Scan Confirmation', () => {
     let mockWechat: any;
 
     beforeEach(() => {
-      store = new ScanLoginTicketStore();
+      store = new InMemoryScanLoginTicketStore();
       mockPrisma = {
         userAccount: {
           findFirst: jest.fn(),
@@ -109,14 +108,14 @@ describe('Auth WeChat Bind Scan Confirmation', () => {
       expect(res.expiresInSeconds).toBe(300);
       expect(res.qrContent).toBe(`bind:${res.ticketId}`);
 
-      const saved = store.getRaw(res.ticketId);
+      const saved = await store.getRaw(res.ticketId);
       expect(saved?.purpose).toBe('bind_wechat');
       expect(saved?.ownerAccountId).toBe('acc-1');
       expect(saved?.status).toBe('pending');
     });
 
     it('getBindTicket returns pending, confirmed, or expired; forbids other accounts', async () => {
-      store.create({
+      await store.create({
         id: 'ticket-2',
         status: 'pending',
         purpose: 'bind_wechat',
@@ -135,7 +134,7 @@ describe('Auth WeChat Bind Scan Confirmation', () => {
       );
 
       // Expired ticket -> expired
-      store.create({
+      await store.create({
         id: 'ticket-expired',
         status: 'pending',
         purpose: 'bind_wechat',
@@ -152,7 +151,7 @@ describe('Auth WeChat Bind Scan Confirmation', () => {
     });
 
     it('confirmBindTicket binds wechat and marks ticket confirmed once', async () => {
-      store.create({
+      await store.create({
         id: 'ticket-3',
         status: 'pending',
         purpose: 'bind_wechat',
@@ -181,7 +180,7 @@ describe('Auth WeChat Bind Scan Confirmation', () => {
     });
 
     it('confirmBindTicket throws conflict error if wechat is already bound to another account', async () => {
-      store.create({
+      await store.create({
         id: 'ticket-4',
         status: 'pending',
         purpose: 'bind_wechat',

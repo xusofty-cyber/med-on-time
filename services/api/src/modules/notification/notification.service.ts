@@ -13,11 +13,13 @@ import { WechatMiniappService } from '../auth/services/wechat-miniapp.service';
 import {
   InAppProvider,
   LogPushProvider,
-  LogSmsProvider,
+  TencentSmsReminderProvider,
   WechatSubscribeProvider,
   type NotificationChannelProvider,
   type ReminderChannelContext,
 } from './notification.providers';
+import { PhoneCryptoService } from '../auth/services/phone-crypto.service';
+import { TencentSmsGateway } from '../auth/services/tencent-sms.service';
 
 /** 同一实例/收件人/渠道在该间隔内的重复投递记 suppressed_dedup（多端/重投递去重） */
 const DEDUP_WINDOW_MS = 45_000;
@@ -29,7 +31,14 @@ export interface NotificationListItem {
   channel: string;
   result: string;
   createdAt: Date;
+  /** 兼容旧字段：与 isRead 同义 */
   read: boolean;
+  /** 各端 NotificationItem 期望字段（Web/小程序/iOS 共用，见契约测试） */
+  title: string;
+  content: string;
+  isRead: boolean;
+  /** 已读时间戳：当前无通知表、已读态只存 id 集合（system_config 过渡存储），故恒为 null；DB V1.3 补通知表后回填 */
+  readAt: string | null;
   instance: {
     drugNameSnapshot: string;
     doseAmount: string;
@@ -56,6 +65,44 @@ function timeToStr(d: Date): string {
   return d.toISOString().slice(11, 16);
 }
 
+/** 提醒实例状态 → 列表文案（与各端展示口径一致；未知状态原样透出） */
+const INSTANCE_STATUS_TEXT: Record<string, string> = {
+  pending: '待服药',
+  reminded: '已提醒',
+  taken: '已服药',
+  snoozed: '已稍后提醒',
+  skipped: '已跳过',
+  missed: '已错过',
+  cancelled: '已取消',
+};
+
+/** 投递结果 → 列表文案 */
+const DELIVERY_RESULT_TEXT: Record<string, string> = {
+  success: '已送达',
+  failed: '发送失败',
+  suppressed_dedup: '去重跳过',
+};
+
+/** 由实例快照合成前端 NotificationItem 期望的 title/content */
+export function buildNotificationText(
+  instance: NotificationListItem['instance'],
+  result: string,
+): { title: string; content: string } {
+  if (!instance) {
+    return {
+      title: '服药提醒',
+      content: `站内通知·投递${DELIVERY_RESULT_TEXT[result] ?? result}`,
+    };
+  }
+  const title = `${instance.drugNameSnapshot} ${instance.doseAmount}${instance.doseUnit}`;
+  const statusText = INSTANCE_STATUS_TEXT[instance.status] ?? instance.status;
+  const resultText = DELIVERY_RESULT_TEXT[result] ?? result;
+  return {
+    title,
+    content: `${instance.localDate} ${instance.localTime}（${instance.timezone}）·${statusText}·站内通知${resultText}`,
+  };
+}
+
 @Injectable()
 export class NotificationService {
   private readonly logger = new Logger(NotificationService.name);
@@ -69,7 +116,13 @@ export class NotificationService {
   ) {
     this.providers = {
       [DeliveryChannel.InApp]: new InAppProvider(),
-      [DeliveryChannel.Sms]: new LogSmsProvider(),
+      // 提醒短信走腾讯云网关（未配置时诚实返回 failed，不再记 success）
+      [DeliveryChannel.Sms]: new TencentSmsReminderProvider(
+        prisma,
+        new PhoneCryptoService(config),
+        config,
+        new TencentSmsGateway(config),
+      ),
       [DeliveryChannel.AppPush]: new LogPushProvider(),
       [DeliveryChannel.WechatSubscribe]: new WechatSubscribeProvider(
         prisma,
@@ -85,6 +138,14 @@ export class NotificationService {
   // DB V1.2 无独立站内通知表，已读态走 NotificationPrefsService 的过渡存储）
   // ------------------------------------------------------------------
 
+  /**
+   * 站内通知列表。
+   * 默认只返回 result='success' 的行（排除 failed / suppressed_dedup 等）：
+   * 失败行是投递系统的运维留痕、不是发给用户的通知——失败提醒本身已有站内
+   * 渠道兜底（in_app 投递失败时用户仍能在下一成功行看到提醒），把失败行混
+   * 进收件箱会让用户看到“发送失败”的脏通知、且未读数失真；运维排障直接查
+   * reminder_delivery_log 全量，不过滤口径只存在于日志层。
+   */
   async listForAccount(
     accountId: string,
     page: number,
@@ -94,11 +155,16 @@ export class NotificationService {
     total: number;
     page: number;
     pageSize: number;
+    /** 兼容旧字段：与 unreadCount 同值 */
     unread: number;
+    unreadCount: number;
+    /** 小程序端 PageResult 字段名（res.unreadTotal），与 unreadCount 同值 */
+    unreadTotal: number;
   }> {
     const where = {
       recipientAccountId: accountId,
       channel: DeliveryChannel.InApp,
+      result: 'success',
     } as const;
     const [total, rows, readIds] = await Promise.all([
       this.prisma.reminderDeliveryLog.count({ where }),
@@ -130,15 +196,8 @@ export class NotificationService {
         : await this.prisma.reminderDeliveryLog.count({
             where: { ...where, id: { in: readIds } },
           });
-    const items: NotificationListItem[] = rows.map((row) => ({
-      id: row.id,
-      instanceId: row.reminderInstanceId,
-      memberId: row.memberId,
-      channel: row.channel,
-      result: row.result,
-      createdAt: row.createdAt,
-      read: readSet.has(row.id),
-      instance: row.reminderInstance
+    const items: NotificationListItem[] = rows.map((row) => {
+      const instance = row.reminderInstance
         ? {
             drugNameSnapshot: row.reminderInstance.drugNameSnapshot,
             doseAmount: row.reminderInstance.doseAmount.toString(),
@@ -148,9 +207,35 @@ export class NotificationService {
             timezone: row.reminderInstance.timezone,
             status: row.reminderInstance.status,
           }
-        : null,
-    }));
-    return { items, total, page, pageSize, unread: total - readCount };
+        : null;
+      const isRead = readSet.has(row.id);
+      const { title, content } = buildNotificationText(instance, row.result);
+      return {
+        id: row.id,
+        instanceId: row.reminderInstanceId,
+        memberId: row.memberId,
+        channel: row.channel,
+        result: row.result,
+        createdAt: row.createdAt,
+        read: isRead,
+        title,
+        content,
+        isRead,
+        // 无通知表：已读时间无处可存，恒 null（前端以 isRead 为准，见契约测试）
+        readAt: null,
+        instance,
+      };
+    });
+    const unreadCount = total - readCount;
+    return {
+      items,
+      total,
+      page,
+      pageSize,
+      unread: unreadCount,
+      unreadCount,
+      unreadTotal: unreadCount,
+    };
   }
 
   async markRead(accountId: string, notificationId: string): Promise<void> {

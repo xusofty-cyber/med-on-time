@@ -38,16 +38,28 @@ const qs = (params: Record<string, string | number | undefined>) => {
 type Paged<T> = { items: T[]; total?: number; page?: number; pageSize?: number };
 const unpage = <T>(p: Paged<T> | T[]): T[] => (Array.isArray(p) ? p : (p?.items ?? []));
 
+export type EmailCodeScene = 'register' | 'login' | 'reset';
+
 export const authApi = {
   sendSmsCode: (phone: string, scene: 'register' | 'login' | 'reset') =>
     http.post<{ sent: boolean }>('/auth/sms/send', { phone, scene }),
+  /** 邮箱验证码发送（POST /auth/email/send；60 秒重发间隔、1 小时 5 次由后端限频）。 */
+  sendEmailCode: (email: string, scene: EmailCodeScene) =>
+    http.post<{ expiresInSeconds: number }>('/auth/email/send', { email, scene }),
   register: (body: { phone: string; password: string; code: string; nickname?: string }) =>
     http.post<AuthResult>('/auth/register', body),
+  /** 邮箱注册（POST /auth/register/email；code 必验，phone 选填仅登记不验证）。与 Web 端同口径。 */
+  registerByEmail: (body: { email: string; code: string; password: string; nickname?: string; phone?: string }) =>
+    http.post<AuthResult>('/auth/register/email', body),
   /** 密码登录：account 可为手机号或邮箱（与 Web 同口径，后端按 @ 分流查账号） */
   login: (body: { account: string; password: string }) => http.post<AuthResult>('/auth/login', body),
-  loginByCode: (body: { phone: string; code: string }) => http.post<AuthResult>('/auth/login/code', body),
-  resetPassword: (body: { phone: string; code: string; newPassword: string }) =>
-    http.post<{ ok: boolean }>('/auth/password/reset', body),
+  /** 验证码登录：手机 {phone, code} 或邮箱 {email, code} 双通道（与 Web 端同口径）。 */
+  loginByCode: (body: { phone: string; code: string } | { email: string; code: string }) =>
+    http.post<AuthResult>('/auth/login/code', body),
+  /** 找回密码：手机或邮箱双通道（与 Web 端同口径）。 */
+  resetPassword: (
+    body: { phone: string; code: string; newPassword: string } | { email: string; code: string; newPassword: string },
+  ) => http.post<{ ok: boolean }>('/auth/password/reset', body),
   logout: () => http.post<{ ok: boolean }>('/auth/logout'),
   me: () => http.get<Account>('/auth/me'),
   /** 微信小程序一键登录：code 来自 Taro.login()，phoneCode（可选）来自 getPhoneNumber。后端未配 appid/secret 时返回业务码 40312，message 直接透出。 */
