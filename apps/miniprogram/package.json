@@ -8,7 +8,8 @@
     "@tarojs/shared": "^4.0.4",
     "@tarojs/taro": "^4.0.4",
     "@tarojs/vite-runner": "^4.3.0",
-    "react": "^18.3.1"
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
   },
   "description": "药准时微信小程序（Taro 4 + React）",
   "devDependencies": {
