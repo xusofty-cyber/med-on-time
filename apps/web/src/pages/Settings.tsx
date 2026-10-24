@@ -1,10 +1,31 @@
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { accountApi, authApi } from '../lib/endpoints';
 import { actions, useApp } from '../lib/store';
-import { Badge, Button, Card, ErrorText, Field, Modal, Spinner, TextInput } from '../components/ui';
+import { Badge, Button, Card, ErrorText, Field, Modal, Select, Spinner, TextInput } from '../components/ui';
 import { ACCOUNT_STATUS_LABELS } from '../lib/dict';
 import { fmtDateTime, isValidTimeZone } from '../lib/time';
+import { qrToDataUrl } from '../lib/qr';
 import type { UserSession } from '../lib/types';
+
+const COMMON_TIMEZONE_OPTIONS: { value: string; label: string }[] = [
+  { value: 'Asia/Shanghai', label: 'Asia/Shanghai (北京/上海)' },
+  { value: 'Asia/Chongqing', label: 'Asia/Chongqing (重庆)' },
+  { value: 'Asia/Hong_Kong', label: 'Asia/Hong_Kong (香港)' },
+  { value: 'Asia/Taipei', label: 'Asia/Taipei (台北)' },
+  { value: 'Asia/Singapore', label: 'Asia/Singapore (新加坡)' },
+  { value: 'Asia/Tokyo', label: 'Asia/Tokyo (东京)' },
+  { value: 'Asia/Seoul', label: 'Asia/Seoul (首尔)' },
+  { value: 'Asia/Bangkok', label: 'Asia/Bangkok (曼谷)' },
+  { value: 'Asia/Dubai', label: 'Asia/Dubai (迪拜)' },
+  { value: 'Europe/London', label: 'Europe/London (伦敦)' },
+  { value: 'Europe/Paris', label: 'Europe/Paris (巴黎)' },
+  { value: 'America/New_York', label: 'America/New_York (纽约)' },
+  { value: 'America/Chicago', label: 'America/Chicago (芝加哥)' },
+  { value: 'America/Denver', label: 'America/Denver (丹佛)' },
+  { value: 'America/Los_Angeles', label: 'America/Los_Angeles (洛杉矶)' },
+  { value: 'Australia/Sydney', label: 'Australia/Sydney (悉尼)' },
+  { value: 'UTC', label: 'UTC (世界协调时间)' },
+];
 
 export default function Settings() {
   const account = useApp((s) => s.account);
@@ -14,7 +35,16 @@ export default function Settings() {
   const [sessions, setSessions] = useState<UserSession[] | null>(null);
   const [cancelOpen, setCancelOpen] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
+  const [bindOpen, setBindOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+
+  const timezoneOptions = useMemo(() => {
+    const trimmed = timezone.trim();
+    if (trimmed && !COMMON_TIMEZONE_OPTIONS.some((o) => o.value === trimmed)) {
+      return [{ value: trimmed, label: `${trimmed} (当前)` }, ...COMMON_TIMEZONE_OPTIONS];
+    }
+    return COMMON_TIMEZONE_OPTIONS;
+  }, [timezone]);
 
   useEffect(() => {
     accountApi
@@ -73,13 +103,15 @@ export default function Settings() {
     }
   };
 
-  const bindWechat = async () => {
+  const onBindSuccess = async () => {
+    setBindOpen(false);
     try {
-      const r = await authApi.bindWechat();
-      actions.toast('info', r.message ?? '微信绑定尚未开通');
-    } catch (e) {
-      actions.toast('info', e instanceof Error ? e.message : '微信绑定尚未开通');
+      const p = await accountApi.profile();
+      actions.setAccount(p);
+    } catch {
+      /* ignore */
     }
+    actions.toast('success', '微信已绑定');
   };
 
   const cancelling = account?.status === 'cancelling';
@@ -119,7 +151,7 @@ export default function Settings() {
               <TextInput value={nickname} onChange={setNickname} />
             </Field>
             <Field label="账号时区" hint="成员各自的提醒时间以成员时区为准，这里是账号默认时区">
-              <TextInput value={timezone} onChange={setTimezone} placeholder="Asia/Shanghai" />
+              <Select value={timezone} onChange={setTimezone} options={timezoneOptions} />
             </Field>
             <div>
               <Button type="submit">保存资料</Button>
@@ -131,12 +163,21 @@ export default function Settings() {
       <Card title="账号绑定">
         <div className="flex items-center justify-between gap-3">
           <div>
-            <p className="font-medium">微信绑定</p>
-            <p className="text-sm text-neutral-500">绑定后可用微信登录并接收订阅消息提醒（尚未开通）</p>
+            <div className="flex items-center gap-2">
+              <p className="font-medium">微信绑定</p>
+              {account?.hasWechat && <Badge tone="green">已绑定</Badge>}
+            </div>
+            <p className="text-sm text-neutral-500">
+              {account?.hasWechat
+                ? '已绑定微信，可用微信扫码登录药准时'
+                : '绑定后可用微信扫码登录药准时并接收提醒'}
+            </p>
           </div>
-          <Button variant="soft" onClick={bindWechat}>
-            绑定微信
-          </Button>
+          {!account?.hasWechat && (
+            <Button variant="soft" onClick={() => setBindOpen(true)}>
+              绑定微信
+            </Button>
+          )}
         </div>
       </Card>
 
@@ -222,6 +263,109 @@ export default function Settings() {
           </div>
         </div>
       </Modal>
+      <BindWechatModal
+        open={bindOpen}
+        onClose={() => setBindOpen(false)}
+        onSuccess={onBindSuccess}
+      />
     </div>
+  );
+}
+
+/**
+ * 微信扫码绑定弹窗：建票 → 渲染二维码（内容以 bind: 开头） → 每 2 秒轮询状态
+ * confirmed 后关弹窗、刷新账号信息、提示「微信已绑定」；过期显示「二维码已过期，重新生成」。
+ */
+function BindWechatModal({
+  open,
+  onClose,
+  onSuccess,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onSuccess: () => void;
+}) {
+  const [qr, setQr] = useState('');
+  const [state, setState] = useState<'loading' | 'waiting' | 'expired' | 'error'>('loading');
+  const [reloadKey, setReloadKey] = useState(0);
+  const doneRef = useRef(false);
+
+  useEffect(() => {
+    if (!open) return;
+    let timer: number | undefined;
+    let cancelled = false;
+    doneRef.current = false;
+    setState('loading');
+    setQr('');
+
+    (async () => {
+      try {
+        const ticket = await authApi.createBindTicket();
+        const content = ticket.qrContent || `bind:${ticket.ticketId}`;
+        const url = qrToDataUrl(content, 220);
+        if (cancelled) return;
+        setQr(url);
+        setState('waiting');
+
+        timer = window.setInterval(async () => {
+          try {
+            const res = await authApi.getBindTicket(ticket.ticketId);
+            if (cancelled || doneRef.current) return;
+            if (res.status === 'confirmed') {
+              doneRef.current = true;
+              window.clearInterval(timer);
+              onSuccess();
+            } else if (res.status === 'expired') {
+              window.clearInterval(timer);
+              setState('expired');
+            }
+          } catch {
+            if (cancelled) return;
+            window.clearInterval(timer);
+            setState('expired');
+          }
+        }, 2000);
+      } catch {
+        if (!cancelled) setState('error');
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      if (timer) window.clearInterval(timer);
+    };
+  }, [open, reloadKey, onSuccess]);
+
+  return (
+    <Modal open={open} title="绑定微信" onClose={onClose}>
+      <div className="flex flex-col items-center gap-4 py-2">
+        {state === 'loading' && <Spinner text="正在生成二维码…" />}
+        {state === 'waiting' && qr && (
+          <>
+            <img src={qr} alt="微信扫码绑定二维码" width={220} height={220} />
+            <p className="text-center text-sm text-neutral-600">
+              请打开「药准时」小程序
+              <br />
+              使用「扫一扫」扫描二维码并确认绑定
+            </p>
+          </>
+        )}
+        {(state === 'expired' || state === 'error') && (
+          <>
+            <p className="text-neutral-700">
+              {state === 'expired' ? '二维码已过期，重新生成' : '二维码生成失败，请重试'}
+            </p>
+            <Button
+              onClick={() => {
+                setState('loading');
+                setReloadKey((k) => k + 1);
+              }}
+            >
+              重新生成
+            </Button>
+          </>
+        )}
+      </div>
+    </Modal>
   );
 }

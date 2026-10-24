@@ -14,14 +14,14 @@ export const SMS_SCENES: SmsScene[] = ['register', 'login', 'reset'];
 
 /**
  * 验证码场景定版（V1.3 泛化）：register / login / reset_password / bind。
- * 短信侧历史场景名 'reset' 在服务入口统一归一为 'reset_password'（发送与校验同口径，
- * 既有客户端仍可按 'reset' 调用 /auth/sms/send 与重置密码，不回归）。
+ * 历史/兼容场景名 'reset' 在服务入口统一归一为 'reset_password'（发送与校验同口径，
+ * 短信/邮箱既有客户端与端点均可按 'reset' 或 'reset_password' 调用，两侧自洽不回归）。
  */
-export type CodeScene = 'register' | 'login' | 'reset_password' | 'bind';
+export type CodeScene = 'register' | 'login' | 'reset_password' | 'bind' | 'reset';
 
-export const CODE_SCENES: CodeScene[] = ['register', 'login', 'reset_password', 'bind'];
+export const CODE_SCENES: CodeScene[] = ['register', 'login', 'reset_password', 'bind', 'reset'];
 
-function normalizeScene(scene: SmsScene | CodeScene): CodeScene {
+function normalizeScene(scene: SmsScene | CodeScene): 'register' | 'login' | 'reset_password' | 'bind' {
   return scene === 'reset' ? 'reset_password' : scene;
 }
 
@@ -120,8 +120,9 @@ export class VerificationCodeService {
 
   /** 邮件通道发送。 */
   async sendEmail(email: string, emailHash: string, scene: CodeScene): Promise<{ expiresInSeconds: number }> {
-    return this.issue('mail', emailHash, scene, (code) =>
-      this.mailSender.sendVerificationCode(email, code, scene),
+    const normalized = normalizeScene(scene);
+    return this.issue('mail', emailHash, normalized, (code) =>
+      this.mailSender.sendVerificationCode(email, code, normalized),
     );
   }
 
@@ -171,7 +172,7 @@ export class VerificationCodeService {
 
   /** 邮箱码校验并一次性消费。 */
   async verifyEmailAndConsume(emailHash: string, scene: CodeScene, code: string): Promise<void> {
-    return this.consume('mail', emailHash, scene, code);
+    return this.consume('mail', emailHash, normalizeScene(scene), code);
   }
 
   private async consume(

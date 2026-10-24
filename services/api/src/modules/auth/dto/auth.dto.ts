@@ -1,12 +1,14 @@
 import {
   IsEmail,
   IsIn,
+  IsNotEmpty,
   IsOptional,
   IsString,
   IsUUID,
   Length,
   Matches,
   MaxLength,
+  ValidateIf,
 } from 'class-validator';
 import {
   CODE_SCENES,
@@ -94,11 +96,22 @@ export class LoginDto extends DeviceInfoDto {
 }
 
 export class LoginByCodeDto extends DeviceInfoDto {
+  @ValidateIf((o) => !o.email)
   @Matches(PHONE_REGEX, { message: '手机号格式不正确' })
-  phone!: string;
+  phone?: string;
 
+  @ValidateIf((o) => !o.email)
   @Matches(/^\d{6}$/, { message: '验证码为 6 位数字' })
-  smsCode!: string;
+  smsCode?: string;
+
+  @ValidateIf((o) => !o.phone)
+  @IsEmail({}, { message: '邮箱格式不正确' })
+  @MaxLength(254)
+  email?: string;
+
+  @ValidateIf((o) => !o.phone)
+  @Matches(/^\d{6}$/, { message: '验证码为 6 位数字' })
+  code?: string;
 }
 
 export class RefreshDto {
@@ -115,11 +128,22 @@ export class LogoutDto {
 }
 
 export class ResetPasswordDto {
+  @ValidateIf((o) => !o.email)
   @Matches(PHONE_REGEX, { message: '手机号格式不正确' })
-  phone!: string;
+  phone?: string;
 
+  @ValidateIf((o) => !o.email)
   @Matches(/^\d{6}$/, { message: '验证码为 6 位数字' })
-  smsCode!: string;
+  smsCode?: string;
+
+  @ValidateIf((o) => !o.phone)
+  @IsEmail({}, { message: '邮箱格式不正确' })
+  @MaxLength(254)
+  email?: string;
+
+  @ValidateIf((o) => !o.phone)
+  @Matches(/^\d{6}$/, { message: '验证码为 6 位数字' })
+  code?: string;
 
   @IsString()
   @Length(8, 64)
@@ -199,4 +223,16 @@ export class CreateScanTicketDto extends DeviceInfoDto {}
 export class ConfirmScanTicketDto {
   @IsUUID()
   ticketId!: string;
+}
+
+/** 微信绑定：小程序端确认（需登录态，携带绑定票据与 wx.login 的 code） */
+export class BindWechatConfirmDto {
+  @IsNotEmpty({ message: '绑定票据 ID 不能为空' })
+  @IsUUID('all', { message: '绑定票据 ID 格式不正确' })
+  ticketId!: string;
+
+  @IsNotEmpty({ message: '微信登录凭证 code 不能为空' })
+  @IsString({ message: '微信登录凭证 code 必须为字符串' })
+  @Length(1, 256, { message: '微信登录凭证 code 长度不合法' })
+  code!: string;
 }

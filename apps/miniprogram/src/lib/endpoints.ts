@@ -60,6 +60,12 @@ export const authApi = {
   /** 扫码登录网页版（需登录）：确认当前账号登录 Web 端；票据过期/已被他人确认时后端给出业务提示。 */
   confirmScanTicket: (ticketId: string) =>
     http.post<{ status: 'confirmed'; nickname: string }>('/auth/scan-login/confirm', { ticketId }),
+  /** 扫码确认微信绑定（需登录）：确认将当前微信绑定到网页账号 */
+  confirmBindTicket: (ticketId: string, code: string) =>
+    http.post<{ status: 'confirmed'; bound: boolean }>('/auth/wechat/bind-confirm', {
+      ticketId,
+      code,
+    }),
 };
 
 export const accountApi = {

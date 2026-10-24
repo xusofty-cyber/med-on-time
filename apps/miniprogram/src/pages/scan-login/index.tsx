@@ -31,7 +31,11 @@ export default function ScanLogin() {
   const [ticket, setTicket] = useState<string | null>(initialTicket);
   useEffect(() => {
     if (account) consumePendingScanTicket();
-  }, [account]);
+    if (router.params.t?.startsWith('bind:')) {
+      const bindTicket = router.params.t.slice(5).trim();
+      Taro.redirectTo({ url: `/pages/bind-confirm/index?t=${encodeURIComponent(bindTicket)}` });
+    }
+  }, [account, router.params.t]);
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
   const [scanError, setScanError] = useState('');
@@ -40,7 +44,13 @@ export default function ScanLogin() {
     setScanError('');
     try {
       const res = await Taro.scanCode({ scanType: ['qrCode'] });
-      const t = extractTicket(res.result);
+      const raw = res.result?.trim() || '';
+      if (raw.startsWith('bind:')) {
+        const bindTicket = raw.slice(5).trim();
+        Taro.navigateTo({ url: `/pages/bind-confirm/index?t=${encodeURIComponent(bindTicket)}` });
+        return;
+      }
+      const t = extractTicket(raw);
       if (t) setTicket(t);
       else setScanError('这不是药准时网页版的登录二维码，请重新扫描。');
     } catch {

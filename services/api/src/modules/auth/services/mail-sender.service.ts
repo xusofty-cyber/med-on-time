@@ -22,6 +22,7 @@ register: '注册',
 login: '登录',
 reset_password: '重置密码',
 bind: '绑定邮箱',
+reset: '重置密码',
 };
 
 @Injectable()

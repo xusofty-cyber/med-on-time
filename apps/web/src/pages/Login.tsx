@@ -7,14 +7,18 @@ import { navigate } from '../lib/router';
 import type { AuthResult } from '../lib/types';
 import { Button, Card, ErrorText, Field, TextInput } from '../components/ui';
 import { SmsCodeButton } from '../components/SmsCodeButton';
+import { EmailCodeButton } from '../components/EmailCodeButton';
 import { ApiError } from '../lib/api';
 
 export default function Login() {
   const [mode, setMode] = useState<'password' | 'code' | 'scan'>('password');
+  const [codeChannel, setCodeChannel] = useState<'phone' | 'email'>('phone');
   const [account, setAccount] = useState('');
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [code, setCode] = useState('');
+  const [email, setEmail] = useState('');
+  const [emailCode, setEmailCode] = useState('');
   const [error, setError] = useState<unknown>(null);
   const [busy, setBusy] = useState(false);
 
@@ -49,7 +53,11 @@ export default function Login() {
     setError(null);
     try {
       const result =
-        mode === 'password' ? await authApi.login({ account, password }) : await authApi.loginByCode({ phone, code });
+        mode === 'password'
+          ? await authApi.login({ account, password })
+          : codeChannel === 'phone'
+            ? await authApi.loginByCode({ phone, code })
+            : await authApi.loginByCode({ email, code: emailCode });
       await finishLogin(result);
     } catch (err) {
       if (err instanceof ApiError && err.code === 401) setError(new Error('账号或密码不正确'));
@@ -97,15 +105,47 @@ export default function Login() {
             </>
           ) : (
             <>
-              <Field label="手机号">
-                <TextInput value={phone} onChange={setPhone} placeholder="请输入 11 位手机号" type="tel" required autoComplete="username" />
-              </Field>
-              <Field label="短信验证码">
-                <div className="flex gap-2">
-                  <TextInput value={code} onChange={setCode} placeholder="6 位验证码" type="numeric" required />
-                  <SmsCodeButton phone={phone} scene="login" />
-                </div>
-              </Field>
+              <div className="grid grid-cols-2 gap-2" role="tablist" aria-label="验证码接收方式">
+                <Button
+                  type="button"
+                  variant={codeChannel === 'phone' ? 'primary' : 'ghost'}
+                  onClick={() => setCodeChannel('phone')}
+                >
+                  手机号
+                </Button>
+                <Button
+                  type="button"
+                  variant={codeChannel === 'email' ? 'primary' : 'ghost'}
+                  onClick={() => setCodeChannel('email')}
+                >
+                  邮箱
+                </Button>
+              </div>
+              {codeChannel === 'phone' ? (
+                <>
+                  <Field label="手机号">
+                    <TextInput value={phone} onChange={setPhone} placeholder="请输入 11 位手机号" type="tel" required autoComplete="username" />
+                  </Field>
+                  <Field label="短信验证码">
+                    <div className="flex gap-2">
+                      <TextInput value={code} onChange={setCode} placeholder="6 位验证码" type="numeric" required />
+                      <SmsCodeButton phone={phone} scene="login" />
+                    </div>
+                  </Field>
+                </>
+              ) : (
+                <>
+                  <Field label="邮箱">
+                    <TextInput value={email} onChange={setEmail} placeholder="请输入邮箱地址" type="email" required autoComplete="username" />
+                  </Field>
+                  <Field label="邮箱验证码">
+                    <div className="flex gap-2">
+                      <TextInput value={emailCode} onChange={setEmailCode} placeholder="6 位验证码" type="numeric" required />
+                      <EmailCodeButton email={email} scene="login" />
+                    </div>
+                  </Field>
+                </>
+              )}
             </>
           )}
           <ErrorText error={error} />
@@ -205,9 +245,14 @@ function ScanLoginPanel({ onConfirmed }: { onConfirmed: (result: AuthResult) => 
 
 function ResetPasswordLink() {
   const [open, setOpen] = useState(false);
+  const [channel, setChannel] = useState<'phone' | 'email'>('phone');
   const [phone, setPhone] = useState('');
   const [code, setCode] = useState('');
+  const [email, setEmail] = useState('');
+  const [emailCode, setEmailCode] = useState('');
   const [newPassword, setNewPassword] = useState('');
+  const [busy, setBusy] = useState(false);
+
   if (!open) {
     return (
       <button className="text-neutral-600 underline" onClick={() => setOpen(true)}>
@@ -215,38 +260,94 @@ function ResetPasswordLink() {
       </button>
     );
   }
+
   const submit = async () => {
+    if (channel === 'phone') {
+      if (!phone.trim() || !code.trim()) {
+        actions.toast('error', '请输入手机号与短信验证码');
+        return;
+      }
+    } else {
+      if (!email.trim() || !emailCode.trim()) {
+        actions.toast('error', '请输入邮箱与邮箱验证码');
+        return;
+      }
+    }
+    if (newPassword.length < 8) {
+      actions.toast('error', '新密码至少 8 位');
+      return;
+    }
+    setBusy(true);
     try {
-      await authApi.resetPassword({ phone, code, newPassword });
+      if (channel === 'phone') {
+        await authApi.resetPassword({ phone, code, newPassword });
+      } else {
+        await authApi.resetPassword({ email, code: emailCode, newPassword });
+      }
       actions.toast('success', '密码已重置，请用新密码登录');
       setOpen(false);
     } catch (e) {
       actions.toast('error', e instanceof Error ? e.message : '重置失败');
+    } finally {
+      setBusy(false);
     }
   };
+
   return (
     <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/45 p-4" role="dialog" aria-label="重置密码">
       <div className="w-full max-w-md rounded-2xl bg-white p-5">
         <h2 className="mb-4 text-xl font-semibold text-medgreen-dark">重置密码</h2>
+        <div className="mb-4 grid grid-cols-2 gap-2" role="tablist" aria-label="找回密码方式">
+          <Button
+            type="button"
+            variant={channel === 'phone' ? 'primary' : 'ghost'}
+            onClick={() => setChannel('phone')}
+          >
+            手机号
+          </Button>
+          <Button
+            type="button"
+            variant={channel === 'email' ? 'primary' : 'ghost'}
+            onClick={() => setChannel('email')}
+          >
+            邮箱
+          </Button>
+        </div>
         <div className="flex flex-col gap-4">
-          <Field label="手机号">
-            <TextInput value={phone} onChange={setPhone} type="tel" placeholder="注册手机号" />
-          </Field>
-          <Field label="短信验证码">
-            <div className="flex gap-2">
-              <TextInput value={code} onChange={setCode} placeholder="6 位验证码" />
-              <SmsCodeButton phone={phone} scene="reset" />
-            </div>
-          </Field>
-          <Field label="新密码">
-            <TextInput value={newPassword} onChange={setNewPassword} type="password" placeholder="至少 8 位" />
+          {channel === 'phone' ? (
+            <>
+              <Field label="手机号">
+                <TextInput value={phone} onChange={setPhone} type="tel" placeholder="注册手机号" />
+              </Field>
+              <Field label="短信验证码">
+                <div className="flex gap-2">
+                  <TextInput value={code} onChange={setCode} placeholder="6 位验证码" />
+                  <SmsCodeButton phone={phone} scene="reset" />
+                </div>
+              </Field>
+            </>
+          ) : (
+            <>
+              <Field label="邮箱">
+                <TextInput value={email} onChange={setEmail} type="email" placeholder="注册邮箱地址" />
+              </Field>
+              <Field label="邮箱验证码">
+                <div className="flex gap-2">
+                  <TextInput value={emailCode} onChange={setEmailCode} placeholder="6 位验证码" />
+                  <EmailCodeButton email={email} scene="reset" />
+                </div>
+              </Field>
+            </>
+          )}
+          <Field label="新密码" hint="至少 8 位，须同时包含字母与数字">
+            <TextInput value={newPassword} onChange={setNewPassword} type="password" placeholder="至少 8 位，含字母与数字" />
           </Field>
           <div className="flex gap-2">
             <Button variant="ghost" className="flex-1" onClick={() => setOpen(false)}>
               取消
             </Button>
-            <Button className="flex-1" onClick={submit}>
-              确认重置
+            <Button className="flex-1" disabled={busy} onClick={submit}>
+              {busy ? '重置中…' : '确认重置'}
             </Button>
           </div>
         </div>

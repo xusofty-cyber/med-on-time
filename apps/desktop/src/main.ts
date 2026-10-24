@@ -8,6 +8,7 @@ import {
   ipcMain,
   Menu,
   nativeTheme,
+  net,
   Notification,
   protocol,
   screen,
@@ -68,12 +69,58 @@ const MIME: Record<string, string> = {
   '.webp': 'image/webp',
 };
 
+const HOP_BY_HOP_HEADERS = new Set([
+  'connection',
+  'host',
+  'keep-alive',
+  'proxy-authenticate',
+  'proxy-authorization',
+  'te',
+  'trailer',
+  'transfer-encoding',
+  'upgrade',
+]);
+
+const API_UPSTREAM_ORIGIN = 'https://mot.ulife.vip';
+
 function registerLocalProtocol(webRoot: string): void {
   const rootResolved = path.resolve(webRoot);
   protocol.handle(APP_SCHEME, async (request) => {
     try {
       const url = new URL(request.url);
       if (url.hostname !== APP_HOST) return new Response('not found', { status: 404 });
+
+      // 协议层转发 /api 请求至生产后端，透传方法、请求头、请求体，异常时返回 502
+      if (url.pathname === '/api' || url.pathname.startsWith('/api/')) {
+        const targetUrl = `${API_UPSTREAM_ORIGIN}${url.pathname}${url.search}`;
+        const method = request.method;
+        const headers = new Headers();
+        request.headers.forEach((value, key) => {
+          if (!HOP_BY_HOP_HEADERS.has(key.toLowerCase())) {
+            headers.set(key, value);
+          }
+        });
+
+        const isBodyAllowed = method.toUpperCase() !== 'GET' && method.toUpperCase() !== 'HEAD';
+        const body = isBodyAllowed ? await request.arrayBuffer() : undefined;
+
+        try {
+          return await net.fetch(targetUrl, {
+            method,
+            headers,
+            body,
+          });
+        } catch {
+          return new Response(
+            JSON.stringify({ code: 502, message: '网络不可用，请稍后重试', data: null }),
+            {
+              status: 502,
+              headers: { 'content-type': 'application/json; charset=utf-8' },
+            },
+          );
+        }
+      }
+
       const rel = decodeURIComponent(url.pathname).replace(/^\/+/, '');
       let filePath = path.resolve(rootResolved, rel);
       if (filePath !== rootResolved && !filePath.startsWith(rootResolved + path.sep)) {
@@ -311,6 +358,7 @@ if (!gotLock) {
   app.on('second-instance', () => showMainWindow());
 
   void app.whenReady().then(() => {
+    Menu.setApplicationMenu(null);
     if (target.kind === 'local') registerLocalProtocol(target.webRoot);
     registerIpc();
     applyAutoLaunch(getState().settings.autoLaunch);

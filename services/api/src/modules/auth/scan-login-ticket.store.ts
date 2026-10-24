@@ -1,12 +1,15 @@
 import { Injectable } from '@nestjs/common';
 
 export type ScanTicketStatus = 'pending' | 'confirmed';
+export type ScanTicketPurpose = 'login' | 'bind_wechat';
 
 export interface ScanLoginTicket {
   id: string;
   status: ScanTicketStatus;
   createdAt: number;
   expiresAt: number;
+  purpose?: ScanTicketPurpose;
+  ownerAccountId?: string;
   /** 确认后回填：扫码账号（小程序端已登录账号） */
   accountId?: string;
   /** 票据创建端（Web）登记的设备信息，collect 时用于落会话 */
@@ -39,6 +42,11 @@ export class ScanLoginTicketStore {
       return undefined;
     }
     return ticket;
+  }
+
+  /** 取票据原始记录（不静默清理，供状态查询判断 expired） */
+  getRaw(id: string): ScanLoginTicket | undefined {
+    return this.tickets.get(id);
   }
 
   delete(id: string): void {

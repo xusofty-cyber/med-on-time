@@ -2,15 +2,15 @@
 
 > **定位说明**：本文件记录当前会话的执行断点、已完成改动、真实验证证据及未完成事项，确保跨会话与跨工具切换时上下文无缝衔接。在有意义的任务/会话边界更新，及时清除已完成或过期的历史内容。
 >
-> 最后更新：2026-10-24（全平台系统已上线生产；F1-F4 各批次审查与修复已完成；当前执行 F5 文档一致性修复批次）
+> 最后更新：2026-10-24（微信绑定改走小程序扫码确认完成：后端票据三端点 + Web 设置页扫码弹窗轮询 + 小程序扫码与确认页，构建三连 Exit 0，FIXLOG 已落盘）
 
 ---
 
 ## 一、当前任务概览
 
-- **关联需求 / Issue**：修复 F5：文档一致性全部审查发现（R4-docs.md 共 21 条）
-- **会话目标**：按 `fix-common.md` 共享纪律逐条复核与处理 R4-docs.md 的 21 项文档审查发现，更新过时断言与错误表述，落盘 `FIXLOG-docs.md`（含逐条判定、四类计数与严重级别统计），遵守只改文档不改代码纪律。
-- **当前状态（2026-10-24 午间）**：F5 文档一致性修复批次全部 21 条发现已逐条复核结清（18 条 FIXED，3 条 DEFERRED），FIXLOG-docs.md 已落盘并含全量统计。全仓 Markdown 文档与定版实现及裁定完全自洽。
+- **关联需求 / Issue**：微信绑定改走小程序扫码确认（后端票据 + Web 设置页 + 小程序确认页）
+- **会话目标**：修复 Web 设置页绑定微信向旧端点发空 body 的缺陷，改走小程序扫码确认方案；后端新增绑定票据三端点（内存 store 模式，不改 schema/迁移），Web 弹窗展示 `bind:` 前缀二维码并 2 秒轮询，小程序扫码跳转确认页并用 `wx.login` code 提交绑定，全中文报错与校验。
+- **当前状态（2026-10-24 晚）**：后端、Web、小程序三端全部完成并自测，单元测试通过（24/24 passed），三端生产构建全部 Exit 0，FIXLOG 已落盘至 `~/workspace/agy-delegate/fixlogs/v021-bind-scan.md`。
 
 ---
 
@@ -61,7 +61,11 @@
 
 ## 五、当前断点与后续待执行事项
 
-1. **当前断点（2026-10-24 午间）**：F4 批次（Android + iOS + 桌面端全部 17 条审查发现）已全部按既定纪律修复完毕，FIXLOG-native.md 已完整落盘且包含全量统计。
+1. **当前断点（2026-10-24 晚 · 微信绑定改走小程序扫码确认完成）**：
+   - 后端新增绑定票据三端点（`POST /auth/wechat/bind-tickets`、`GET /auth/wechat/bind-tickets/:id`、`POST /auth/wechat/bind-confirm`），复用内存 store，与既有 scan-login 登录严格隔离，全中文 DTO 校验与冲突提示；
+   - Web 设置页绑定微信改为扫码弹窗，渲染 `bind:` 前缀二维码，2 秒轮询状态并在 confirmed 时刷新账号信息与提示；
+   - 小程序扫码入口扩展支持识别 `bind:` 前缀，无缝跳转至新增绑定确认页，调用 `Taro.login()` 获取 code 确认绑定；
+   - 构建三连全部 Exit 0，FIXLOG 落盘于 `/home/hatch/workspace/agy-delegate/fixlogs/v021-bind-scan.md`。
    **SMTP 已接通（2026-10-23 中午）**：系统发信 = 用户 QQ 邮箱（smtp.qq.com:465，SMTP_URL + SMTP_FROM 已写入服务器 deploy/.env，授权码只存在该文件、未入任何记录）；实发测试成功，用户已用邮箱验证码完成注册登录。注册邮箱不限服务商（代码仅 @IsEmail 格式校验，无域名白名单）。
    **线上巡检与契约修复（2026-10-23 下午，用户报障触发）**：用户报 Web 门户点「照护授权」「设置」白屏，下令逐页逐功能验证。浏览器实测复现：两页均在异步数据返回后整树崩溃；连带发现成员装载失败（今日页误报「还没有成员」、整页刷新即掉登录——启动 catch 因 members 形状抛错清空了登录态）与 Web 手机号注册 100% 失败（registerChannel/强制短信码与 V1.3 裁定脱节，此前交付验收只覆盖邮箱通道，系助手验收疏漏）。根因统一为前后端契约不一致，修复已全部上线并逐项实测：前端 endpoints 建归一化层（members 分组、authorizations 分组+字段映射、sessions/plans/history/stock/checkins/adverse 分页解包、reminders 取 items、adherence 字段重命名+days、stock 逐字段映射、病历页签按后端单条健康概况模型重写为「健康概况」表单）；后端三修（手机号注册 smsCode/registerChannel 改可选并默认 web；不适记录关联服药事件改可选——DB 三列可空、原服务硬校验与定版冲突；提醒实例视图补 R-1 存放位置/附加备注/餐前餐后）；App 加页面级 ErrorBoundary 兜底。实测证据：探针账号带数据逐接口验形状与字段全对齐、不适独立记录创建成功、浏览器全页复验（含授权发起、设置静置、刷新不掉登录、未验证账号接受授权被 40321 拦截的提示）——复验结果见本节后续追记。细节全文见 `docs/dev/INTEGRATION_NOTES.md`「2026-10-23 线上巡检修复」节。残留小瑕疵：会话列表无 current 标记（当前会话亦显示退出按钮）；短信验证码登录/重置仍为网关未接的占位失败；api 包无单元测试文件（jest 零匹配为仓库现状）。
    **巡检追记（2026-10-23 晚）**：客户端全页复验通过（白屏全清、预置数据恢复、授权发起/双账号查看、设置页会话与改名、刷新保活；未验证接受授权被 40321 正确拦截）；复验中新发现「初次登录不装载成员」已修（Login/Register 成功路径补 memberApi.list 装载；同源解释用户最初的「还没有成员」截图），后台巡检第 0 项回归通过。提醒实例经查为次日生成口径（每小时 :05 + 启动补跑，只生成次日实例，幂等实证 10-24 实例存在），非缺陷；「当日新建计划当日未过时刻是否即时生效」待用户拍板是否改口径。后台全页巡检完成（admin 登录初期因浏览器自动填充串号客户端测试账号密码多次失败，用户直接提供 admin 密码后完成）：新发现并已修复上线（hotfix5/5b）——仪表盘形状崩溃（后端 dashboard 对齐 DashboardData）、账号手机号脱敏缺失（补 phoneMasked + 完整号码哈希搜索）、后台关键字搜索参数名 keyword→q 映射、用户侧授权动作镜像落 audit_log（actorType=account）、药品详情用法用量 JSON 直显改 text 正文；冻结/解冻与客户端联动实测通过（拒登提示「账号已被冻结」）。同日完成文档完善轮：新建 docs/HANDOVER.md（接手指南）、docs/dev/ENDS_OVERVIEW.md（各端概要·实建版）、docs/dev/TEST_CASES.md（用例与验证证据），修订文档索引/README/API_CONTRACT 过期口径，DEPLOY.md 补附录 B 生产实况。测试账号（13912345678/13912345679 及探针数据）已于本轮收尾时软删清理。
@@ -133,3 +137,19 @@
 - 云曦复验（2026-10-24 15:4x）：后端 `pnpm --filter @med-on-time/api build` 通过；services/api 对 10:57 快照差分共 57 个文件有改动（含新增 ssrf.util.ts 与 v16 迁移），覆盖 §5–§8 全部目标模块；抽查 #22 计划取消待触发实例、#27 投递前活跃校验、#36 sanitizeHtml 白名单重构，代码均属实。
 - 教训：曾用 `find -newermt` 两次误报「0 个文件变动」（与 stat 实测矛盾，根源未明）——文件变动核查以后以 stat/diff 对照快照为准，单一命令结果不作数。已同步记入助手侧 AGENTS.md。
 - 待办：推送 + 部署（含生产执行 v16 迁移）待负责人拍板并提供 SSH 口令；F5 延后 3 项与 #37 一并待决。
+
+## 追记（2026-10-24 16:4x · 审查修复批次推送 + 部署完成）
+
+- 推送：develop `a44afa2`（179 个文本文件：五批修复 + v16 迁移 + Logo 接线文本文件）+ 补推 `860fdf2`（见下）。Logo 二进制（各端 PNG/ICO）与一处已删的安卓矢量前景图仍未上 GitHub——快照通道只收 UTF-8 文本，二进制须走网页端上传，待后续处理（不影响线上，部署走本地文件直传）。
+- 部署事故与处置：首轮三镜像全挂——F3 改 `apps/miniprogram/package.json` 时删了 `react-dom` 依赖又改 lint 脚本，未同步 `pnpm-lock.yaml`，Docker 内 `pnpm install --frozen-lockfile` 校验失败（本地构建因 node_modules 已装而漏检）。处置：恢复 react-dom 一行（与锁文件对齐，lint 改动保留），补推 `860fdf2` 并同步服务器后重跑，全过。教训：验构建必须包含一次干净的 frozen-lockfile 安装校验，光跑 build 不够。
+- 部署结果：api/web/admin 三镜像串行重建并重启（api healthy）；**v16 迁移已在生产执行成功**（prisma migrate deploy 输出 Applying + All applied；库内 ck_ 约束与两条部分唯一索引 `uq_adherence_daily_stat_whole_member`、`uq_ai_provider_config_active_capability` 实查存在）。
+- 冒烟全过：mot/admin/blog 与 /api/ops/health 均 200；/api/ops/ready 返回 db up + redis up（#41 pingRedis 接线在生产生效）；api 近 10 分钟日志 0 error。
+- 磁盘：构建后一度 90%，已 builder prune 回收约 7GB → 81%（14G 空闲）。
+- 传输备忘：当日 SSH 链路 scp 极不稳定（多次 0 字节落盘），最终靠「逐片传到 scp 报 100% 为止 + 拼包 sha256 校验」走通；口令仅经环境变量临时使用，未落任何记录。
+
+## v0.2.1（2026-10-24，用户实测 v0.2.0 后反馈 9 项）
+- 后端：验证码登录与密码重置双通道（手机短信 + 邮箱；邮箱场景 login/reset）；依从统计口径修正（已有打卡/跳过记录的剂量不被「未到点」门禁排除，提前打卡立即计入）。
+- Web：验证码登录/重置弹窗加手机号/邮箱切换；设置页账号时区改 Select（IANA 列表）；微信绑定改扫码确认全链（后端 bind-tickets 票据 + 状态轮询 + bind-confirm，小程序 bind-confirm 页与 scan-login bind: 路由）。
+- 桌面：medontime:// 协议层把 /api/* 转发 https://mot.ulife.vip（修扫码二维码与密码登录「请求失败（HTTP 200)」同根问题）；Menu.setApplicationMenu(null) 去默认菜单栏；version 0.2.1。
+- 安卓：正式签名接入——keystore 由云曦生成（用户保管原件与密码），4 个 Actions secrets 就绪；build.gradle.kts env 驱动 signingConfigs.release + 工作流解码步；versionCode 2 / versionName 0.2.1。
+- 验收口径：五批 agy 修复（21 项）均经云曦独立重跑构建（api/web/desktop/小程序）+ diff 范围审计 + 关键逻辑抽查；工作流改动经原文逐字节 diff + YAML 解析复验（7232cb0 缩进事故 → 51c3b5b 修正）。

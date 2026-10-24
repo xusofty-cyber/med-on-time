@@ -12,6 +12,7 @@ export default defineAppConfig({
     'pages/notifications/index',
     'pages/settings/index',
     'pages/scan-login/index',
+    'pages/bind-confirm/index',
   ],
   window: {
     backgroundTextStyle: 'light',

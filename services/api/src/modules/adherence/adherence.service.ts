@@ -15,7 +15,7 @@ import {
 
 /**
  * 依从统计（DB 口径冻结）：
- * - 分母（scheduled）只数已到期实例（scheduled_at_utc <= now），cancelled 不计；
+ * - 分母（scheduled）只数已到期实例（scheduled_at_utc <= now）或已有打卡/跳过记录的实例，cancelled 不计；
  * - 补记（is_makeup）计入 taken、不计 on_time；on_time = 窗口内确认且非补记；
  * - missed 与 skipped 分开统计。
  * member_adherence_daily_stat 为预聚合表：写入路径（打卡/跳过/missed 收尾）
@@ -79,8 +79,11 @@ export class AdherenceService {
       ];
       summaryByDate.set(dateStr, targets[0] as Counts);
       planByDatePlan.set(`${dateStr}|${inst.planId}`, targets[1] as Counts);
+      const hasIntake =
+        inst.intakeRecord?.action === 'taken' ||
+        inst.intakeRecord?.action === 'skipped';
       const due = inst.scheduledAtUtc.getTime() <= now.getTime();
-      if (!due) continue;
+      if (!due && !hasIntake) continue;
       for (const c of targets) {
         c.scheduled += 1;
         if (inst.intakeRecord?.action === 'taken') {
@@ -98,7 +101,12 @@ export class AdherenceService {
           }
         }
         if (inst.status === ReminderInstanceStatus.Missed) c.missed += 1;
-        if (inst.status === ReminderInstanceStatus.Skipped) c.skipped += 1;
+        if (
+          inst.status === ReminderInstanceStatus.Skipped ||
+          inst.intakeRecord?.action === 'skipped'
+        ) {
+          c.skipped += 1;
+        }
       }
     }
 

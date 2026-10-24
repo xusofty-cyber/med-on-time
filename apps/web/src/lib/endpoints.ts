@@ -35,7 +35,7 @@ const qs = (params: Record<string, string | number | undefined>) => {
   return s ? `?${s}` : '';
 };
 
-export type EmailCodeScene = 'register' | 'login' | 'reset_password' | 'bind';
+export type EmailCodeScene = 'register' | 'login' | 'reset' | 'reset_password' | 'bind';
 
 /**
  * 契约归一化层（2026-10-23 实测对齐）：后端各列表接口的线上形状并不统一——
@@ -61,9 +61,42 @@ export const authApi = {
   registerByEmail: (body: { email: string; code: string; password: string; nickname?: string; phone?: string }) =>
     http.post<AuthResult>('/auth/register/email', body),
   login: (body: { account: string; password: string }) => http.post<AuthResult>('/auth/login', body),
-  loginByCode: (body: { phone: string; code: string }) => http.post<AuthResult>('/auth/login/code', body),
-  resetPassword: (body: { phone: string; code: string; newPassword: string }) =>
-    http.post<{ ok: boolean }>('/auth/password/reset', body),
+  loginByCode: (
+    body:
+      | { phone: string; code: string; smsCode?: string }
+      | { email: string; code: string },
+  ) => {
+    if ('phone' in body) {
+      return http.post<AuthResult>('/auth/login/code', {
+        phone: body.phone,
+        code: body.code,
+        smsCode: body.smsCode ?? body.code,
+      });
+    }
+    return http.post<AuthResult>('/auth/login/code', {
+      email: body.email,
+      code: body.code,
+    });
+  },
+  resetPassword: (
+    body:
+      | { phone: string; code: string; smsCode?: string; newPassword: string }
+      | { email: string; code: string; newPassword: string },
+  ) => {
+    if ('phone' in body) {
+      return http.post<{ ok: boolean }>('/auth/password/reset', {
+        phone: body.phone,
+        code: body.code,
+        smsCode: body.smsCode ?? body.code,
+        newPassword: body.newPassword,
+      });
+    }
+    return http.post<{ ok: boolean }>('/auth/password/reset', {
+      email: body.email,
+      code: body.code,
+      newPassword: body.newPassword,
+    });
+  },
   logout: () => http.post<{ ok: boolean }>('/auth/logout'),
   /** 扫码登录（小程序确认）：建票 + 轮询取票 */
   createScanTicket: () =>
@@ -75,7 +108,15 @@ export const authApi = {
       `/auth/scan-login/tickets/${ticketId}`,
     ),
   me: () => http.get<Account>('/auth/me'),
-  bindWechat: () => http.post<{ ok: boolean; message?: string }>('/auth/bind/wechat', {}),
+  /** 微信绑定（小程序扫码确认）：建票 + 轮询票据状态 */
+  createBindTicket: () =>
+    http.post<{ ticketId: string; expiresInSeconds: number; qrContent: string }>(
+      '/auth/wechat/bind-tickets',
+    ),
+  getBindTicket: (id: string) =>
+    http.get<{ status: 'pending' | 'confirmed' | 'expired' }>(
+      `/auth/wechat/bind-tickets/${id}`,
+    ),
 };
 
 export const accountApi = {

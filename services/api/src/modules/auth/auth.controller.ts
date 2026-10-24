@@ -8,6 +8,7 @@ import {
 import { AuthService, type RequestContext } from './auth.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import {
+  BindWechatConfirmDto,
   BindWechatDto,
   ConfirmScanTicketDto,
   CreateScanTicketDto,
@@ -150,6 +151,36 @@ export class AuthController {
     @Body() dto: WechatPhoneVerifyDto,
   ) {
     return this.service.verifyPhoneByWechat(user.accountId, dto.phoneCode);
+  }
+
+  /** 微信绑定：Web 建票（需登录态，返回绑定票据及二维码内容，5分钟过期） */
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @Post('wechat/bind-tickets')
+  async createBindTicket(@CurrentUser() user: AuthenticatedUser) {
+    return this.service.createBindTicket(user.accountId);
+  }
+
+  /** 微信绑定：Web 轮询票据状态（需登录态且仅建票本人） */
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @Get('wechat/bind-tickets/:id')
+  async getBindTicket(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+  ) {
+    return this.service.getBindTicket(id, user.accountId);
+  }
+
+  /** 微信绑定：小程序端扫码确认（需登录态，携带绑定票据与 wx.login 的 code） */
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @Post('wechat/bind-confirm')
+  async confirmBindTicket(
+    @CurrentUser() _user: AuthenticatedUser,
+    @Body() dto: BindWechatConfirmDto,
+  ) {
+    return this.service.confirmBindTicket(dto.ticketId, dto.code);
   }
 
   @ApiBearerAuth()

@@ -225,26 +225,59 @@ export class AuthService {
   }
 
   async loginByCode(dto: LoginByCodeDto, ctx: RequestContext): Promise<TokenPair> {
-    const phoneHash = this.phoneCrypto.hashPhone(dto.phone);
-    await this.codes.verifyAndConsume(phoneHash, 'login', dto.smsCode);
-    const account = await this.findAccountByPhoneHash(phoneHash);
-    if (!account) {
+    const hasPhone = Boolean(dto.phone && dto.smsCode);
+    const hasEmail = Boolean(dto.email && dto.code);
+
+    if (!hasPhone && !hasEmail) {
       throw new BusinessException(
-        BusinessCode.NotFound,
-        '该手机号未注册，请先注册',
-        HttpStatus.NOT_FOUND,
+        BusinessCode.BadRequest,
+        '请提供手机号与短信验证码，或邮箱与邮箱验证码',
       );
     }
-    if (!account.phoneVerifiedAt) {
-      throw new BusinessException(
-        AuthBusinessCode.PhoneNotVerified,
-        '该账号手机号未验证，暂不能通过短信验证码登录',
-        HttpStatus.FORBIDDEN,
-      );
+
+    if (hasPhone) {
+      const phoneHash = this.phoneCrypto.hashPhone(dto.phone!);
+      await this.codes.verifyAndConsume(phoneHash, 'login', dto.smsCode!);
+      const account = await this.findAccountByPhoneHash(phoneHash);
+      if (!account) {
+        throw new BusinessException(
+          BusinessCode.NotFound,
+          '该手机号未注册，请先注册',
+          HttpStatus.NOT_FOUND,
+        );
+      }
+      if (!account.phoneVerifiedAt) {
+        throw new BusinessException(
+          AuthBusinessCode.PhoneNotVerified,
+          '该账号手机号未验证，暂不能通过短信验证码登录',
+          HttpStatus.FORBIDDEN,
+        );
+      }
+      this.assertAccountUsable(account);
+      await this.touchLogin(account.id);
+      return this.issueTokens(account, dto, ctx);
+    } else {
+      const email = PhoneCryptoService.normalizeEmail(dto.email!);
+      const emailHash = this.phoneCrypto.hashEmail(email);
+      await this.codes.verifyEmailAndConsume(emailHash, 'login', dto.code!);
+      const account = await this.findAccountByEmailHash(emailHash);
+      if (!account) {
+        throw new BusinessException(
+          BusinessCode.NotFound,
+          '该邮箱未注册，请先注册',
+          HttpStatus.NOT_FOUND,
+        );
+      }
+      if (!account.emailVerifiedAt) {
+        await this.prisma.userAccount.update({
+          where: { id: account.id },
+          data: { emailVerifiedAt: new Date() },
+        });
+      }
+      this.assertAccountUsable(account);
+      await this.touchLogin(account.id);
+      return this.issueTokens(account, dto, ctx);
     }
-    this.assertAccountUsable(account);
-    await this.touchLogin(account.id);
-    return this.issueTokens(account, dto, ctx);
   }
 
   /** refresh 轮换：旧会话吊销后发新对（token rotation，防 refresh 重放）。 */
@@ -295,28 +328,59 @@ export class AuthService {
   }
 
   async resetPassword(dto: ResetPasswordDto): Promise<void> {
-    const phoneHash = this.phoneCrypto.hashPhone(dto.phone);
-    await this.codes.verifyAndConsume(phoneHash, 'reset', dto.smsCode);
-    const account = await this.findAccountByPhoneHash(phoneHash);
-    if (!account) {
+    const hasPhone = Boolean(dto.phone && dto.smsCode);
+    const hasEmail = Boolean(dto.email && dto.code);
+
+    if (!hasPhone && !hasEmail) {
       throw new BusinessException(
-        BusinessCode.NotFound,
-        '该手机号未注册',
-        HttpStatus.NOT_FOUND,
+        BusinessCode.BadRequest,
+        '请提供手机号与短信验证码，或邮箱与邮箱验证码',
       );
     }
-    // V1.3 三受限之二：手机号未验证的账号不得走短信找回密码（防冒用号码改密）。
-    if (!account.phoneVerifiedAt) {
-      throw new BusinessException(
-        AuthBusinessCode.PhoneNotVerified,
-        '该账号手机号未验证，暂不能通过短信重置密码',
-        HttpStatus.FORBIDDEN,
-      );
+
+    let account: UserAccount;
+    if (hasPhone) {
+      const phoneHash = this.phoneCrypto.hashPhone(dto.phone!);
+      await this.codes.verifyAndConsume(phoneHash, 'reset', dto.smsCode!);
+      const found = await this.findAccountByPhoneHash(phoneHash);
+      if (!found) {
+        throw new BusinessException(
+          BusinessCode.NotFound,
+          '该手机号未注册',
+          HttpStatus.NOT_FOUND,
+        );
+      }
+      // V1.3 三受限之二：手机号未验证的账号不得走短信找回密码（防冒用号码改密）。
+      if (!found.phoneVerifiedAt) {
+        throw new BusinessException(
+          AuthBusinessCode.PhoneNotVerified,
+          '该账号手机号未验证，暂不能通过短信重置密码',
+          HttpStatus.FORBIDDEN,
+        );
+      }
+      account = found;
+    } else {
+      const email = PhoneCryptoService.normalizeEmail(dto.email!);
+      const emailHash = this.phoneCrypto.hashEmail(email);
+      await this.codes.verifyEmailAndConsume(emailHash, 'reset', dto.code!);
+      const found = await this.findAccountByEmailHash(emailHash);
+      if (!found) {
+        throw new BusinessException(
+          BusinessCode.NotFound,
+          '该邮箱未注册',
+          HttpStatus.NOT_FOUND,
+        );
+      }
+      account = found;
     }
+
     const passwordHash = await argon2.hash(dto.newPassword, { type: argon2.argon2id });
     await this.prisma.userAccount.update({
       where: { id: account.id },
-      data: { passwordHash },
+      data: {
+        passwordHash,
+        ...(!account.emailVerifiedAt && hasEmail ? { emailVerifiedAt: new Date() } : {}),
+      },
     });
     // 改密后全部会话吊销，强制各端重新登录
     await this.sessions.revokeAllSessions(account.id);
@@ -558,6 +622,7 @@ export class AuthService {
     this.scanTickets.create({
       id: ticketId,
       status: 'pending',
+      purpose: 'login',
       createdAt: now,
       expiresAt: now + SCAN_TICKET_TTL_MS,
       platform: device.platform ?? 'web',
@@ -580,7 +645,7 @@ export class AuthService {
     ctx: RequestContext,
   ): Promise<{ status: 'pending' } | ({ status: 'confirmed' } & TokenPair)> {
     const ticket = this.scanTickets.get(ticketId);
-    if (!ticket) {
+    if (!ticket || ticket.purpose === 'bind_wechat') {
       throw new BusinessException(
         BusinessCode.NotFound,
         '登录二维码不存在或已过期，请刷新',
@@ -616,7 +681,7 @@ export class AuthService {
     accountId: string,
   ): Promise<{ status: 'confirmed'; nickname: string }> {
     const ticket = this.scanTickets.get(ticketId);
-    if (!ticket) {
+    if (!ticket || ticket.purpose === 'bind_wechat') {
       throw new BusinessException(
         BusinessCode.NotFound,
         '登录二维码不存在或已过期，请在网页端刷新',
@@ -644,6 +709,91 @@ export class AuthService {
     ticket.status = 'confirmed';
     ticket.accountId = accountId;
     return { status: 'confirmed', nickname: account.nickname };
+  }
+
+  /* ---------------- 微信绑定改走小程序扫码确认 ----------------
+   * Web 建票出示二维码（内容以 bind: 开头） → 小程序扫码进入绑定确认页
+   * → 小程序 wx.login 换取 code 调 /auth/wechat/bind-confirm 绑定到 Web 账号
+   * → Web 轮询 /auth/wechat/bind-tickets/:id 获知 confirmed 后刷新资料 */
+
+  async createBindTicket(accountId: string): Promise<{
+    ticketId: string;
+    expiresInSeconds: number;
+    qrContent: string;
+  }> {
+    const account = await this.findAccountById(accountId);
+    if (!account) {
+      throw new BusinessException(BusinessCode.Unauthorized, '账号不存在', HttpStatus.UNAUTHORIZED);
+    }
+    this.assertAccountUsable(account);
+    const ticketId = randomUUID();
+    const now = Date.now();
+    this.scanTickets.create({
+      id: ticketId,
+      status: 'pending',
+      purpose: 'bind_wechat',
+      ownerAccountId: accountId,
+      createdAt: now,
+      expiresAt: now + SCAN_TICKET_TTL_MS,
+    });
+    return {
+      ticketId,
+      expiresInSeconds: Math.floor(SCAN_TICKET_TTL_MS / 1000),
+      qrContent: `bind:${ticketId}`,
+    };
+  }
+
+  async getBindTicket(
+    ticketId: string,
+    currentAccountId: string,
+  ): Promise<{ status: 'pending' | 'confirmed' | 'expired' }> {
+    const ticket = this.scanTickets.getRaw(ticketId);
+    if (!ticket || ticket.purpose !== 'bind_wechat') {
+      return { status: 'expired' };
+    }
+    if (ticket.ownerAccountId && ticket.ownerAccountId !== currentAccountId) {
+      throw new BusinessException(
+        BusinessCode.Forbidden,
+        '无权查看此绑定票据',
+        HttpStatus.FORBIDDEN,
+      );
+    }
+    if (Date.now() > ticket.expiresAt) {
+      this.scanTickets.delete(ticketId);
+      return { status: 'expired' };
+    }
+    return { status: ticket.status };
+  }
+
+  async confirmBindTicket(
+    ticketId: string,
+    code: string,
+  ): Promise<{ status: 'confirmed'; bound: boolean }> {
+    const ticket = this.scanTickets.get(ticketId);
+    if (!ticket || ticket.purpose !== 'bind_wechat') {
+      throw new BusinessException(
+        BusinessCode.NotFound,
+        '绑定二维码不存在或已过期，请在网页端重新生成',
+        HttpStatus.NOT_FOUND,
+      );
+    }
+    if (ticket.status === 'confirmed') {
+      throw new BusinessException(
+        BusinessCode.Conflict,
+        '该二维码已完成绑定，请勿重复操作',
+        HttpStatus.CONFLICT,
+      );
+    }
+    if (!ticket.ownerAccountId) {
+      throw new BusinessException(
+        BusinessCode.BadRequest,
+        '票据信息不完整',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+    const result = await this.bindWechat(ticket.ownerAccountId, code);
+    ticket.status = 'confirmed';
+    return { status: 'confirmed', bound: result.bound };
   }
 
   private async issueTokens(

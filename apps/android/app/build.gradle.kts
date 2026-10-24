@@ -13,8 +13,8 @@ android {
         applicationId = "com.medontime.app"
         minSdk = 26
         targetSdk = 34
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = 2
+        versionName = "0.2.1"
 
         // API 基地址默认值：模拟器访问宿主机用 10.0.2.2；真机/局域网在 App「设置」里改，
         // 运行时以 DataStore 中保存的地址为准（见 ApiProvider / AppSettings）。
@@ -22,8 +22,25 @@ android {
         vectorDrawables { useSupportLibrary = true }
     }
 
+    // 发布签名：仅当 CI 注入 ANDROID_KEYSTORE_FILE 等环境变量时启用（keystore 由 secrets 解码到临时目录）；
+    // 本地无这些变量时不配置，assembleRelease 仍产未签名包，不影响本地构建。
+    signingConfigs {
+        create("release") {
+            val ksFile = System.getenv("ANDROID_KEYSTORE_FILE")
+            if (ksFile != null) {
+                storeFile = file(ksFile)
+                storePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("ANDROID_KEY_ALIAS")
+                keyPassword = System.getenv("ANDROID_KEY_PASSWORD")
+            }
+        }
+    }
+
     buildTypes {
         release {
+            if (System.getenv("ANDROID_KEYSTORE_FILE") != null) {
+                signingConfig = signingConfigs.getByName("release")
+            }
             isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
