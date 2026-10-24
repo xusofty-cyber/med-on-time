@@ -18,3 +18,9 @@ coverage/
 
 # Taro/SWC 编译缓存
 .swc/
+
+# 本地缓存/构建产物与备份（不对齐进仓）
+.pnpm-store/
+.gradle/
+.kotlin/
+deploy/backups/
