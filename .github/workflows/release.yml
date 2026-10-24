@@ -102,11 +102,11 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.7'
-      - name: 解码签名 keystore
+          - name: 解码签名 keystore
     env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
         run: |
-          echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/medontime-release.jks"
+      echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/medontime-release.jks"
               echo "ANDROID_KEYSTORE_FILE=$RUNNER_TEMP/medontime-release.jks" >> "$GITHUB_ENV"
       - name: 构建 Release APK（正式签名）
         working-directory: apps/android
