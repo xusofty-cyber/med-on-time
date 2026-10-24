@@ -8,6 +8,7 @@ import { ConfigService } from '@nestjs/config';
 import { AccountStatus } from '@med-on-time/shared';
 import { PrismaService } from '../../prisma/prisma.service';
 import { DEV_ACCESS_SECRET_FALLBACK, verifyJwt } from '../utils/jwt';
+import { isSessionRevoked } from '../../modules/auth/services/session.service';
 import type { AuthenticatedUser } from '../decorators/current-user.decorator';
 
 /**
@@ -43,12 +44,20 @@ export class JwtAuthGuard implements CanActivate {
     if (!secret) throw new UnauthorizedException('jwt secret not configured');
 
     let accountId: string;
+    let sessionId: string | undefined;
+    let tokenIat: number | undefined;
     try {
       const payload = verifyJwt(header.slice('Bearer '.length), secret);
       if (payload.type !== 'user') throw new Error('not a user token');
       accountId = payload.sub;
+      sessionId = payload.sid;
+      tokenIat = payload.iat;
     } catch {
       throw new UnauthorizedException('invalid or expired token');
+    }
+
+    if (isSessionRevoked(sessionId, accountId, tokenIat)) {
+      throw new UnauthorizedException('session has been revoked');
     }
 
     const account = await this.prisma.userAccount.findFirst({

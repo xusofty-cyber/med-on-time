@@ -30,13 +30,13 @@
 | 层级 / 领域 | 技术栈与版本 | 说明与关键库 |
 |---|---|---|
 | **包管理 / Monorepo** | pnpm 9 | `apps/*`、`packages/*`、`services/*` |
-| **后端** | Node.js 20 LTS + NestJS 10 + Prisma 5 | 模块化单体分层；BullMQ + Redis 7 做提醒延迟队列 |
-| **后台 / Web 前端** | React 18 + Vite；后台 Ant Design 5 + ProComponents，Web 端 Tailwind CSS + Zustand | 后台 React Router v6 + ECharts；Web 响应式同一套代码，PWA 为 P1 |
+| **后端** | Node.js 20 LTS（生产容器 node:22-alpine）+ NestJS 10 + Prisma 5 | 模块化单体分层；BullMQ + Redis 7 做提醒延迟队列 |
+| **后台 / Web 前端** | React 18 + Vite；后台 Ant Design 5，Web 端 Tailwind CSS | 后台 React Router v6（ECharts 规划）；Web 原生轻量状态，响应式同一套代码，PWA 为 P1 |
 | **小程序** | Taro 4（React 写法） | 编译到微信小程序 |
 | **移动端** | Android Kotlin + Jetpack；iOS Swift + SwiftUI | 推送 APNs/FCM；国内安卓极光·JPush 聚合 |
 | **桌面端** | Electron（复用 `apps/web`） | Windows / Linux / macOS |
-| **持久化与缓存** | PostgreSQL 15+（生产 PG 16 容器）+ Redis 7 | **56 张表 / 9 个域**（DB 设计 V1.2 定稿）；UUIDv7 主键；大表按月分区 |
-| **接口与中间件** | RESTful over HTTPS（已定），OpenAPI 为唯一契约 | TS 客户端由契约生成（orval）；事件总线待定 |
+| **持久化与缓存** | PostgreSQL 15+（生产 PG 16 容器）+ Redis 7 | **58 张表 / 9 个域**（DB 设计 V1.2 基线 56 表，经 V1.4 `ai_provider_config` 与 V1.5 `oa_article` 演进为 58 表）；UUIDv7 主键；大表按月分区 |
+| **接口与中间件** | RESTful over HTTPS（已定），OpenAPI 为唯一契约 | 各端手写 `endpoints.ts` 归一化适配层（orval 生成为规划项） |
 
 ---
 
@@ -52,8 +52,8 @@
   - `packages/shared/`：共享类型、枚举（与 DB 枚举速查对齐）、常量、工具函数
   - `packages/api-client/`：各端共用的 API 客户端 SDK
   - `services/api/`：后端 API + 提醒引擎
-  - `docs/`：设计文档索引；架构文档 `docs/architecture/TECH_ARCHITECTURE.md`（V1.0 待评审）
-  - `tests/`：待建（随各端脚手架落地）
+  - `docs/`：设计文档索引；架构文档 `docs/architecture/TECH_ARCHITECTURE.md`（V1.5 已确认冻结）
+  - `tests/`：待补齐端到端自动化测试（业务逻辑与静态验证已就绪）
 
 ---
 
@@ -76,11 +76,11 @@
 - **2026-10-20**：[Monorepo 结构]
   - **背景**：六端用户端 + 后台 + 共用后端，需统一协作。
   - **决策**：pnpm workspace Monorepo：`apps/*`（6 端）、`packages/*`（shared、api-client）、`services/api`、docs。
-  - **影响**：各端技术选型仍待定，目录 README 标注候选。
+  - **影响**：各端技术选型已在 TECH_ARCHITECTURE.md V1.5 冻结并落地代码。
 - **2026-10-20**：[持久层选型]
   - **背景**：需支撑成员、授权、提醒实例、依从性聚合等复杂模型。
-  - **决策**：PostgreSQL 15+，34 张表 / 8 个域，UUIDv7 主键，软删除。
-  - **影响**：迁移工具选型待定；提醒/投递/审计大表按月分区。
+  - **决策**：PostgreSQL 15+，基线 56 张表 / 9 个域（当前代码 Schema 演进为 58 表），UUIDv7 主键，软删除。
+  - **影响**：采用 Prisma 5 作为迁移与 ORM 工具；提醒/投递/审计大表按月分区。
 - **2026-10-20**：[成员独立建模]
   - **背景**：一个账号管全家，成员可能是老人/孩子（无独立账号）。
   - **决策**：`member` 独立成表，账号持有人本人也是 `relationship=self` 的一条成员记录；用药计划、病历、打卡一律归属成员 ID。
@@ -93,13 +93,13 @@
 - **2026-10-20**：[AI 健康助手集成]
   - **背景**：已有用户上传病历功能，需配套 AI 解读、症状分析与方案建议，各端统一对接。
   - **决策**：产品内称「AI 健康助手」（不叫 AI 诊病）；后端新增 `ai` 网关模块，各端只调网关、严禁直连模型厂商；AI 只出草案/建议，用户确认后才转正式计划；急症信号中断并提示就医/120；P1 基础版、P2 增强。详见 `docs/architecture/TECH_ARCHITECTURE.md` §3.4 与两份需求文档 V1.2。
-  - **影响**：DB 设计升级 V1.1（新增 AI 表）；模型路线（第三方/私有化）待定。
+  - **影响**：DB 设计升级 V1.2（56 表），演进后 58 表；模型通道已完成 POC-2 GLM-4 评测。
 - **2026-10-20**：[技术架构方案 V1.0]
   - **背景**：各端（后台/Web/小程序/Android/iOS/PC/后端）需冻结技术选型，要求成熟稳定、经大型项目验证。
-  - **决策**：后端 NestJS 10 + Prisma 5 + BullMQ/Redis；后台 React + Ant Design 5；Web 端 React + Tailwind（响应式）；小程序 Taro 4；Android Kotlin + Jetpack；iOS Swift + SwiftUI；桌面端 Electron（复用 Web）；契约优先（OpenAPI → orval 生成客户端）。详见 `docs/architecture/TECH_ARCHITECTURE.md`。
+  - **决策**：后端 NestJS 10 + Prisma 5 + BullMQ/Redis；后台 React + Ant Design 5；Web 端 React + Tailwind（响应式）；小程序 Taro 4；Android Kotlin + Jetpack；iOS Swift + SwiftUI；桌面端 Electron（复用 Web）；契约优先。详见 `docs/architecture/TECH_ARCHITECTURE.md`。
   - **影响**：AGENTS.md 命令与技术栈表已回填；各端脚手架按此选型生成；选型变更需走 ADR 并同步三文档。
 - **2026-10-20**：[设计文档版本冻结基线]
   - **背景**：需求先行，代码未动。
-  - **决策**：后台需求 V1.1、用户端需求 V1.1、数据库设计 V1.0 为当前基线；三份文档末尾的待确认问题（7+10+8）拍板后升级版本。
+  - **决策**：后台需求 V1.5、用户端需求 V1.8、数据库设计 V1.2（演进至 58 表）、技术架构 V1.5（已确认冻结）、UI 规范 V1.0 为定稿基线。
 
 > 决策来源：`docs/` 索引的三份设计文档（PDF 原件走 GitHub Releases 发布）。

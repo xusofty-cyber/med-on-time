@@ -11,22 +11,23 @@
   - `member`：成员 CRUD（上限 10/账号）、关怀设置（system_config KV：member_care_settings:<memberId>）、成员列表 `{own, authorized}` 分组口径。
   - `authorization`：照护授权全生命周期（上限 5 照护人/成员）、authorization_log 双记录、接受时 V1.3 三受限校验（40321/40910）。
   - `drug`：药品检索（trgm 模糊）、说明书详情、相互作用（说明书结构化字段 + ONC 硬检）；seed 为 `prisma/seeds/drug_seed_200.json`（182 approved / 18 pending_review）。
-  - `plan`：计划与条目/阶段、frequency_rule 定版校验、变更历史（双记）、cycle 覆盖（KV plan_cycle_override:<planId>）。
-  - `reminder`：实例生成（每小时 :05 节拍 + 启动补跑；按成员时区生成**次日**实例，幂等键 + 唯一约束兜底）、投递 Worker（cycle 重复提醒、snooze、missed 扫描）、实例视图含 R-1 字段（plan.storageLocation/additionalNote、planItem.mealRelation）。
+  - `plan`：计划与条目/阶段、frequency_rule 定版校验、变更历史（双记）、cycle 覆盖（KV plan_cycle_override:<planId>）与 strongAlertMode 强提醒覆盖。
+  - `reminder`：实例生成（每小时 :05 节拍 + 启动补跑预生成次日实例，且计划变更时当日即时补生成 generateTodayUpcoming，幂等键 + 唯一约束兜底）、投递 Worker（cycle 重复提醒、snooze、missed 扫描）、实例视图含 R-1 字段（plan.storageLocation/additionalNote、planItem.mealRelation）。
   - `checkin` / `adherence`：打卡落 intake_record（扣库存 + 刷新依从）、汇总/日历口径（成员本地墙钟）。
   - `stock`：成员药品库存、adjust 流水、到期/低库存预警（视图字段 memberMedicationId/drug/alerts/expiryStatus/estimatedDaysLeft）。
   - `ehr`：过敏档案（GET/PUT 整体替换，drug/drug_category 结构化引用校验）、不适记录（关联服药事件**可选**）、紧急联系人（上限 3，电话加密存、明文回显本人视图）、健康概况（单条 upsert，summary 加密）。
-  - `notification`：站内通知、渠道偏好（KV notification_prefs:<accountId>；开短信须手机号已验证 40320）、短信/微信发送桩（网关未接）。
+  - `notification`：站内通知、渠道偏好（KV notification_prefs:<accountId>；开短信须手机号已验证 40320）、短信为 dev stub、微信小程序一次性订阅消息已实现真实下发。
   - `content`：文章（简/繁/英内容组）、协议版本。
-  - `admin`：后台全域（登录、仪表盘、账号冻结/解冻、药品双人核验、计划监管、内容、纠纷裁决、审计、应用版本、seed 导入）。
-  - `ai`：网关占位——未过 POC-2 评测与外部医学审校前一律返回「未开通」。
-  - `ops`：/ops/health、/ops/ready。
-- **数据**：Prisma schema 为模型权威（56 表）；迁移在 `prisma/migrations/`（基线 + 约束分区 + V1.3 auth 通道，共 3 段，均已在生产实跑）。
+  - `admin`：后台全域（登录、仪表盘、账号冻结/解冻、药品双人核验、计划监管、内容、公众号文章管理、大模型配置、纠纷裁决、审计、应用版本、seed 导入）。
+  - `ai`：网关占位——未过 POC-2 评测与外部医学审校前一律返回「未开通」（40310）。
+  - `wechat-oa`：微信公众号文章草稿管理与微信草稿箱同步（local/synced/dirty 三态）。
+  - `ops`：/ops/health、/ops/ready、/ops/metrics。
+- **数据**：Prisma schema 为模型权威（58 表）；迁移在 `prisma/migrations/`（基线 + 约束分区 + V1.3~V1.5 迁移，共 5 段，均已在生产实跑）。
 - **构建/运行**：`pnpm --filter @med-on-time/api build` → `node dist/src/main.js`；生产镜像运行阶段须 `prisma generate`（pnpm deploy 产物不带生成客户端）。
 
 ## 二、后台管理 apps/admin（React 18 + Ant Design 5 + Vite）
 
-- 路由：/dashboard /accounts /members /drugs /plans /content（文章 + 协议双页签）/disputes /audit /system/app-versions；React Router + 受保护布局。
+- 路由：/dashboard /accounts /members /drugs /plans /content（文章/协议/公众号文章多页签）/disputes /audit /system/app-versions /system/ai-providers；React Router + 受保护布局。
 - 接口层：`src/api/admin.ts` + `src/services/request.ts`——全程 PageData `{items,total}` 口径消费（与后端口径一致），ProTable 适配在 request 层完成。
 - 权限：管理员独立 JWT（aud=admin），角色 super_admin/operator/cs_agent/medical_reviewer；药品核验为双人两段（reviewer ≠ verifier）。
 - 构建：独立 Dockerfile，nginx 静态站 + /api 反代（透传路径不剥前缀）。
@@ -41,8 +42,8 @@
 
 ## 四、微信小程序 apps/miniprogram（Taro 4）
 
-- 四 tab：今日提醒 / 计划 / 成员 / 我的 + 打卡与计划编辑页；登录走 wx.login + getPhoneNumber（微信核验手机号 = 真验证，见 AUTH_CHANNELS.md）。
-- 状态：源码就绪；**未实测**——缺正式 appid/secret（现 touristappid）、订阅消息模板 ID、微信侧合法域名配置。
+- 四 tab：今日提醒 / 计划 / 成员 / 我的 + 打卡与计划编辑页；登录走 wx.login + getPhoneNumber（微信核验手机号 = 真验证，见 AUTH_CHANNELS.md）；已支持扫码确认登录 Web（pages/scan-login）与拍照识药入口。
+- 状态：体验版 1.0.6 已上线（正式 AppID `wxfc47179d51798ba2` 与一次性订阅消息模板已配齐）；真机登录/扫码/打卡提醒联调通过，待正式提审发布。
 
 ## 五、桌面端 apps/desktop（Electron）
 
@@ -51,8 +52,8 @@
 
 ## 六、Android（Kotlin + Jetpack Compose）/ iOS（Swift + SwiftUI）
 
-- 五模块：登录 / 今日提醒 / 打卡 / 计划 / 我的；Retrofit（Android）/ URLSession（iOS）调同一套 /api；本地提醒兜底（WorkManager / 本地通知）。
-- 状态：完整工程源码就绪；**未经真机/SDK 编译验证**（开发环境无 Android SDK / Xcode），接手后第一件事应为两端各跑一次真机构建冒烟。
+- 五模块：登录 / 今日提醒 / 打卡 / 计划 / 我的；Retrofit（Android）/ URLSession（iOS）调同一套 /api；本地提醒兜底（WorkManager / 本地通知），安卓端支持 AlarmRingActivity 全屏闹钟与 VoiceAnnouncer 强提醒。
+- 状态：两端源码已在 GitHub Actions（`.github/workflows/release.yml`）跑通 Release 构建与编译验证；真机运行时环境下的业务端到端联调待安排。
 
 ## 七、跨端共同口径
 

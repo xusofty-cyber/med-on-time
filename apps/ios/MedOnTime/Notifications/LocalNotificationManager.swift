@@ -1,3 +1,4 @@
+import AVFoundation
 import Foundation
 import UserNotifications
 
@@ -10,6 +11,9 @@ final class LocalNotificationManager {
     static let snoozeActionIdentifier = "ACTION_SNOOZE"
     static let instanceIdUserInfoKey = "instanceId"
     static let memberIdUserInfoKey = "memberId"
+    static let strongAlertModeUserInfoKey = "strongAlertMode"
+    static let showDetailUserInfoKey = "showDetail"
+    static let drugNameUserInfoKey = "drugName"
     private static let identifierPrefix = "reminder-"
 
     private let center = UNUserNotificationCenter.current()
@@ -42,13 +46,18 @@ final class LocalNotificationManager {
             let ours = requests.map(\.identifier).filter { $0.hasPrefix(Self.identifierPrefix) }
             self.center.removePendingNotificationRequests(withIdentifiers: ours)
 
+            let strongMode = careSettings?.strongAlertMode ?? .none
             let showDetail = careSettings?.lockScreenShowDrugDetail ?? false
             let now = Date()
             for instance in instances {
                 guard instance.status.isActionable, instance.scheduledAtUtc > now else { continue }
                 let content = UNMutableNotificationContent()
                 content.title = "服药提醒"
-                content.sound = .default
+                if strongMode == .alarm {
+                    content.sound = .defaultCritical
+                } else {
+                    content.sound = .default
+                }
                 content.categoryIdentifier = Self.categoryIdentifier
                 if showDetail {
                     content.body = "\(instance.drugNameSnapshot) \(instance.doseText)，到时间服药了，点击查看详情"
@@ -58,6 +67,9 @@ final class LocalNotificationManager {
                 content.userInfo = [
                     Self.instanceIdUserInfoKey: instance.id,
                     Self.memberIdUserInfoKey: instance.memberId,
+                    Self.strongAlertModeUserInfoKey: strongMode.rawValue,
+                    Self.showDetailUserInfoKey: showDetail,
+                    Self.drugNameUserInfoKey: instance.drugNameSnapshot,
                 ]
                 // 按成员时区墙钟触发（trigger 自带时区，避免设备时区变化导致错位）。
                 let timeZone = TimeZone(identifier: instance.timezone) ?? .current
@@ -91,7 +103,23 @@ final class LocalNotificationDelegate: NSObject, UNUserNotificationCenterDelegat
         _ center: UNUserNotificationCenter,
         willPresent notification: UNNotification
     ) async -> UNNotificationPresentationOptions {
-        [.banner, .list, .sound]
+        let userInfo = notification.request.content.userInfo
+        let mode = userInfo[LocalNotificationManager.strongAlertModeUserInfoKey] as? String
+        let showDetail = userInfo[LocalNotificationManager.showDetailUserInfoKey] as? Bool ?? false
+        let drugName = userInfo[LocalNotificationManager.drugNameUserInfoKey] as? String ?? ""
+
+        if mode == StrongAlertMode.voice.rawValue {
+            let speechText: String
+            if showDetail && !drugName.isEmpty {
+                speechText = "服药时间到了，请按时服用 \(drugName)"
+            } else {
+                speechText = "服药时间到了，请按时服药"
+            }
+            await MainActor.run {
+                VoiceAnnouncer.shared.speak(text: speechText)
+            }
+        }
+        return [.banner, .list, .sound]
     }
 
     func userNotificationCenter(
@@ -100,6 +128,7 @@ final class LocalNotificationDelegate: NSObject, UNUserNotificationCenterDelegat
     ) async {
         let userInfo = response.notification.request.content.userInfo
         guard let instanceId = userInfo[LocalNotificationManager.instanceIdUserInfoKey] as? String else { return }
+        let memberId = userInfo[LocalNotificationManager.memberIdUserInfoKey] as? String
         let action: ReminderActionKind
         switch response.actionIdentifier {
         case LocalNotificationManager.takeActionIdentifier:
@@ -110,7 +139,21 @@ final class LocalNotificationDelegate: NSObject, UNUserNotificationCenterDelegat
             action = .open
         }
         await MainActor.run {
-            DeepLinkRouter.shared.handleNotification(instanceId: instanceId, action: action)
+            DeepLinkRouter.shared.handleNotification(instanceId: instanceId, memberId: memberId, action: action)
         }
+    }
+}
+
+/// 语音播报合成器（前台强提醒 voice 模式）。
+@MainActor
+final class VoiceAnnouncer {
+    static let shared = VoiceAnnouncer()
+    private let synthesizer = AVSpeechSynthesizer()
+
+    func speak(text: String) {
+        let utterance = AVSpeechUtterance(string: text)
+        utterance.voice = AVSpeechSynthesisVoice(language: "zh-CN")
+        utterance.rate = AVSpeechUtteranceDefaultSpeechRate
+        synthesizer.speak(utterance)
     }
 }

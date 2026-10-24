@@ -4,6 +4,16 @@
  * shared 未收录的后台域枚举（药品核验、文章/协议状态、工单裁决、审计、应用版本）
  * 按 services/api/prisma/schema.prisma 字段注释登记于此，禁止自创取值。
  */
+import {
+  AccountStatus,
+  AppLocale,
+  AuthorizationStatus,
+  CaregiverLevel,
+  ConsentDocType,
+  OperatorType,
+  PlanStatus,
+  PlanType,
+} from '@med-on-time/shared';
 
 export interface StatusMeta {
   text: string;
@@ -32,10 +42,10 @@ function enumOf(map: Record<string, StatusMeta>): Record<string, { text: string 
 
 /** user_account.status（shared AccountStatus） */
 export const accountStatusMap: Record<string, StatusMeta> = {
-  active: { text: '正常', color: 'green' },
-  frozen: { text: '已冻结', color: 'red' },
-  cancelling: { text: '注销冷静期', color: 'orange' },
-  cancelled: { text: '已注销', color: 'default' },
+  [AccountStatus.Active]: { text: '正常', color: 'green' },
+  [AccountStatus.Frozen]: { text: '已冻结', color: 'red' },
+  [AccountStatus.Cancelling]: { text: '注销冷静期', color: 'orange' },
+  [AccountStatus.Cancelled]: { text: '已注销', color: 'default' },
 };
 export const accountStatusMeta = meta(accountStatusMap);
 export const accountStatusEnum = enumOf(accountStatusMap);
@@ -77,20 +87,20 @@ export const genderText = text({ male: '男', female: '女', unknown: '未知' }
 
 /** caregiver_authorization.status（shared AuthorizationStatus） */
 export const authorizationStatusMap: Record<string, StatusMeta> = {
-  pending_accept: { text: '待接受', color: 'orange' },
-  active: { text: '生效中', color: 'green' },
-  suspended: { text: '已暂停', color: 'gold' },
-  revoked: { text: '已撤销', color: 'red' },
-  expired: { text: '已过期', color: 'default' },
-  rejected: { text: '已拒绝', color: 'default' },
+  [AuthorizationStatus.PendingAccept]: { text: '待接受', color: 'orange' },
+  [AuthorizationStatus.Active]: { text: '生效中', color: 'green' },
+  [AuthorizationStatus.Suspended]: { text: '已暂停', color: 'gold' },
+  [AuthorizationStatus.Revoked]: { text: '已撤销', color: 'red' },
+  [AuthorizationStatus.Expired]: { text: '已过期', color: 'default' },
+  [AuthorizationStatus.Rejected]: { text: '已拒绝', color: 'default' },
 };
 export const authorizationStatusMeta = meta(authorizationStatusMap);
 
 /** caregiver_authorization.level（shared CaregiverLevel） */
 export const authLevelText = text({
-  L1: 'L1 仅查看',
-  L2: 'L2 可协助',
-  L3: 'L3 可配置',
+  [CaregiverLevel.L1]: 'L1 仅查看',
+  [CaregiverLevel.L2]: 'L2 可协助',
+  [CaregiverLevel.L3]: 'L3 可配置',
 });
 
 /* ---------------- 药品 ---------------- */
@@ -124,23 +134,26 @@ export const drugSourceText = text({ platform: '平台药品库', user_custom: '
 
 /** medication_plan.status（shared PlanStatus） */
 export const planStatusMap: Record<string, StatusMeta> = {
-  active: { text: '进行中', color: 'green' },
-  paused: { text: '已暂停', color: 'orange' },
-  finished: { text: '已完成', color: 'blue' },
-  stopped: { text: '已停止', color: 'default' },
+  [PlanStatus.Active]: { text: '进行中', color: 'green' },
+  [PlanStatus.Paused]: { text: '已暂停', color: 'orange' },
+  [PlanStatus.Finished]: { text: '已完成', color: 'blue' },
+  [PlanStatus.Stopped]: { text: '已停止', color: 'default' },
 };
 export const planStatusMeta = meta(planStatusMap);
 export const planStatusEnum = enumOf(planStatusMap);
 
 /** medication_plan.plan_type（shared PlanType） */
-export const planTypeText = text({ scheduled: '常规计划', prn: '按需（PRN）' });
+export const planTypeText = text({
+  [PlanType.Scheduled]: '常规计划',
+  [PlanType.Prn]: '按需（PRN）',
+});
 
 /** plan_change_history.operator_type（shared OperatorType） */
 export const operatorTypeMap: Record<string, StatusMeta> = {
-  member_self: { text: '成员本人', color: 'green' },
-  caregiver: { text: '照护人代操作', color: 'purple' },
-  admin_cs: { text: '客服裁决', color: 'red' },
-  system: { text: '系统', color: 'default' },
+  [OperatorType.MemberSelf]: { text: '成员本人', color: 'green' },
+  [OperatorType.Caregiver]: { text: '照护人代操作', color: 'purple' },
+  [OperatorType.AdminCs]: { text: '客服裁决', color: 'red' },
+  [OperatorType.System]: { text: '系统', color: 'default' },
 };
 export const operatorTypeMeta = meta(operatorTypeMap);
 
@@ -156,21 +169,25 @@ export const articleStatusMeta = meta(articleStatusMap);
 export const articleStatusEnum = enumOf(articleStatusMap);
 
 /** 语言（shared AppLocale） */
-export const localeText = text({ 'zh-CN': '简体中文', 'zh-TW': '繁體中文', en: 'English' });
-export const LOCALES = ['zh-CN', 'zh-TW', 'en'] as const;
+export const localeText = text({
+  [AppLocale.ZhCN]: '简体中文',
+  [AppLocale.ZhTW]: '繁體中文',
+  [AppLocale.En]: 'English',
+});
+export const LOCALES = [AppLocale.ZhCN, AppLocale.ZhTW, AppLocale.En] as const;
 
 /** consent_document.doc_type（shared ConsentDocType） */
 export const consentDocTypeText = text({
-  user_agreement: '用户协议',
-  privacy_policy: '隐私政策',
-  ai_data_use: 'AI 数据使用',
-  health_data_processing: '健康数据处理',
+  [ConsentDocType.UserAgreement]: '用户协议',
+  [ConsentDocType.PrivacyPolicy]: '隐私政策',
+  [ConsentDocType.AiDataUse]: 'AI 数据使用',
+  [ConsentDocType.HealthDataProcessing]: '健康数据处理',
 });
 export const consentDocTypeEnum: Record<string, { text: string }> = {
-  user_agreement: { text: '用户协议' },
-  privacy_policy: { text: '隐私政策' },
-  ai_data_use: { text: 'AI 数据使用' },
-  health_data_processing: { text: '健康数据处理' },
+  [ConsentDocType.UserAgreement]: { text: '用户协议' },
+  [ConsentDocType.PrivacyPolicy]: { text: '隐私政策' },
+  [ConsentDocType.AiDataUse]: { text: 'AI 数据使用' },
+  [ConsentDocType.HealthDataProcessing]: { text: '健康数据处理' },
 };
 
 /** consent_document.status */

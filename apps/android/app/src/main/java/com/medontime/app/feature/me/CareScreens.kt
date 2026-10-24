@@ -36,6 +36,7 @@ import com.medontime.app.data.model.UpdateCareSettingsRequest
 import com.medontime.app.data.model.UpdateNotificationPrefsRequest
 import com.medontime.app.data.repository.HealthRepository
 import com.medontime.app.data.repository.MemberRepository
+import com.medontime.app.reminder.ReminderScheduler
 import com.medontime.app.ui.components.EmptyBox
 import com.medontime.app.ui.components.ErrorBox
 import com.medontime.app.ui.components.LoadingBox
@@ -47,6 +48,7 @@ class CareViewModel(
     private val memberRepo: MemberRepository,
     private val healthRepo: HealthRepository,
     private val store: SessionStore,
+    private val scheduler: ReminderScheduler,
 ) : ViewModel() {
     var memberId: String? by mutableStateOf(null)
         private set
@@ -81,6 +83,8 @@ class CareViewModel(
                 prefs = healthRepo.notificationPrefs()
             } catch (e: ApiException) {
                 error = e.message
+            } catch (e: Exception) {
+                error = e.message ?: "加载失败"
             } finally {
                 loading = false
             }
@@ -92,9 +96,12 @@ class CareViewModel(
         viewModelScope.launch {
             try {
                 care = memberRepo.updateCareSettings(id, request)
+                runCatching { scheduler.syncTimeline() }
                 message = "已保存"
             } catch (e: ApiException) {
                 message = "保存失败：${e.message}"
+            } catch (e: Exception) {
+                message = "保存失败：${e.message ?: "请求异常"}"
             }
         }
     }
@@ -111,6 +118,8 @@ class CareViewModel(
                 message = "通知偏好已保存"
             } catch (e: ApiException) {
                 message = "保存失败：${e.message}"
+            } catch (e: Exception) {
+                message = "保存失败：${e.message ?: "请求异常"}"
             }
         }
     }
@@ -124,7 +133,12 @@ fun CareScreen() {
     val container = LocalAppContainer.current
     val vm: CareViewModel = viewModel(
         factory = viewModelFactory {
-            CareViewModel(container.memberRepository, container.healthRepository, container.sessionStore)
+            CareViewModel(
+                container.memberRepository,
+                container.healthRepository,
+                container.sessionStore,
+                container.reminderScheduler,
+            )
         },
     )
     LaunchedEffect(Unit) { vm.load() }

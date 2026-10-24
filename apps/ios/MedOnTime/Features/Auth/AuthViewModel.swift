@@ -29,6 +29,17 @@ final class AuthViewModel: ObservableObject {
         phone.count == 11 && phone.allSatisfy(\.isNumber)
     }
 
+    static func isPasswordValid(_ pwd: String) -> Bool {
+        guard pwd.count >= 8, pwd.count <= 64 else { return false }
+        let hasLetter = pwd.contains(where: { $0.isLetter })
+        let hasDigit = pwd.contains(where: { $0.isNumber })
+        return hasLetter && hasDigit
+    }
+
+    var passwordIsValid: Bool {
+        Self.isPasswordValid(password)
+    }
+
     func sendCode(scene: SmsScene) async {
         guard phoneIsValid else {
             errorMessage = "请输入 11 位手机号"
@@ -46,8 +57,9 @@ final class AuthViewModel: ObservableObject {
 
     private func startCountdown() async {
         codeCountdown = 60
-        while codeCountdown > 0 {
+        while codeCountdown > 0 && !Task.isCancelled {
             try? await Task.sleep(nanoseconds: 1_000_000_000)
+            guard !Task.isCancelled else { break }
             codeCountdown -= 1
         }
     }

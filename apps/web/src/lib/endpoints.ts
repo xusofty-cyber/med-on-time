@@ -137,7 +137,16 @@ export const authorizationApi = {
 };
 
 export const drugApi = {
-  search: (q: string, page = 1) => http.get<PageResult<Drug>>(`/drugs/search${qs({ q, page, pageSize: 20 })}`),
+  search: async (q: string, page = 1): Promise<PageResult<Drug>> => {
+    const res = await http.get<PageResult<Drug> | Drug[]>(`/drugs/search${qs({ q, page, pageSize: 20 })}`);
+    if (Array.isArray(res)) return { items: res, total: res.length, page, pageSize: 20 };
+    return {
+      items: res?.items ?? [],
+      total: res?.total ?? (res?.items?.length ?? 0),
+      page: res?.page ?? page,
+      pageSize: res?.pageSize ?? 20,
+    };
+  },
   detail: (id: string) => http.get<Drug>(`/drugs/${id}`),
   interactions: (id: string) => http.get<DrugInteractions>(`/drugs/${id}/interactions`),
   createCustom: (memberId: string, body: Partial<Drug> & { genericName: string; specification: string; unit: string; dosageForm: string }) =>
@@ -265,14 +274,16 @@ export const stockApi = {
 };
 
 export const ehrApi = {
-  getAllergies: (memberId: string) => http.get<Allergy[]>(`/members/${memberId}/allergies`),
-  putAllergies: (memberId: string, items: Allergy[]) =>
-    http.put<Allergy[]>(`/members/${memberId}/allergies`, { items }),
+  getAllergies: async (memberId: string): Promise<Allergy[]> =>
+    unpage(await http.get<Paged<Allergy> | Allergy[]>(`/members/${memberId}/allergies`)),
+  putAllergies: async (memberId: string, items: Allergy[]): Promise<Allergy[]> =>
+    unpage(await http.put<Paged<Allergy> | Allergy[]>(`/members/${memberId}/allergies`, { items })),
   listAdverse: async (memberId: string): Promise<AdverseRecord[]> =>
     unpage(await http.get<Paged<AdverseRecord>>(`/members/${memberId}/adverse-records`)),
   createAdverse: (memberId: string, body: { symptomTags: string[]; description?: string; severity: string; occurredAt: string; planItemId?: string }) =>
     http.post<AdverseRecord>(`/members/${memberId}/adverse-records`, body),
-  listContacts: (memberId: string) => http.get<EmergencyContact[]>(`/members/${memberId}/emergency-contacts`),
+  listContacts: async (memberId: string): Promise<EmergencyContact[]> =>
+    unpage(await http.get<Paged<EmergencyContact> | EmergencyContact[]>(`/members/${memberId}/emergency-contacts`)),
   createContact: (memberId: string, body: Omit<EmergencyContact, 'id'>) =>
     http.post<EmergencyContact>(`/members/${memberId}/emergency-contacts`, body),
   updateContact: (memberId: string, id: string, body: Partial<EmergencyContact>) =>
@@ -288,7 +299,19 @@ export const ehrApi = {
 };
 
 export const notificationApi = {
-  list: (page = 1) => http.get<PageResult<NotificationItem>>(`/notifications${qs({ page, pageSize: 30 })}`),
+  list: async (page = 1, pageSize = 30): Promise<PageResult<NotificationItem>> => {
+    const res = await http.get<PageResult<NotificationItem> | NotificationItem[]>(
+      `/notifications${qs({ page, pageSize })}`,
+    );
+    if (Array.isArray(res)) return { items: res, total: res.length, page, pageSize };
+    return {
+      items: res?.items ?? [],
+      total: res?.total ?? (res?.items?.length ?? 0),
+      page: res?.page ?? page,
+      pageSize: res?.pageSize ?? pageSize,
+      unreadCount: res?.unreadCount,
+    };
+  },
   markRead: (id: string) => http.post<{ ok: boolean }>(`/notifications/${id}/read`),
   getPrefs: () => http.get<NotificationPrefs>('/notification-prefs'),
   putPrefs: (body: NotificationPrefs) => http.put<NotificationPrefs>('/notification-prefs', body),

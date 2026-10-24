@@ -145,9 +145,29 @@ export class AdherenceService {
         data,
       });
     } else {
-      await this.prisma.memberAdherenceDailyStat.create({
-        data: { id: uuidv7(), memberId, statDate, planId, ...data },
-      });
+      try {
+        await this.prisma.memberAdherenceDailyStat.create({
+          data: { id: uuidv7(), memberId, statDate, planId, ...data },
+        });
+      } catch (err) {
+        if (
+          err instanceof Prisma.PrismaClientKnownRequestError &&
+          err.code === 'P2002'
+        ) {
+          const retry = await this.prisma.memberAdherenceDailyStat.findFirst({
+            where: { memberId, statDate, planId },
+            select: { id: true },
+          });
+          if (retry) {
+            await this.prisma.memberAdherenceDailyStat.update({
+              where: { id: retry.id },
+              data,
+            });
+            return;
+          }
+        }
+        throw err;
+      }
     }
   }
 
@@ -193,8 +213,16 @@ export class AdherenceService {
         planId: null,
         statDate: { gte: strToDbDate(from), lte: strToDbDate(to) },
       },
+      orderBy: { updatedAt: 'desc' },
     });
-    const agg = rows.reduce(
+    const seenDates = new Set<string>();
+    const deduplicatedRows = rows.filter((r) => {
+      const d = r.statDate.toISOString().slice(0, 10);
+      if (seenDates.has(d)) return false;
+      seenDates.add(d);
+      return true;
+    });
+    const agg = deduplicatedRows.reduce(
       (acc, r) => ({
         scheduled: acc.scheduled + r.scheduledCount,
         taken: acc.taken + r.takenCount,

@@ -53,7 +53,7 @@ struct ResetPasswordView: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(Theme.primary)
-                .disabled(viewModel.isSubmitting || !viewModel.phoneIsValid || viewModel.code.isEmpty || newPassword.count < 6)
+                .disabled(viewModel.isSubmitting || !viewModel.phoneIsValid || viewModel.code.isEmpty || !AuthViewModel.isPasswordValid(newPassword))
             }
             .padding(24)
         }

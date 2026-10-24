@@ -22,6 +22,16 @@ struct RootView: View {
         .if(session.careSettings?.careMode == true) { view in
             view.dynamicTypeSize(.accessibility1)
         }
+        .onOpenURL { url in
+            guard url.scheme == "medontime" else { return }
+            guard url.host == "today" else { return }
+            guard let components = URLComponents(url: url, resolvingAgainstBaseURL: false) else { return }
+            let instanceId = components.queryItems?.first(where: { $0.name == "instanceId" })?.value
+            let memberId = components.queryItems?.first(where: { $0.name == "memberId" })?.value
+            guard let instanceId, UUID(uuidString: instanceId) != nil else { return }
+            if let memberId, UUID(uuidString: memberId) == nil { return }
+            DeepLinkRouter.shared.handleNotification(instanceId: instanceId, memberId: memberId, action: .open)
+        }
     }
 }
 

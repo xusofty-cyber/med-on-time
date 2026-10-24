@@ -6,9 +6,10 @@ import { AdminAuthGuard } from '../../common/guards/admin-auth.guard';
 import { PhoneCryptoService } from '../auth/services/phone-crypto.service';
 import { AiModule } from '../ai/ai.module';
 import { WechatOaModule } from '../wechat-oa/wechat-oa.module';
+import { AuthModule } from '../auth/auth.module';
 
 @Module({
-  imports: [AiModule, WechatOaModule],
+  imports: [AiModule, WechatOaModule, AuthModule],
   controllers: [AdminAuthController, AdminController],
   providers: [AdminService, DrugSeedImportService, AdminAuthGuard, PhoneCryptoService],
   exports: [AdminService],

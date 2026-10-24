@@ -31,6 +31,34 @@ export class AccountService {
   }
 
   async updateProfile(accountId: string, dto: UpdateProfileDto) {
+    if (dto.timezone !== undefined) {
+      try {
+        new Intl.DateTimeFormat(undefined, { timeZone: dto.timezone });
+      } catch {
+        throw new BusinessException(
+          BusinessCode.BadRequest,
+          '非法的时区标识（须为合法 IANA 时区，如 Asia/Shanghai）',
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+    }
+    if (dto.avatarFileId !== undefined && dto.avatarFileId !== null) {
+      const attachment = await this.prisma.fileAttachment.findFirst({
+        where: {
+          id: dto.avatarFileId,
+          ownerAccountId: accountId,
+          deletedAt: null,
+        },
+        select: { id: true },
+      });
+      if (!attachment) {
+        throw new BusinessException(
+          BusinessCode.BadRequest,
+          '头像附件不存在或不属于当前账号',
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+    }
     const account = await this.prisma.userAccount.update({
       where: { id: accountId },
       data: {

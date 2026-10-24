@@ -26,9 +26,15 @@ export default function Layout({ routeName, children }: { routeName: string; chi
     let alive = true;
     const load = () =>
       notificationApi
-        .list(1)
+        .list(1, 50)
         .then((r) => {
-          if (alive) actions.setUnreadCount(r.items.filter((n) => !n.isRead && !n.readAt).length);
+          if (alive) {
+            const count =
+              typeof r.unreadCount === 'number'
+                ? r.unreadCount
+                : (r.items ?? []).filter((n) => !n.isRead && !n.readAt).length;
+            actions.setUnreadCount(count);
+          }
         })
         .catch(() => undefined);
     load();

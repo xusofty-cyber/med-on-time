@@ -48,8 +48,7 @@
 | 5432 | 既有 PostgreSQL | 维持服务器现状（宿主机 127.0.0.1），本项目不新增暴露 |
 | 6379 | 本项目 Redis | 仅 Docker 内网，不映射宿主机 |
 
-> 当前交付为 HTTP 直连口径。正式对外前建议在服务器前置一层 HTTPS
-> （既有反向代理或云负载均衡终止 TLS），不在本项目容器组范围内。
+> 生产环境已通过宿主机 Nginx 反代并配置腾讯云 HTTPS 证书（`mot.ulife.vip`、`admin.ulife.vip` 终止 TLS），容器内部保持 HTTP 直连（28080/28081），详情见附录 B。
 
 ## 三、服务器前置条件
 
@@ -70,7 +69,7 @@
 
 | 变量 | 必填 | 说明 |
 |---|---|---|
-| `NODE_ENV` | 是 | 固定 `production`（生产下守卫拒绝开发默认密钥兜底） |
+| `NODE_ENV` | 是 | 固定 `production`（生产部署必须显式配置各密钥；启动时未配密钥强行阻断待代码层补全守卫） |
 | `PORT` | 否 | api 容器内端口，默认 3000，一般不改 |
 | `NPM_REGISTRY` | 否 | 构建期 npm 源，默认 npmmirror |
 | `DB_PASSWORD` | 是 | medontime 角色密码；`db-init.sh` 建角色用，且必须与 DATABASE_URL 内密码一致。`openssl rand -hex 24` |
@@ -78,7 +77,7 @@
 | `REDIS_URL` | 是 | `redis://redis:6379`（compose 服务名） |
 | `JWT_ACCESS_SECRET` / `JWT_REFRESH_SECRET` | 是 | 用户端双 token 密钥，各自独立 `openssl rand -hex 32` |
 | `ADMIN_JWT_SECRET` | 建议 | 后台 token 密钥；未配回退 access 密钥，生产建议独立 |
-| `JWT_ACCESS_TTL` / `JWT_REFRESH_TTL` | 否 | 默认 `30m` / `30d` |
+| `JWT_ACCESS_TTL` / `JWT_REFRESH_TTL` | 否 | 当前后端硬编码常量 `2h` / `30d` 生效（对齐 API_CONTRACT 定版口径）；配置项动态注入待代码层改造 |
 | `PHONE_ENCRYPTION_KEY` | 是 | 手机号 AES-256-GCM 密钥，32 字节 hex（64 字符）：`openssl rand -hex 32` |
 | `PHONE_HMAC_KEY` | 是 | 手机号查询哈希密钥，任意长随机串 |
 | `EHR_ENC_KEY` | 是 | 病历正文等字段加密密钥，32 字节 hex。**上线后不可更换/丢失**，否则历史密文不可解 |
@@ -146,21 +145,25 @@ curl -s http://127.0.0.1:8080/api/ops/ready                 # 就绪探针（校
 - [ ] 管理员与基础角色就位：
       `SELECT username FROM admin_user;` 有播种账号；
       后台「系统/角色」页可见 super_admin / operator / cs_agent / medical_reviewer
-- [ ] 普通用户注册受限符合预期（见第七节「生产待接项」）：短信验证码
-      无法真实下发，自助注册走不通——这是当前阶段的已知状态，不是故障
+- [ ] 普通用户注册与登录通道验证：邮箱验证码注册及手机号免验证码直接注册已打通；
+      微信小程序登录/扫码登录与单次订阅消息已接入实测；
+      短信验证码通道仍为 dev stub（暂不支持短信验证码登录与短信找密）。
 - [ ] `docker ps` 确认本项目四容器 `medontime-*` 均为 Up，
       且服务器既有容器未受任何影响
 
-## 七、生产待接项（上线前必须知晓）
+## 七、生产待接项与通道现状说明
 
-1. **短信网关未接**：注册/验证码登录/重置密码依赖短信验证码，当前为
-   dev stub（验证码只生成不下发，日志中亦不明文打印）。**后果：普通用户
-   无法自助注册、无法用验证码登录。** 接入真实网关（阿里云/腾讯云短信）
-   前，临时开户只能由运维按下方办法执行；密码登录不受影响。
-2. **微信绑定/小程序订阅消息未接**：绑定接口为占位，返回未开通。
-3. **AI 健康助手未开**：`AI_ENABLED=false` 保持关闭，待 POC-2 评测与
-   一次性外部医学审校通过后再开。
-4. **HTTPS 未配**：见第二节说明，正式对外前补 TLS 终止层。
+1. **短信网关未接**：注册/验证码登录/重置密码的短信通道当前为 dev stub
+   （验证码只生成不下发，日志中亦脱敏不打印）。普通用户可正常使用**邮箱验证码注册**
+   或**手机号免验证码直接注册**（手机号未验证三受限口径见 AUTH_CHANNELS.md），
+   以及微信小程序授权/扫码登录；仅短信找密与短信验证码登录暂未开通真实下发。
+   运维亦可按下方临时开户脚本手动建号。
+2. **微信绑定与订阅消息已通**：小程序登录、微信绑定、小程序扫码登录 Web 及单次订阅消息下发
+   已接入正式 AppID/AppSecret 与模板并完成实测。后续待申请长期订阅模板与正式提审。
+3. **AI 健康助手未开**：`AI_ENABLED=false` 保持关闭（POC-2 智谱通道已实测 120 题，星火通道
+   待凭据核对，生产网关拦截返回 40310，待外部医学审校通过后按需开通）。
+4. **HTTPS 已就绪**：生产环境已由宿主机 Nginx 统一反代并配置腾讯云 SSL 证书终止 TLS，
+   对外统一使用 HTTPS 访问。
 
 ### 临时开户办法（短信网关接入前，运维专用）
 
@@ -180,17 +183,32 @@ const { PhoneCryptoService } = require("./dist/src/modules/auth/services/phone-c
 const { uuidv7 } = require("./dist/src/common/utils/uuidv7.js");
 (async () => {
   const phone = process.env.OPEN_PHONE, password = process.env.OPEN_PASSWORD;
+  const nickname = process.env.OPEN_NICKNAME || "临时用户";
+  if (!process.env.PHONE_HMAC_KEY || !process.env.PHONE_ENCRYPTION_KEY) {
+    throw new Error("PHONE_HMAC_KEY or PHONE_ENCRYPTION_KEY not set in environment");
+  }
   const cryptoSvc = new PhoneCryptoService({ get: (k) => process.env[k] });
   const prisma = new PrismaClient();
-  await prisma.userAccount.create({ data: {
-    id: uuidv7(),
-    phone: cryptoSvc.encryptPhone(phone),
-    phoneHash: cryptoSvc.hashPhone(phone),
-    passwordHash: await argon2.hash(password, { type: argon2.argon2id }),
-    nickname: process.env.OPEN_NICKNAME || "临时用户",
-    registerChannel: "web", registeredAt: new Date(), status: "active",
-  }});
-  console.log("account created");
+  const accountId = uuidv7();
+  await prisma.$transaction(async (tx) => {
+    await tx.userAccount.create({ data: {
+      id: accountId,
+      phone: cryptoSvc.encryptPhone(phone),
+      phoneHash: cryptoSvc.hashPhone(phone),
+      phoneVerifiedAt: new Date(),
+      passwordHash: await argon2.hash(password, { type: argon2.argon2id }),
+      nickname,
+      registerChannel: "web", registeredAt: new Date(), status: "active",
+    }});
+    await tx.member.create({ data: {
+      id: uuidv7(),
+      accountId,
+      displayName: nickname,
+      relationship: "self",
+      status: "active",
+    }});
+  });
+  console.log("account and self member created successfully, id:", accountId);
   await prisma.$disconnect();
 })().catch((e) => { console.error(e); process.exit(1); });
 '
@@ -313,10 +331,10 @@ curl -s http://127.0.0.1:8080/api/ops/ready   # 确认 code=0
 
 ## 附录 B：当前生产实例实况（2026-10-23 上线，与正文通用口径的差异以本附录为准）
 
-- **服务器**：腾讯云广州，Ubuntu 22.04 LTS x86_64，公网 154.8.219.189 / Tailscale 100.108.115.52；SSH 22（用户 ubuntu，免密 sudo）。仓克隆于 `~/projects/medontime`（develop 分支）。
+- **服务器**：腾讯云广州，Ubuntu 22.04 LTS x86_64，公网 `<PROD_SERVER_IP>` / Tailscale `<TAILSCALE_IP>`；SSH 22（用户 ubuntu，免密 sudo）。仓克隆于 `~/projects/medontime`（develop 分支）。
 - **端口实况**：正文默认 8080/8081 已被该机既有服务占用（zhihu-web 8080、hookbox-relay 18080），实例实际 `WEB_PORT=28080`、`ADMIN_PORT=28081`（写在服务器 `deploy/.env`）。API 3000、Redis 6379 不映射宿主机。
-- **入口与证书**：宿主机 nginx 三站点——`mot.ulife.vip` → 127.0.0.1:28080、`admin.ulife.vip` → 127.0.0.1:28081、`blog.ulife.vip` → 静态占位页；腾讯云证书包在服务器 `~/projects/ssl/<域名>_nginx/`，站点配置在 `/etc/nginx/sites-enabled/`（沿用该机既有 n8n 站点风格）；DNS 三条 A 记录均 → 154.8.219.189（DNSPod）。云防火墙 80/443/22 已放行，无需为本项目新增（5432 安全组亦为开放状态，收紧与否待负责人拍板）。
-- **数据库**：既有容器 `nexasx-postgres`（PG 16），库 `medontime`；容器内经 `nexasx-internal` 网络以 `nexasx-postgres:5432` 访问。三段迁移已实跑（基线/约束分区/V1.3 auth 通道）；分区迁移首跑曾因旧表主键索引未改名 42P07 失败，修复（索引 RENAME + ai_call_log 唯一索引复合化）已回仓。
+- **入口与证书**：宿主机 nginx 三站点——`mot.ulife.vip` → 127.0.0.1:28080、`admin.ulife.vip` → 127.0.0.1:28081、`blog.ulife.vip` → 静态占位页；腾讯云证书包在服务器 `~/projects/ssl/<域名>_nginx/`，站点配置在 `/etc/nginx/sites-enabled/`（沿用该机既有 n8n 站点风格）；DNS 三条 A 记录均指向生产公网 IP（DNSPod）。云防火墙 80/443/22 已放行，无需为本项目新增（生产数据库 5432 端口安全组建议尽快收紧至内网/运维来源）。
+- **数据库**：既有容器 `nexasx-postgres`（PG 16），库 `medontime`；容器内经 `nexasx-internal` 网络以 `nexasx-postgres:5432` 访问。全量迁移序列已实跑（基线初始化/约束分区/V1.3 auth通道/V1.4 大模型配置/V1.5 公众号草稿，当前 Schema 58 表）；分区迁移首跑曾因旧表主键索引未改名 42P07 失败，修复（索引 RENAME + ai_call_log 唯一索引复合化）已回仓。
 - **构建实况修复（已回仓 Dockerfile）**：① 三镜像设 `ELECTRON_SKIP_BINARY_DOWNLOAD=1`；② api 镜像 apk 源换腾讯云镜像 `mirrors.cloud.tencent.com`（官方 CDN 在该机超时、阿里源慢）；③ api 运行阶段补 `prisma generate`（pnpm deploy 产物为未生成客户端桩）。
 - **SMTP 实况**：`SMTP_URL=smtps://<用户QQ邮箱>@smtp.qq.com:465` 与 `SMTP_FROM` 已写入服务器 deploy/.env 并实发验证通过；授权码只存在该文件。个人 QQ SMTP 有日发送上限，用户量上来后应迁专业发信服务（注册侧代码不用改，只换 env）。
 - **运维纪律（该机特有）**：① **不得动既有服务与容器**（n8n、zhihu-web、hookbox-relay 等），只许新增/更新本项目资源；② 构建缓存曾涨至 30GB——构建后执行 prune 回收无用缓存与悬空镜像，镜像保持精简；③ 管理员 `admin` 初始密码由 bootstrap 一次性打印、负责人留存，首登后改密。

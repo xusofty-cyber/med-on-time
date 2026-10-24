@@ -76,43 +76,59 @@ export class AuthorizationService {
       throw new BusinessException(BusinessCode.BadRequest, 'expiresAt 必须晚于当前时间');
     }
 
-    const live = await this.prisma.caregiverAuthorization.findMany({
-      where: { memberId: dto.memberId, status: { in: LIVE_STATUSES }, deletedAt: null },
-      select: { id: true, caregiverAccountId: true, status: true },
-    });
-    if (live.some((a) => a.caregiverAccountId === caregiver.id)) {
-      throw new BusinessException(
-        BusinessCode.Conflict,
-        '该照护人已在授权列表中（待接受/生效/暂停）',
-        HttpStatus.CONFLICT,
-      );
-    }
-    if (live.length >= MAX_CAREGIVERS_PER_MEMBER) {
-      throw new BusinessException(
-        BusinessCode.Conflict,
-        `照护人数量已达上限（${MAX_CAREGIVERS_PER_MEMBER} 名/成员）`,
-        HttpStatus.CONFLICT,
-      );
-    }
-
     const now = new Date();
-    const created = await this.prisma.$transaction(async (tx) => {
-      const auth = await tx.caregiverAuthorization.create({
-        data: {
-          id: uuidv7(),
-          memberId: dto.memberId,
-          caregiverAccountId: caregiver.id,
-          grantedByAccountId: accountId,
-          level: dto.level,
-          permissions: (dto.permissions ?? {}) as Prisma.InputJsonValue,
-          status: AuthorizationStatus.PendingAccept,
-          invitedAt: now,
-          expiresAt,
-        },
+    let created: CaregiverAuthorization;
+    try {
+      created = await this.prisma.$transaction(async (tx) => {
+        // 锁定所属 member 行，串行化同一成员下的并发邀请/接受上限检查
+        await tx.member.updateMany({
+          where: { id: dto.memberId, deletedAt: null },
+          data: { updatedAt: now },
+        });
+        const live = await tx.caregiverAuthorization.findMany({
+          where: { memberId: dto.memberId, status: { in: LIVE_STATUSES }, deletedAt: null },
+          select: { id: true, caregiverAccountId: true, status: true },
+        });
+        if (live.some((a) => a.caregiverAccountId === caregiver.id)) {
+          throw new BusinessException(
+            BusinessCode.Conflict,
+            '该照护人已在授权列表中（待接受/生效/暂停）',
+            HttpStatus.CONFLICT,
+          );
+        }
+        if (live.length >= MAX_CAREGIVERS_PER_MEMBER) {
+          throw new BusinessException(
+            BusinessCode.Conflict,
+            `照护人数量已达上限（${MAX_CAREGIVERS_PER_MEMBER} 名/成员）`,
+            HttpStatus.CONFLICT,
+          );
+        }
+        const auth = await tx.caregiverAuthorization.create({
+          data: {
+            id: uuidv7(),
+            memberId: dto.memberId,
+            caregiverAccountId: caregiver.id,
+            grantedByAccountId: accountId,
+            level: dto.level,
+            permissions: (dto.permissions ?? {}) as Prisma.InputJsonValue,
+            status: AuthorizationStatus.PendingAccept,
+            invitedAt: now,
+            expiresAt,
+          },
+        });
+        await this.writeLog(tx, auth, 'invited', accountId, null, auth);
+        return auth;
       });
-      await this.writeLog(tx, auth, 'invited', accountId, null, auth);
-      return auth;
-    });
+    } catch (err) {
+      if ((err as { code?: string }).code === 'P2002') {
+        throw new BusinessException(
+          BusinessCode.Conflict,
+          '该照护人已在授权列表中（待接受/生效/暂停）',
+          HttpStatus.CONFLICT,
+        );
+      }
+      throw err;
+    }
     return this.toView(created);
   }
 
@@ -185,24 +201,17 @@ export class AuthorizationService {
       await this.transition(auth, AuthorizationStatus.Expired, 'expired', accountId, {});
       throw new BusinessException(BusinessCode.Conflict, '授权邀请已过期', HttpStatus.CONFLICT);
     }
-    const activeCount = await this.prisma.caregiverAuthorization.count({
-      where: {
-        memberId: auth.memberId,
-        status: AuthorizationStatus.Active,
-        deletedAt: null,
+    const updated = await this.transition(
+      auth,
+      AuthorizationStatus.Active,
+      'accepted',
+      accountId,
+      {
+        acceptedAt: now,
+        effectiveAt: now,
       },
-    });
-    if (activeCount >= MAX_CAREGIVERS_PER_MEMBER) {
-      throw new BusinessException(
-        BusinessCode.Conflict,
-        `该成员照护人已达上限（${MAX_CAREGIVERS_PER_MEMBER} 名）`,
-        HttpStatus.CONFLICT,
-      );
-    }
-    const updated = await this.transition(auth, AuthorizationStatus.Active, 'accepted', accountId, {
-      acceptedAt: now,
-      effectiveAt: now,
-    });
+      true,
+    );
     return this.toView(updated);
   }
 
@@ -250,12 +259,52 @@ export class AuthorizationService {
     status: string,
     action: string,
     operatorAccountId: string,
-    extra: Prisma.CaregiverAuthorizationUpdateInput,
+    extra: Prisma.CaregiverAuthorizationUpdateManyMutationInput,
+    enforceMaxActive = false,
   ): Promise<CaregiverAuthorization> {
     return this.prisma.$transaction(async (tx) => {
-      const updated = await tx.caregiverAuthorization.update({
+      if (enforceMaxActive) {
+        await tx.member.updateMany({
+          where: { id: auth.memberId, deletedAt: null },
+          data: { updatedAt: new Date() },
+        });
+        const activeCount = await tx.caregiverAuthorization.count({
+          where: {
+            memberId: auth.memberId,
+            status: AuthorizationStatus.Active,
+            deletedAt: null,
+          },
+        });
+        if (activeCount >= MAX_CAREGIVERS_PER_MEMBER) {
+          throw new BusinessException(
+            BusinessCode.Conflict,
+            `该成员照护人已达上限（${MAX_CAREGIVERS_PER_MEMBER} 名）`,
+            HttpStatus.CONFLICT,
+          );
+        }
+      }
+      const res = await tx.caregiverAuthorization.updateMany({
+        where: {
+          id: auth.id,
+          status: auth.status,
+          version: auth.version,
+          deletedAt: null,
+        },
+        data: {
+          status,
+          version: { increment: 1 },
+          ...extra,
+        },
+      });
+      if (res.count !== 1) {
+        throw new BusinessException(
+          BusinessCode.Conflict,
+          '授权状态已变更，请刷新后重试',
+          HttpStatus.CONFLICT,
+        );
+      }
+      const updated = await tx.caregiverAuthorization.findUniqueOrThrow({
         where: { id: auth.id },
-        data: { status, ...extra },
       });
       await this.writeLog(tx, updated, action, operatorAccountId, auth, updated);
       return updated;

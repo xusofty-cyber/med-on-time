@@ -9,9 +9,10 @@
 //     纯日志/流水表只有 id / created_at（只追加，字段表注明者从之）；
 //   - 软删除部分唯一/部分索引（WHERE deleted_at IS NULL）Prisma 不支持表达，
 //     相关模型上方以注释标明，迁移 SQL 须补齐（清单见第 10 章与附录 A）；
-//   - 大表 reminder_instance / medication_intake_record / reminder_delivery_log /
-//     ai_call_log / audit_log 按月分区由迁移 SQL 实现（reminder_instance 分区版
-//     主键为 (id, scheduled_at_utc)，本文件仍以 id 单列主键建模，迁移时调整）。
+//   - 大表 reminder_instance / reminder_delivery_log / ai_call_log / audit_log 四张表
+//     按月 RANGE 分区由迁移 SQL 实现（reminder_instance 分区版主键为 (id, scheduled_at_utc)，
+//     本文件仍以 id 单列主键建模，迁移时调整；medication_intake_record 保持普通表以维护
+//     reminder_instance_id 与 client_request_id 全局唯一索引；2028 年起由 _pdefault 兜底并由运维巡检预建）。
 // =============================================================================
 
 generator client {
@@ -725,6 +726,7 @@ model PrnIntakeRecord {
 /// 状态机只许向前：pending → reminded → taken / snoozed / skipped；超时未确认置 missed；
 /// cancelled 仅由计划/明细停用或成员归档触发。按月分区（迁移 SQL 实现，分区版 PK 含 scheduled_at_utc），
 /// 唯一索引 uq_instance_idem 实为 (idempotency_key, scheduled_at_utc)，迁移时按分区口径调整。
+/// 枚举 CHECK 约束（ck_reminder_instance_status / ck_reminder_instance_source）由 20261024120000_v16_partition_checks 补齐。
 model ReminderInstance {
   id               String    @id @db.Uuid
   memberId         String    @map("member_id") @db.Uuid // 快照冗余，高频过滤列
@@ -765,6 +767,7 @@ model ReminderInstance {
 }
 
 /// 6.5 提醒投递日志表（P0，追加型）：一次投递一行，仅 id / created_at 两个通用字段。按月分区（迁移 SQL）。
+/// 枚举 CHECK 约束（ck_reminder_delivery_log_channel / ck_reminder_delivery_log_result）由 20261024120000_v16_partition_checks 补齐。
 model ReminderDeliveryLog {
   id                 String    @id @db.Uuid
   createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
@@ -858,7 +861,8 @@ model MemberDrugInventory {
 
 /// 6.7 成员依从性日统计表（P0）：预聚合表，报表只查本表。
 /// 本表例外：保留 created_at / updated_at（重算覆盖同日行），不设 deleted_at / version。
-/// (member_id, stat_date, plan_id) 组合唯一兼作查询索引；plan_id 可空（NULL 不去重，应用层须保证汇总行单行）。
+/// (member_id, stat_date, plan_id) 组合唯一兼作查询索引；plan_id 可空，成员日汇总行单行唯一由
+/// 迁移 SQL 部分唯一索引 uq_adherence_daily_stat_whole_member (WHERE plan_id IS NULL) 保证。
 /// 口径冻结：分母只数已到期实例；补记计入 taken 不计 on_time； missed 与 skipped 分开统计。
 model MemberAdherenceDailyStat {
   id             String   @id @db.Uuid
@@ -1206,7 +1210,7 @@ model AiModelConfig {
 /// 9.2b 后台可配的大模型接入（2026-10-24 负责人要求：后台管理可配模型名称/API key/请求 URL）。
 /// 与 ai_model_config 分工：后者是能力路由与灰度（存托管引用），本表是运营直配的
 /// OpenAI 兼容接入点。api_key 只落 FieldCrypto 密文（enc:v1:），另存尾 4 位供界面掩码展示；
-/// 明文禁止落库与进日志。同 capability 至多一条 is_active（应用层保证）。
+/// 明文禁止落库与进日志。同 capability 至多一条 is_active（部分唯一索引 uq_ai_provider_config_active_capability WHERE is_active = true AND deleted_at IS NULL 由 20261024120000_v16_partition_checks 补齐）。
 model AiProviderConfig {
   id           String    @id @db.Uuid
   name         String    @db.VarChar(100) // 展示名，如「智谱 GLM」
@@ -1518,6 +1522,7 @@ model AiReport {
 
 /// 9.11 AI 调用台账表（P1，追加型）：仅 id / created_at 两个通用字段；按月分区（迁移 SQL）。
 /// 只记元数据，绝不存输入输出正文；额度扣减与成本统计以本表为准（blocked / failed 不计额度）。
+/// 枚举 CHECK 约束（ck_ai_call_log_status / ck_ai_call_log_safety_action）由 20261024120000_v16_partition_checks 补齐。
 model AiCallLog {
   id             String   @id @db.Uuid
   createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
@@ -1721,6 +1726,7 @@ model AdminRolePermission {
 
 /// 8.2 操作审计日志表（P0，追加型）：仅 id / created_at 两个通用字段；按月分区（迁移 SQL）。
 /// 日志禁止业务代码 UPDATE / DELETE（数据库账号层面收回权限）；detail 禁止写入明文敏感值。
+/// 枚举 CHECK 约束（ck_audit_log_actor_type / ck_audit_log_result）由 20261024120000_v16_partition_checks 补齐。
 model AuditLog {
   id         String   @id @db.Uuid
   createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)

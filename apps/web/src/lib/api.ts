@@ -11,10 +11,12 @@ const API_BASE = (import.meta.env.VITE_API_BASE as string | undefined) ?? '/api'
 export class ApiError extends Error {
   code: number;
   traceId?: string;
-  constructor(code: number, message: string, traceId?: string) {
+  httpStatus?: number;
+  constructor(code: number, message: string, traceId?: string, httpStatus?: number) {
     super(message);
     this.code = code;
     this.traceId = traceId;
+    this.httpStatus = httpStatus;
   }
 }
 
@@ -51,9 +53,9 @@ async function rawFetch<T>(path: string, init: RequestInit, withAuth: boolean): 
   } catch {
     envelope = null;
   }
-  if (!envelope) throw new ApiError(res.status, `请求失败（HTTP ${res.status}）`);
+  if (!envelope) throw new ApiError(res.status, `请求失败（HTTP ${res.status}）`, undefined, res.status);
   if (envelope.code !== 0 && envelope.code !== 200) {
-    throw new ApiError(envelope.code, envelope.message || '请求失败', envelope.traceId);
+    throw new ApiError(envelope.code, envelope.message || '请求失败', envelope.traceId, res.status);
   }
   return envelope.data;
 }
@@ -86,9 +88,11 @@ async function request<T>(path: string, init: RequestInit = {}, retry = true): P
   try {
     return await rawFetch<T>(path, init, true);
   } catch (err) {
-    if (err instanceof ApiError && err.code === 401 && retry && tokenStore.refresh) {
-      const ok = await refreshTokens();
-      if (ok) return request<T>(path, init, false);
+    if (err instanceof ApiError && (err.httpStatus === 401 || err.code === 401)) {
+      if (retry && tokenStore.refresh) {
+        const ok = await refreshTokens();
+        if (ok) return request<T>(path, init, false);
+      }
       tokenStore.clear();
       onSessionExpired?.();
     }

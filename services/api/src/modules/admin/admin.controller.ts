@@ -4,6 +4,7 @@ import {
   Delete,
   Get,
   Param,
+  ParseUUIDPipe,
   Patch,
   Post,
   Query,
@@ -93,28 +94,64 @@ export class AdminController {
 
   @Post('ai-providers')
   @AdminRoles('operator')
-  createAiProvider(@Body() dto: CreateAiProviderDto) {
-    return this.aiProviders.create(dto);
+  async createAiProvider(
+    @CurrentAdmin() admin: AuthenticatedAdmin,
+    @Body() dto: CreateAiProviderDto,
+    @Req() req: Request,
+  ) {
+    const created = await this.aiProviders.create(dto);
+    await this.service.recordAudit({
+      adminId: admin.adminId,
+      action: 'admin:ai_provider:create',
+      targetType: 'ai_provider',
+      targetId: created.id,
+      detail: { name: dto.name, modelName: dto.modelName, capability: dto.capability },
+      ctx: requestContext(req),
+    });
+    return created;
   }
 
   @Patch('ai-providers/:id')
   @AdminRoles('operator')
-  updateAiProvider(
-    @Param('id') id: string,
+  async updateAiProvider(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @CurrentAdmin() admin: AuthenticatedAdmin,
     @Body() dto: UpdateAiProviderDto,
+    @Req() req: Request,
   ) {
-    return this.aiProviders.update(id, dto);
+    const updated = await this.aiProviders.update(id, dto);
+    await this.service.recordAudit({
+      adminId: admin.adminId,
+      action: 'admin:ai_provider:update',
+      targetType: 'ai_provider',
+      targetId: id,
+      detail: { name: dto.name, modelName: dto.modelName, capability: dto.capability, isActive: dto.isActive },
+      ctx: requestContext(req),
+    });
+    return updated;
   }
 
   @Delete('ai-providers/:id')
   @AdminRoles('operator')
-  removeAiProvider(@Param('id') id: string) {
-    return this.aiProviders.remove(id);
+  async removeAiProvider(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @CurrentAdmin() admin: AuthenticatedAdmin,
+    @Req() req: Request,
+  ) {
+    const res = await this.aiProviders.remove(id);
+    await this.service.recordAudit({
+      adminId: admin.adminId,
+      action: 'admin:ai_provider:delete',
+      targetType: 'ai_provider',
+      targetId: id,
+      ctx: requestContext(req),
+    });
+    return res;
   }
 
   @Post('ai-providers/:id/test')
   @AdminRoles('operator')
-  testAiProvider(@Param('id') id: string) {
+  testAiProvider(@Param('id', new ParseUUIDPipe()) id: string) {
     return this.aiGateway.testConnection(id);
   }
 
@@ -126,47 +163,120 @@ export class AdminController {
   }
 
   @Get('oa-articles/:id')
-  getOaArticle(@Param('id') id: string) {
+  getOaArticle(@Param('id', new ParseUUIDPipe()) id: string) {
     return this.wechatOa.get(id);
   }
 
   @Post('oa-articles')
   @AdminRoles('operator')
-  createOaArticle(
+  async createOaArticle(
     @CurrentAdmin() admin: AuthenticatedAdmin,
     @Body() dto: CreateOaArticleDto,
+    @Req() req: Request,
   ) {
-    return this.wechatOa.create(dto, admin?.username ?? null);
+    const created = await this.wechatOa.create(dto, admin?.username ?? null);
+    await this.service.recordAudit({
+      adminId: admin.adminId,
+      action: 'admin:oa_article:create',
+      targetType: 'oa_article',
+      targetId: created.id,
+      detail: { title: dto.title },
+      ctx: requestContext(req),
+    });
+    return created;
   }
 
   @Patch('oa-articles/:id')
   @AdminRoles('operator')
-  updateOaArticle(@Param('id') id: string, @Body() dto: UpdateOaArticleDto) {
-    return this.wechatOa.update(id, dto);
+  async updateOaArticle(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @CurrentAdmin() admin: AuthenticatedAdmin,
+    @Body() dto: UpdateOaArticleDto,
+    @Req() req: Request,
+  ) {
+    const updated = await this.wechatOa.update(id, dto);
+    await this.service.recordAudit({
+      adminId: admin.adminId,
+      action: 'admin:oa_article:update',
+      targetType: 'oa_article',
+      targetId: id,
+      detail: { title: dto.title },
+      ctx: requestContext(req),
+    });
+    return updated;
   }
 
   @Delete('oa-articles/:id')
   @AdminRoles('operator')
-  removeOaArticle(@Param('id') id: string) {
-    return this.wechatOa.remove(id);
+  async removeOaArticle(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @CurrentAdmin() admin: AuthenticatedAdmin,
+    @Req() req: Request,
+  ) {
+    const res = await this.wechatOa.remove(id);
+    await this.service.recordAudit({
+      adminId: admin.adminId,
+      action: 'admin:oa_article:delete',
+      targetType: 'oa_article',
+      targetId: id,
+      ctx: requestContext(req),
+    });
+    return res;
   }
 
   @Post('oa-articles/:id/cover')
   @AdminRoles('operator')
-  uploadOaCover(@Param('id') id: string, @Body() dto: UploadOaCoverDto) {
-    return this.wechatOa.uploadCover(id, dto.imageBase64, dto.mimeType);
+  async uploadOaCover(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @CurrentAdmin() admin: AuthenticatedAdmin,
+    @Body() dto: UploadOaCoverDto,
+    @Req() req: Request,
+  ) {
+    const res = await this.wechatOa.uploadCover(id, dto.imageBase64, dto.mimeType);
+    await this.service.recordAudit({
+      adminId: admin.adminId,
+      action: 'admin:oa_article:upload_cover',
+      targetType: 'oa_article',
+      targetId: id,
+      ctx: requestContext(req),
+    });
+    return res;
   }
 
   @Post('oa-articles/:id/sync')
   @AdminRoles('operator')
-  syncOaArticle(@Param('id') id: string) {
-    return this.wechatOa.sync(id);
+  async syncOaArticle(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @CurrentAdmin() admin: AuthenticatedAdmin,
+    @Req() req: Request,
+  ) {
+    const res = await this.wechatOa.sync(id);
+    await this.service.recordAudit({
+      adminId: admin.adminId,
+      action: 'admin:oa_article:sync',
+      targetType: 'oa_article',
+      targetId: id,
+      ctx: requestContext(req),
+    });
+    return res;
   }
 
   @Post('oa-articles/:id/unsync')
   @AdminRoles('operator')
-  unsyncOaArticle(@Param('id') id: string) {
-    return this.wechatOa.unsync(id);
+  async unsyncOaArticle(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @CurrentAdmin() admin: AuthenticatedAdmin,
+    @Req() req: Request,
+  ) {
+    const res = await this.wechatOa.unsync(id);
+    await this.service.recordAudit({
+      adminId: admin.adminId,
+      action: 'admin:oa_article:unsync',
+      targetType: 'oa_article',
+      targetId: id,
+      ctx: requestContext(req),
+    });
+    return res;
   }
 
   @Get('dashboard')
@@ -181,7 +291,7 @@ export class AdminController {
   }
 
   @Get('accounts/:id')
-  getAccount(@Param('id') id: string) {
+  getAccount(@Param('id', new ParseUUIDPipe()) id: string) {
     return this.service.getAccount(id);
   }
 
@@ -189,7 +299,7 @@ export class AdminController {
   @AdminRoles('operator')
   freezeAccount(
     @CurrentAdmin() admin: AuthenticatedAdmin,
-    @Param('id') id: string,
+    @Param('id', new ParseUUIDPipe()) id: string,
     @Req() req: Request,
   ) {
     return this.service.setAccountFrozen(admin, id, true, requestContext(req));
@@ -199,7 +309,7 @@ export class AdminController {
   @AdminRoles('operator')
   unfreezeAccount(
     @CurrentAdmin() admin: AuthenticatedAdmin,
-    @Param('id') id: string,
+    @Param('id', new ParseUUIDPipe()) id: string,
     @Req() req: Request,
   ) {
     return this.service.setAccountFrozen(admin, id, false, requestContext(req));
@@ -223,7 +333,7 @@ export class AdminController {
   }
 
   @Get('drugs/:id')
-  getDrug(@Param('id') id: string) {
+  getDrug(@Param('id', new ParseUUIDPipe()) id: string) {
     return this.service.getDrug(id);
   }
 
@@ -231,7 +341,7 @@ export class AdminController {
   @AdminRoles('operator', 'medical_reviewer')
   reviewDrug(
     @CurrentAdmin() admin: AuthenticatedAdmin,
-    @Param('id') id: string,
+    @Param('id', new ParseUUIDPipe()) id: string,
     @Body() dto: DrugReviewDto,
     @Req() req: Request,
   ) {
@@ -245,7 +355,7 @@ export class AdminController {
   }
 
   @Get('plans/:id/history')
-  getPlanHistory(@Param('id') id: string, @Query() query: PageQueryDto) {
+  getPlanHistory(@Param('id', new ParseUUIDPipe()) id: string, @Query() query: PageQueryDto) {
     return this.service.getPlanHistory(id, query);
   }
 
@@ -259,7 +369,7 @@ export class AdminController {
   @AdminRoles('cs_agent')
   resolveDispute(
     @CurrentAdmin() admin: AuthenticatedAdmin,
-    @Param('id') id: string,
+    @Param('id', new ParseUUIDPipe()) id: string,
     @Body() dto: ResolveDisputeDto,
     @Req() req: Request,
   ) {
@@ -292,7 +402,7 @@ export class AdminController {
   @AdminRoles('operator')
   updateAppVersion(
     @CurrentAdmin() admin: AuthenticatedAdmin,
-    @Param('id') id: string,
+    @Param('id', new ParseUUIDPipe()) id: string,
     @Body() dto: UpdateAppVersionDto,
     @Req() req: Request,
   ) {
@@ -303,7 +413,7 @@ export class AdminController {
   @AdminRoles('operator')
   deleteAppVersion(
     @CurrentAdmin() admin: AuthenticatedAdmin,
-    @Param('id') id: string,
+    @Param('id', new ParseUUIDPipe()) id: string,
     @Req() req: Request,
   ) {
     return this.service.deleteAppVersion(admin, id, requestContext(req));

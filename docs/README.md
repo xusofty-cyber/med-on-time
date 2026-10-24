@@ -8,7 +8,7 @@
 | --- | --- | --- |
 | 药准时用户端功能需求分析 | **V1.8** | 六端共用逻辑：用药计划、提醒展示、服药打卡、家庭多人管理、Web 端专项 |
 | 药准时后台管理平台功能需求分析 | **V1.5** | 用户管理、药品维护审核、委托照护（5A 章）、提醒规则、RBAC、合规、客服裁决 |
-| 药准时数据库表结构设计 | **V1.2** | PostgreSQL 15+，**56 张表 / 9 个域**；locale 主表列 + 内容组键；枚举速查 |
+| 药准时数据库表结构设计 | **V1.2** | PostgreSQL 15+，基线 56 表，演进为 **58 张表 / 9 个域**（含 V1.4 ai_provider_config 与 V1.5 oa_article）；locale 主表列 + 内容组键；枚举速查 |
 | 技术架构设计（`architecture/TECH_ARCHITECTURE.md`） | **V1.5（已确认冻结）** | 全端技术选型与分层；选型口径：大型项目验证过的成熟技术 |
 | UI 设计规范 | **V1.0** | 医嘱绿 #0B6B4F、关怀模式度量（≥18pt / ≥7:1 / ≥56）、多语言 简/繁/英 |
 
@@ -20,6 +20,7 @@ PDF 原件不进仓库（GitHub 政策与体积原因），发布于 Release **d
 | --- | --- |
 | [`dev/API_CONTRACT.md`](dev/API_CONTRACT.md) | 全端共同开发契约：信封/校验/JWT 定版、frequency_rule 与 cycle 定版、用户端 + 后台接口清单、列表响应形状例外表 |
 | [`dev/AUTH_CHANNELS.md`](dev/AUTH_CHANNELS.md) | 注册验证通道裁定（V1.3）：微信/邮箱先行、手机号未验证三受限、业务码 40312/40320/40321/40910 |
+| [`dev/OA_REQUIREMENTS.md`](dev/OA_REQUIREMENTS.md) | 微信公众号需求分析（V1.0）：个人订阅号草稿箱同步、发布权限边界与文章管理 |
 | [`dev/INTEGRATION_NOTES.md`](dev/INTEGRATION_NOTES.md) | 集成收口记录、DB V1.3 候选清单、2026-10-23 线上巡检修复全表、生产待接项 |
 | [`dev/ENDS_OVERVIEW.md`](dev/ENDS_OVERVIEW.md) | 各端概要设计（实建版）：后端模块地图 + 六端结构、关键流程、构建与状态 |
 | [`dev/TEST_CASES.md`](dev/TEST_CASES.md) | 测试用例与验证记录：11 组用例、已验证证据、缺陷修复闭环、未覆盖面清单 |
@@ -36,4 +37,6 @@ PDF 原件不进仓库（GitHub 政策与体积原因），发布于 Release **d
 | [POC-1 报告](research/POC1_REPORT.md) | 说明书层 CPM-DDI-KG 有条件通过；相互作用层不通过（DDInter 数据永不入生产库），替代打法待 POC-3 |
 | [POC-1 质检运行报告](research/POC1_QC_RUN.md) | 25,738 份说明书质检结果与缺陷模式 P1–P6 |
 | [POC-1 队列处理报告](research/POC1_QUEUE_PROCESSING.md) + `research/queue/` | 首期 200 药定版：approved 182 / pending_review 18 |
-| [POC-2 方案](research/POC2_PLAN.md) | AI 模型评测（120 题）；**已暂停**，恢复须项目负责人提供智谱 Key 与讯飞 APIPassword |
+| [拍照识药通道比选](research/PHOTO_ENTRY_OPTIONS.md) | 药品拍照录入通道选型比选与落地口径（GLM-4V 视觉提示词、服务端库内检索返回 candidates） |
+| [POC-2 方案](research/POC2_PLAN.md) | AI 模型评测（120 题）；方案设计与打分维度 |
+| [POC-2 GLM 评测结果](research/POC2_GLM_RESULTS.md) | POC-2 智谱 GLM-4-Flash 120 题全量实测结果（120/120 成功，时延与准确率基线，星火待补跑） |

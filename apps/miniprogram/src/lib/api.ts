@@ -115,11 +115,15 @@ async function request<T>(path: string, method: Method, data?: unknown, retry = 
   try {
     return await rawRequest<T>(path, method, data, true);
   } catch (err) {
-    if (err instanceof ApiError && err.code === 401 && retry && tokenStore.refresh) {
-      const ok = await refreshTokens();
-      if (ok) return request<T>(path, method, data, false);
-      tokenStore.clear();
-      onSessionExpired?.();
+    if (err instanceof ApiError && err.code === 401 && retry) {
+      if (tokenStore.refresh) {
+        const ok = await refreshTokens();
+        if (ok) return request<T>(path, method, data, false);
+      }
+      if (tokenStore.access || tokenStore.refresh) {
+        tokenStore.clear();
+        onSessionExpired?.();
+      }
     }
     throw err;
   }

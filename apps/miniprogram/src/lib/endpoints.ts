@@ -12,7 +12,7 @@ import type {
   Drug,
   DrugInteractions,
   EmergencyContact,
-  MedicalRecordEntry,
+  MedicalProfile,
   Member,
   NotificationItem,
   NotificationPrefs,
@@ -60,8 +60,6 @@ export const authApi = {
   /** 扫码登录网页版（需登录）：确认当前账号登录 Web 端；票据过期/已被他人确认时后端给出业务提示。 */
   confirmScanTicket: (ticketId: string) =>
     http.post<{ status: 'confirmed'; nickname: string }>('/auth/scan-login/confirm', { ticketId }),
-  /** @deprecated 旧占位名，改调正式 /auth/wechat/bind 且必须传 Taro.login() 的 code；新代码请用 wechatBind。 */
-  bindWechat: (code: string) => http.post<{ ok: boolean; message?: string }>('/auth/wechat/bind', { code }),
 };
 
 export const accountApi = {
@@ -99,8 +97,8 @@ export const memberApi = {
 };
 
 export const authorizationApi = {
-  /** 后端返回 {granted, received} 分组且字段名为 memberDisplayName/grantedByNickname，在此归一化并合并为扁平数组（页面按 grantedByAccountId 自行分两组）。 */
-  list: async (): Promise<Authorization[]> => {
+  /** 后端返回 {granted, received} 分组且字段名为 memberDisplayName/grantedByNickname，在此归一化（与 Web 端同签名）。 */
+  list: async (): Promise<{ granted: Authorization[]; received: Authorization[] }> => {
     type Raw = Authorization & { memberDisplayName?: string | null; grantedByNickname?: string | null };
     const r = await http.get<{ granted: Raw[]; received: Raw[] }>('/authorizations');
     const norm = (a: Raw): Authorization => ({
@@ -109,7 +107,10 @@ export const authorizationApi = {
       grantorNickname: a.grantedByNickname ?? undefined,
       caregiverNickname: a.caregiverNickname ?? undefined,
     });
-    return [...(r.granted ?? []).map(norm), ...(r.received ?? []).map(norm)];
+    return {
+      granted: (r.granted ?? []).map(norm),
+      received: (r.received ?? []).map(norm),
+    };
   },
   create: (body: {
     memberId: string;
@@ -268,9 +269,12 @@ export const ehrApi = {
     http.patch<EmergencyContact>(`/members/${memberId}/emergency-contacts/${id}`, body),
   removeContact: (memberId: string, id: string) =>
     http.del<{ ok: boolean }>(`/members/${memberId}/emergency-contacts/${id}`),
-  listMedicalRecords: (memberId: string) => http.get<MedicalRecordEntry[]>(`/members/${memberId}/medical-records`),
-  createMedicalRecord: (memberId: string, body: { title?: string; content: string; recordDate?: string }) =>
-    http.post<MedicalRecordEntry>(`/members/${memberId}/medical-records`, body),
+  /** 病历在后端为「每位成员一条健康概况」（血型/身高/体重/常去医院/健康摘要 upsert），非条目列表。 */
+  getMedicalProfile: (memberId: string) => http.get<MedicalProfile | null>(`/members/${memberId}/medical-records`),
+  upsertMedicalProfile: (
+    memberId: string,
+    body: { bloodType?: string; heightCm?: number; weightKg?: number; primaryHospital?: string; summary?: string },
+  ) => http.post<MedicalProfile>(`/members/${memberId}/medical-records`, body),
 };
 
 export const notificationApi = {

@@ -9,7 +9,7 @@ struct AuthService {
     }
 
     func register(phone: String, password: String, code: String, nickname: String?) async throws -> AuthResultDTO {
-        try await api.postPublic("auth/register", body: RegisterRequest(phone: phone, password: password, code: code, nickname: nickname))
+        try await api.postPublic("auth/register", body: RegisterRequest(phone: phone, password: password, smsCode: code, nickname: nickname))
     }
 
     func login(phone: String, password: String) async throws -> AuthResultDTO {
@@ -17,11 +17,11 @@ struct AuthService {
     }
 
     func loginByCode(phone: String, code: String) async throws -> AuthResultDTO {
-        try await api.postPublic("auth/login/code", body: CodeLoginRequest(phone: phone, code: code))
+        try await api.postPublic("auth/login/code", body: CodeLoginRequest(phone: phone, smsCode: code))
     }
 
     func resetPassword(phone: String, code: String, newPassword: String) async throws -> OkResult {
-        try await api.postPublic("auth/password/reset", body: PasswordResetRequest(phone: phone, code: code, newPassword: newPassword))
+        try await api.postPublic("auth/password/reset", body: PasswordResetRequest(phone: phone, smsCode: code, newPassword: newPassword))
     }
 
     func logout() async throws -> OkResult {

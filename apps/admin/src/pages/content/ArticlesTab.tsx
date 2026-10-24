@@ -111,28 +111,47 @@ export default function ArticlesTab() {
     setSaving(true);
     try {
       let groupId = editing === 'new' ? undefined : editing?.contentGroupId;
+      const tasks: (() => Promise<unknown>)[] = [];
+
       for (const locale of LOCALES) {
         const lv = values.locales[locale];
-        if (!lv || (!lv.title?.trim() && !lv.body?.trim())) continue;
         const existing = editing !== 'new' ? editing?.locales[locale] : undefined;
-        const payload = {
+        const hasContent = !!(lv && (lv.title?.trim() || lv.body?.trim()));
+
+        if (!hasContent) {
+          if (existing) {
+            tasks.push(() => deleteArticle(existing.id));
+          }
+          continue;
+        }
+
+        const buildPayload = (gid?: string) => ({
           title: lv.title?.trim() ?? '',
           body: lv.body ?? '',
           category: values.category,
           locale,
           status: lv.status,
-          ...(groupId ? { contentGroupId: groupId } : {}),
-        };
+          ...(gid ? { contentGroupId: gid } : {}),
+        });
+
         if (existing) {
-          await updateArticle(existing.id, payload);
-        } else {
-          const created = await createArticle(payload);
+          tasks.push(() => updateArticle(existing.id, buildPayload(groupId)));
+        } else if (!groupId) {
+          const created = await createArticle(buildPayload(undefined));
           groupId = created.contentGroupId;
+        } else {
+          tasks.push(() => createArticle(buildPayload(groupId)));
         }
+      }
+
+      if (tasks.length > 0) {
+        await Promise.all(tasks.map((fn) => fn()));
       }
       message.success('内容组已保存');
       setEditing(null);
       await reload();
+    } catch {
+      /* 错误已由 request.ts 全局提示 */
     } finally {
       setSaving(false);
     }

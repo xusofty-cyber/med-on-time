@@ -54,8 +54,17 @@ struct SendSmsCodeRequest: Encodable {
 struct RegisterRequest: Encodable {
     let phone: String
     let password: String
-    let code: String
+    let smsCode: String
+    let registerChannel: String
     let nickname: String?
+
+    init(phone: String, password: String, smsCode: String, registerChannel: String = "ios", nickname: String? = nil) {
+        self.phone = phone
+        self.password = password
+        self.smsCode = smsCode
+        self.registerChannel = registerChannel
+        self.nickname = nickname
+    }
 }
 
 struct LoginRequest: Encodable {
@@ -65,7 +74,12 @@ struct LoginRequest: Encodable {
 
 struct CodeLoginRequest: Encodable {
     let phone: String
-    let code: String
+    let smsCode: String
+
+    init(phone: String, smsCode: String) {
+        self.phone = phone
+        self.smsCode = smsCode
+    }
 }
 
 struct RefreshRequest: Encodable {
@@ -74,8 +88,14 @@ struct RefreshRequest: Encodable {
 
 struct PasswordResetRequest: Encodable {
     let phone: String
-    let code: String
+    let smsCode: String
     let newPassword: String
+
+    init(phone: String, smsCode: String, newPassword: String) {
+        self.phone = phone
+        self.smsCode = smsCode
+        self.newPassword = newPassword
+    }
 }
 
 struct UpdateProfileRequest: Encodable {

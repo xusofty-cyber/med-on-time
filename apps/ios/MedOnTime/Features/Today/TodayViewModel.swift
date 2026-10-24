@@ -38,11 +38,20 @@ final class TodayViewModel: ObservableObject {
         isLoading = true
         defer { isLoading = false }
         do {
-            let fetched = try await reminderService.today(memberId: memberId)
+            async let fetchedResult = reminderService.today(memberId: memberId)
+            // 确保关怀设置在本地通知排程前就绪，防止多成员切换或首启时用旧/nil设置排程
+            let currentSettings: CareSettingsDTO?
+            if let existing = session.careSettings, session.currentMember?.id == memberId {
+                currentSettings = existing
+            } else {
+                await session.refreshCareSettings()
+                currentSettings = session.careSettings
+            }
+            let fetched = try await fetchedResult
             instances = fetched.sorted { $0.scheduledAtUtc < $1.scheduledAtUtc }
             errorMessage = nil
             // 以服务端时间线为准重排本地通知兜底（锁屏药名展示受关怀设置控制）。
-            localNotifications.scheduleTodayReminders(fetched, careSettings: session.careSettings)
+            localNotifications.scheduleTodayReminders(fetched, careSettings: currentSettings)
         } catch {
             errorMessage = (error as? APIError)?.message ?? "今日提醒加载失败"
         }

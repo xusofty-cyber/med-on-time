@@ -91,6 +91,36 @@ export class ReminderQueueService implements OnModuleDestroy {
     }
   }
 
+  /** 批量清理已取消提醒实例在队列中的待执行延迟/等待任务 */
+  async removeJobsForInstances(instanceIds: string[]): Promise<void> {
+    if (instanceIds.length === 0) return;
+    const idSet = new Set(instanceIds);
+    try {
+      const jobs = await this.deliverQueue.getJobs(['delayed', 'waiting']);
+      for (const job of jobs) {
+        if (job?.data?.instanceId && idSet.has(job.data.instanceId)) {
+          await job.remove().catch(() => undefined);
+        }
+      }
+    } catch (err) {
+      this.logger.warn(`removeJobsForInstances failed: ${String(err)}`);
+    }
+  }
+
+  /** Redis 连通性探活（供 /api/ops/ready 使用） */
+  async pingRedis(): Promise<boolean> {
+    try {
+      const client = await this.deliverQueue.client;
+      // BullMQ 的 IRedisClient 抽象未声明 ping，底层 ioredis 客户端实际支持；此处仅做调用点类型收窄。
+      const pong = await (
+        client as unknown as { ping: () => Promise<string> }
+      ).ping();
+      return pong === 'PONG';
+    } catch {
+      return false;
+    }
+  }
+
   async onModuleDestroy(): Promise<void> {
     await Promise.allSettled([this.generateQueue.close(), this.deliverQueue.close()]);
   }

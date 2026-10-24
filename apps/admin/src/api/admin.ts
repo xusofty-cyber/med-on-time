@@ -1,4 +1,4 @@
-import { request, type PageData } from '../services/request';
+import { asList, request, type PageData, type RequestOptions } from '../services/request';
 import type {
   AccountDetail,
   AccountItem,
@@ -182,58 +182,59 @@ export function deleteAppVersion(id: string) {
 
 /* ---------------- 大模型配置（2026-10-24） ---------------- */
 
-export function listAiProviders() {
-  return request<AiProviderItem[]>('/admin/ai-providers');
+export async function listAiProviders(options?: RequestOptions) {
+  return asList(await request<PageData<AiProviderItem> | AiProviderItem[]>('/admin/ai-providers', options));
 }
 
-export function createAiProvider(payload: AiProviderPayload) {
-  return request<AiProviderItem>('/admin/ai-providers', { method: 'POST', body: payload });
+export function createAiProvider(payload: AiProviderPayload, options?: RequestOptions) {
+  return request<AiProviderItem>('/admin/ai-providers', { method: 'POST', body: payload, ...options });
 }
 
-export function updateAiProvider(id: string, payload: Partial<AiProviderPayload>) {
-  return request<AiProviderItem>(`/admin/ai-providers/${id}`, { method: 'PATCH', body: payload });
+export function updateAiProvider(id: string, payload: Partial<AiProviderPayload>, options?: RequestOptions) {
+  return request<AiProviderItem>(`/admin/ai-providers/${id}`, { method: 'PATCH', body: payload, ...options });
 }
 
-export function deleteAiProvider(id: string) {
-  return request<{ id: string }>(`/admin/ai-providers/${id}`, { method: 'DELETE' });
+export function deleteAiProvider(id: string, options?: RequestOptions) {
+  return request<{ id: string }>(`/admin/ai-providers/${id}`, { method: 'DELETE', ...options });
 }
 
-export function testAiProvider(id: string) {
+export function testAiProvider(id: string, options?: RequestOptions) {
   return request<{ ok: boolean; model: string; latencyMs: number }>(
     `/admin/ai-providers/${id}/test`,
-    { method: 'POST' },
+    { method: 'POST', ...options },
   );
 }
 
 /* ---------------- 公众号文章（2026-10-24） ---------------- */
 
-export function listOaArticles() {
-  return request<OaArticleItem[]>('/admin/oa-articles');
+export async function listOaArticles(options?: RequestOptions) {
+  return asList(await request<PageData<OaArticleItem> | OaArticleItem[]>('/admin/oa-articles', options));
 }
 
-export function createOaArticle(payload: OaArticlePayload) {
-  return request<OaArticleItem>('/admin/oa-articles', { method: 'POST', body: payload });
+export function createOaArticle(payload: OaArticlePayload, options?: RequestOptions) {
+  return request<OaArticleItem>('/admin/oa-articles', { method: 'POST', body: payload, ...options });
 }
 
-export function updateOaArticle(id: string, payload: Partial<OaArticlePayload>) {
-  return request<OaArticleItem>(`/admin/oa-articles/${id}`, { method: 'PATCH', body: payload });
+export function updateOaArticle(id: string, payload: Partial<OaArticlePayload>, options?: RequestOptions) {
+  return request<OaArticleItem>(`/admin/oa-articles/${id}`, { method: 'PATCH', body: payload, ...options });
 }
 
-export function deleteOaArticle(id: string) {
-  return request<{ deleted: boolean }>(`/admin/oa-articles/${id}`, { method: 'DELETE' });
+export function deleteOaArticle(id: string, options?: RequestOptions) {
+  return request<{ deleted: boolean }>(`/admin/oa-articles/${id}`, { method: 'DELETE', ...options });
 }
 
-export function uploadOaCover(id: string, imageBase64: string, mimeType: string) {
+export function uploadOaCover(id: string, imageBase64: string, mimeType: string, options?: RequestOptions) {
   return request<OaArticleItem>(`/admin/oa-articles/${id}/cover`, {
     method: 'POST',
     body: { imageBase64, mimeType },
+    ...options,
   });
 }
 
-export function syncOaArticle(id: string) {
-  return request<OaArticleItem>(`/admin/oa-articles/${id}/sync`, { method: 'POST' });
+export function syncOaArticle(id: string, options?: RequestOptions) {
+  return request<OaArticleItem>(`/admin/oa-articles/${id}/sync`, { method: 'POST', ...options });
 }
 
-export function unsyncOaArticle(id: string) {
-  return request<OaArticleItem>(`/admin/oa-articles/${id}/unsync`, { method: 'POST' });
+export function unsyncOaArticle(id: string, options?: RequestOptions) {
+  return request<OaArticleItem>(`/admin/oa-articles/${id}/unsync`, { method: 'POST', ...options });
 }

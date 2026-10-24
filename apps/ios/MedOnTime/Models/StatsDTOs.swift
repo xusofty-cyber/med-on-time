@@ -3,26 +3,46 @@ import Foundation
 /// 依从汇总（应服 / 实服 / 按时率；口径：补记计入 taken 不计 on_time，missed 与 skipped 分开统计）。
 struct AdherenceSummaryDTO: Decodable {
     let range: String
-    let scheduledCount: Int
-    let takenCount: Int
-    let onTimeCount: Int
-    let missedCount: Int
-    let skippedCount: Int
+    let scheduled: Int
+    let taken: Int
+    let onTime: Int
+    let missed: Int
+    let skipped: Int
     let adherenceRate: Double?
     let onTimeRate: Double?
+
+    var scheduledCount: Int { scheduled }
+    var takenCount: Int { taken }
+    var onTimeCount: Int { onTime }
+    var missedCount: Int { missed }
+    var skippedCount: Int { skipped }
+}
+
+/// 依从月历响应（GET /members/:memberId/adherence/calendar 投影）。
+struct AdherenceCalendarResponse: Decodable {
+    let month: String
+    let timezone: String
+    let days: [AdherenceCalendarDayDTO]
 }
 
 /// 依从月历单日（date 为成员本地日期 yyyy-MM-dd）。
 struct AdherenceCalendarDayDTO: Decodable, Identifiable {
     let date: String
-    let scheduledCount: Int
-    let takenCount: Int
-    let onTimeCount: Int
-    let missedCount: Int
-    let skippedCount: Int
+    let scheduled: Int
+    let taken: Int
+    let onTime: Int
+    let missed: Int
+    let skipped: Int
     let adherenceRate: Double?
+    let status: String?
 
     var id: String { date }
+
+    var scheduledCount: Int { scheduled }
+    var takenCount: Int { taken }
+    var onTimeCount: Int { onTime }
+    var missedCount: Int { missed }
+    var skippedCount: Int { skipped }
 }
 
 /// 库存条目（member_medication 汇总池投影 + 到期 / 低量预警标记）。

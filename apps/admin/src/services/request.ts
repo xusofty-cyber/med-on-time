@@ -1,5 +1,5 @@
 import { message } from 'antd';
-import { clearSession, getAccessToken } from './session';
+import { clearSession, getAccessToken, getRefreshToken, updateTokens } from './session';
 
 /**
  * 统一 request 封装（后台专用）。
@@ -48,6 +48,33 @@ export interface RequestOptions {
 
 const API_PREFIX = '/api';
 
+let refreshInFlight: Promise<boolean> | null = null;
+function tryRefreshTokens(): Promise<boolean> {
+  if (!refreshInFlight) {
+    refreshInFlight = (async () => {
+      const refreshToken = getRefreshToken();
+      if (!refreshToken) return false;
+      try {
+        const res = await fetch(`${API_PREFIX}/admin/auth/refresh`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ refreshToken }),
+        });
+        if (!res.ok) return false;
+        const env = (await res.json()) as ApiEnvelope<{ accessToken: string; refreshToken?: string }>;
+        if (!env || env.code !== 0 || !env.data?.accessToken) return false;
+        updateTokens(env.data.accessToken, env.data.refreshToken);
+        return true;
+      } catch {
+        return false;
+      } finally {
+        refreshInFlight = null;
+      }
+    })();
+  }
+  return refreshInFlight;
+}
+
 function redirectToLogin(): void {
   clearSession();
   if (window.location.pathname !== '/login') {
@@ -55,7 +82,7 @@ function redirectToLogin(): void {
   }
 }
 
-export async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
+export async function request<T>(path: string, options: RequestOptions = {}, retry = true): Promise<T> {
   const { method = 'GET', params, body, silent = false } = options;
 
   const qs = new URLSearchParams();
@@ -92,6 +119,12 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
   }
 
   if (response.status === 401 || envelope?.code === 40100) {
+    if (retry && getRefreshToken()) {
+      const refreshed = await tryRefreshTokens();
+      if (refreshed) {
+        return request<T>(path, options, false);
+      }
+    }
     if (!silent) message.error('登录已过期，请重新登录');
     redirectToLogin();
     throw new ApiError(40100, '登录已过期', 401, envelope?.traceId);
@@ -127,12 +160,14 @@ export function toProTable<T>(
       }
     });
     const data = await load({ ...query, page: current ?? 1, pageSize: pageSize ?? 20 });
-    return { data: data.items, total: data.total, success: true };
+    const items = Array.isArray(data) ? data : (data?.items ?? []);
+    const total = Array.isArray(data) ? data.length : (data?.total ?? items.length);
+    return { data: items, total, success: true };
   };
 }
 
 /** 有的列表接口（如变更史）可能直接返回数组而非分页信封，统一成数组读取 */
 export function asList<T>(data: PageData<T> | T[] | null | undefined): T[] {
   if (!data) return [];
-  return Array.isArray(data) ? data : data.items;
+  return Array.isArray(data) ? data : (data.items ?? []);
 }

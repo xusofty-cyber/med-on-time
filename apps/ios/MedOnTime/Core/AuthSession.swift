@@ -74,6 +74,7 @@ final class AuthSession: ObservableObject {
         currentMember = nil
         careSettings = nil
         state = .signedOut
+        AppEnvironment.shared.localNotifications.cancelAllReminderNotifications()
     }
 
     // MARK: - 成员
@@ -91,9 +92,14 @@ final class AuthSession: ObservableObject {
         if persist, let member {
             UserDefaults.standard.set(member.id, forKey: memberIdDefaultsKey)
         }
-        careSettings = nil
-        guard let member else { return }
-        careSettings = try? await memberService.getCareSettings(memberId: member.id)
+        guard let member else {
+            careSettings = nil
+            return
+        }
+        let settings = try? await memberService.getCareSettings(memberId: member.id)
+        if currentMember?.id == member.id {
+            careSettings = settings
+        }
     }
 
     func refreshCareSettings() async {

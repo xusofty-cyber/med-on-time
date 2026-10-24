@@ -27,23 +27,53 @@ export interface JwtPayload {
 const ACCESS_TTL_SECONDS = 2 * 60 * 60; // 2h（契约）
 const REFRESH_TTL_SECONDS = 30 * 24 * 60 * 60; // 30d（契约）
 
+function parseTtlSeconds(raw: string | number | undefined, fallback: number): number {
+  if (typeof raw === 'number' && Number.isFinite(raw) && raw > 0) return Math.floor(raw);
+  if (typeof raw !== 'string' || !raw.trim()) return fallback;
+  const trimmed = raw.trim();
+  if (/^\d+$/.test(trimmed)) return parseInt(trimmed, 10);
+  const m = /^(\d+)\s*([smhd])$/i.exec(trimmed);
+  if (!m) return fallback;
+  const numPart = m[1];
+  const unitPart = m[2];
+  if (numPart === undefined || unitPart === undefined) return fallback;
+  const val = parseInt(numPart, 10);
+  const unit = unitPart.toLowerCase();
+  if (unit === 's') return val;
+  if (unit === 'm') return val * 60;
+  if (unit === 'h') return val * 3600;
+  if (unit === 'd') return val * 86400;
+  return fallback;
+}
+
 @Injectable()
 export class TokenService {
   private readonly logger = new Logger(TokenService.name);
   private readonly accessSecret: string;
   private readonly refreshSecret: string;
-  readonly accessTtlSeconds = ACCESS_TTL_SECONDS;
-  readonly refreshTtlSeconds = REFRESH_TTL_SECONDS;
+  readonly accessTtlSeconds: number;
+  readonly refreshTtlSeconds: number;
 
   constructor(private readonly config: ConfigService) {
-    this.accessSecret =
-      this.config.get<string>('jwt.accessSecret') ?? DEV_ACCESS_SECRET_FALLBACK;
-    this.refreshSecret =
-      this.config.get<string>('jwt.refreshSecret') ?? DEV_REFRESH_SECRET_FALLBACK;
-    if (
-      !this.config.get<string>('jwt.accessSecret') ||
-      !this.config.get<string>('jwt.refreshSecret')
-    ) {
+    const isProd = process.env.NODE_ENV === 'production';
+    const rawAccessSecret = this.config.get<string>('jwt.accessSecret');
+    const rawRefreshSecret = this.config.get<string>('jwt.refreshSecret');
+    if (isProd && (!rawAccessSecret || !rawRefreshSecret)) {
+      throw new Error(
+        '生产环境必须配置 JWT_ACCESS_SECRET 与 JWT_REFRESH_SECRET，禁止回退开发默认密钥',
+      );
+    }
+    this.accessSecret = rawAccessSecret ?? DEV_ACCESS_SECRET_FALLBACK;
+    this.refreshSecret = rawRefreshSecret ?? DEV_REFRESH_SECRET_FALLBACK;
+    this.accessTtlSeconds = parseTtlSeconds(
+      this.config.get<string>('jwt.accessTtl'),
+      ACCESS_TTL_SECONDS,
+    );
+    this.refreshTtlSeconds = parseTtlSeconds(
+      this.config.get<string>('jwt.refreshTtl'),
+      REFRESH_TTL_SECONDS,
+    );
+    if (!rawAccessSecret || !rawRefreshSecret) {
       this.logger.warn('JWT 密钥未配置，使用开发默认值（生产环境禁止）');
     }
   }
@@ -52,7 +82,7 @@ export class TokenService {
     return signJwt(
       { sub: accountId, type: 'user', sid: sessionId, jti: randomUUID() },
       this.accessSecret,
-      ACCESS_TTL_SECONDS,
+      this.accessTtlSeconds,
     );
   }
 
@@ -61,7 +91,7 @@ export class TokenService {
     const token = signJwt(
       { sub: accountId, type: 'refresh', sid: sessionId, jti },
       this.refreshSecret,
-      REFRESH_TTL_SECONDS,
+      this.refreshTtlSeconds,
     );
     return { token, jti };
   }

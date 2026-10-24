@@ -45,14 +45,14 @@ pnpm --filter @med-on-time/api prisma migrate deploy   # 部署执行迁移
 | 类别 | 技术选型与版本 | 补充说明 |
 |---|---|---|
 | **包管理器** | pnpm 9 | monorepo workspace（`apps/*`、`packages/*`、`services/*`） |
-| **后端** | Node.js 20 LTS + NestJS 10 + Prisma 5 | 模块化单体分层；BullMQ + Redis 7 做提醒延迟队列 |
-| **后台管理平台** | React 18 + Vite + Ant Design 5 + ProComponents | React Router v6；图表 ECharts |
-| **Web 用户门户** | React 18 + Vite + Tailwind CSS + Zustand | 同一套代码响应式适配 PC + 移动；PWA（vite-plugin-pwa）为 P1 |
+| **后端** | Node.js 20 LTS（生产容器 node:22-alpine）+ NestJS 10 + Prisma 5 | 模块化单体分层；BullMQ + Redis 7 做提醒延迟队列 |
+| **后台管理平台** | React 18 + Vite + Ant Design 5 | React Router v6；图表 ECharts（规划备选） |
+| **Web 用户门户** | React 18 + Vite + Tailwind CSS | React 18 原生轻量状态；同一套代码响应式适配 PC + 移动；PWA（vite-plugin-pwa）为 P1 |
 | **微信小程序** | Taro 4（React 写法） | 编译到微信小程序；订阅消息须用户主动订阅 |
 | **移动端** | Android: Kotlin + Jetpack（Compose/Room/WorkManager/Hilt/Retrofit）；iOS: Swift + SwiftUI | 推送：APNs / FCM；国内安卓用极光·JPush 聚合 |
 | **桌面端** | Electron（复用 `apps/web` 代码） | Windows / Linux / macOS；定位为补充提醒 |
-| **共享包** | TypeScript + dayjs + zod；API 客户端由 OpenAPI 生成（orval） | `packages/shared` 枚举与 DB 枚举速查逐字一致 |
-| **持久层** | PostgreSQL 15+ | 56 张表 / 9 个域（DB V1.2）；UUIDv7 主键；软删除；大表按月分区 |
+| **共享包** | TypeScript + dayjs + zod；各端 hand-crafted endpoints 归一化层 | `packages/shared` 枚举与 DB 枚举速查逐字一致；orval 自动生成为规划项 |
+| **持久层** | PostgreSQL 15+ | 58 张表 / 9 个域（基线 DB V1.2 为 56 表，演进至 58 表）；UUIDv7 主键；软删除；大表按月分区 |
 | **接口** | RESTful over HTTPS，OpenAPI 为唯一契约 | 各端共用同一套后端 API |
 | **CI/CD** | GitHub Actions（lint/test/build）；CD 待定 | `main` 受保护，PR 合并 |
 

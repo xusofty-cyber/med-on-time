@@ -3,7 +3,7 @@ import { accountApi, authApi } from '../lib/endpoints';
 import { actions, useApp } from '../lib/store';
 import { Badge, Button, Card, ErrorText, Field, Modal, Spinner, TextInput } from '../components/ui';
 import { ACCOUNT_STATUS_LABELS } from '../lib/dict';
-import { fmtDateTime } from '../lib/time';
+import { fmtDateTime, isValidTimeZone } from '../lib/time';
 import type { UserSession } from '../lib/types';
 
 export default function Settings() {
@@ -33,8 +33,14 @@ export default function Settings() {
 
   const saveProfile = async (e: FormEvent) => {
     e.preventDefault();
+    const tz = timezone.trim() || 'Asia/Shanghai';
+    if (!isValidTimeZone(tz)) {
+      setProfileError(new Error('请输入合法的 IANA 时区名称（如 Asia/Shanghai）'));
+      return;
+    }
+    setProfileError(null);
     try {
-      const saved = await accountApi.updateProfile({ nickname, timezone });
+      const saved = await accountApi.updateProfile({ nickname, timezone: tz });
       actions.setAccount(saved);
       actions.toast('success', '账号资料已保存');
     } catch (err) {

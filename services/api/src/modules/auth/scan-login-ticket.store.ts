@@ -30,11 +30,11 @@ export class ScanLoginTicketStore {
     this.tickets.set(ticket.id, ticket);
   }
 
-  /** 取票据；pending 已过期视为不存在并顺手删除 */
+  /** 取票据；任何状态若已过期均视为不存在并顺手删除 */
   get(id: string): ScanLoginTicket | undefined {
     const ticket = this.tickets.get(id);
     if (!ticket) return undefined;
-    if (ticket.status === 'pending' && Date.now() > ticket.expiresAt) {
+    if (Date.now() > ticket.expiresAt) {
       this.tickets.delete(id);
       return undefined;
     }

@@ -27,6 +27,17 @@ import {
 import { toProTable } from '../../services/request';
 import { fmtDateTime } from '../../utils/format';
 
+/** 校验 URL 协议是否仅为 http: 或 https:（防止 javascript: 伪协议 XSS） */
+function safeHttpUrl(url?: string | null): string | null {
+  if (!url) return null;
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:' ? parsed.href : null;
+  } catch {
+    return null;
+  }
+}
+
 /** 系统 · 应用版本管理（app_version）：低于 min_supported_version 的客户端将被强制升级 */
 export default function AppVersionsPage() {
   const actionRef = useRef<ActionType>();
@@ -60,14 +71,17 @@ export default function AppVersionsPage() {
       dataIndex: 'downloadUrl',
       hideInSearch: true,
       ellipsis: true,
-      render: (_, r) =>
-        r.downloadUrl ? (
-          <a href={r.downloadUrl} target="_blank" rel="noreferrer">
-            {r.downloadUrl}
-          </a>
-        ) : (
-          '-'
-        ),
+      render: (_, r) => {
+        const href = safeHttpUrl(r.downloadUrl);
+        if (href) {
+          return (
+            <a href={href} target="_blank" rel="noreferrer">
+              {r.downloadUrl}
+            </a>
+          );
+        }
+        return r.downloadUrl ?? '-';
+      },
     },
     {
       title: '状态',
@@ -177,7 +191,12 @@ export default function AppVersionsPage() {
           placeholder="低于此版本的客户端将被强制升级"
         />
         <ProFormTextArea name="releaseNote" label="更新说明" fieldProps={{ rows: 3 }} />
-        <ProFormText name="downloadUrl" label="下载地址" placeholder="https://" />
+        <ProFormText
+          name="downloadUrl"
+          label="下载地址"
+          placeholder="https://"
+          rules={[{ type: 'url', pattern: /^https?:\/\//i, message: '请输入以 http:// 或 https:// 开头的合法地址' }]}
+        />
         <ProFormSelect
           name="status"
           label="状态"

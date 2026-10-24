@@ -10,7 +10,7 @@ ARG PRISMA_ENGINES_MIRROR=https://npmmirror.com/mirrors/prisma
 ARG PRISMA_VERSION=5.22.0
 
 # ---------- 构建阶段 ----------
-FROM node:22-alpine AS build
+FROM node:20-alpine AS build
 # apk 换国内镜像源（官方 CDN 在国内云上时常慢到单包百秒级）
 RUN sed -i 's|dl-cdn.alpinelinux.org|mirrors.cloud.tencent.com|g' /etc/apk/repositories
 ARG NPM_REGISTRY
@@ -35,7 +35,7 @@ RUN pnpm --filter @med-on-time/api build
 RUN pnpm --filter @med-on-time/api deploy --prod /out
 
 # ---------- 运行阶段 ----------
-FROM node:22-alpine AS runner
+FROM node:20-alpine AS runner
 RUN sed -i 's|dl-cdn.alpinelinux.org|mirrors.cloud.tencent.com|g' /etc/apk/repositories
 ARG NPM_REGISTRY
 ARG PRISMA_VERSION
@@ -55,6 +55,8 @@ RUN cp prisma/seeds/drug_seed_200.json dist/prisma/seeds/drug_seed_200.json
 RUN prisma generate --schema prisma/schema.prisma
 USER node
 EXPOSE 3000
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
+  CMD wget -qO- http://127.0.0.1:${PORT:-3000}/api/ops/health >/dev/null || exit 1
 ENTRYPOINT ["/sbin/tini", "--"]
 # 环境变量（PORT / DATABASE_URL / REDIS_URL / 各密钥）由 compose env_file 注入
 CMD ["node", "dist/src/main.js"]

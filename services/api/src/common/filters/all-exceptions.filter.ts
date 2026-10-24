@@ -36,13 +36,22 @@ export class AllExceptionsFilter implements ExceptionFilter {
       status = exception.getStatus();
       code = status * 100;
       const res = exception.getResponse();
-      message =
-        typeof res === 'string'
-          ? res
-          : ((res as { message?: string }).message ?? exception.message);
+      if (typeof res === 'string') {
+        message = res;
+      } else {
+        const rawMessage = (res as { message?: string | string[] }).message ?? exception.message;
+        message = Array.isArray(rawMessage) ? rawMessage.join('; ') : String(rawMessage);
+      }
     } else if (exception instanceof Error) {
-      message = exception.message;
-      this.logger.error(`Unhandled error [${traceId}]`, exception.stack);
+      const prismaCode = (exception as { code?: string }).code;
+      if (prismaCode === 'P2023') {
+        status = HttpStatus.BAD_REQUEST;
+        code = 40000;
+        message = 'invalid id format';
+      } else {
+        message = 'Internal server error';
+        this.logger.error(`Unhandled error [${traceId}]`, exception.stack);
+      }
     }
 
     response.status(status).json({ code, message, traceId });

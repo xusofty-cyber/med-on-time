@@ -60,6 +60,10 @@ emailVerifiedAt / hasWechat`（hasWechat = 存在未解绑的微信 oauth 绑定
 | SMTP_HOST / SMTP_PORT / SMTP_USER / SMTP_PASS | SMTP 分项配置（PORT 缺省 587，465 自动走 TLS） | 同上 |
 | SMTP_FROM | 发件人（缺省 `MedOnTime 药准时 <no-reply@medontime.app>`） | 用缺省值 |
 | WECHAT_MINIAPP_APPID / WECHAT_MINIAPP_SECRET | 微信小程序服务端凭证（公众平台「开发管理 → 开发设置」，须与小程序 appid 同一主体） | 微信登录/绑定/手机号验证返回 40312 |
+| WECHAT_SUBSCRIBE_TEMPLATE_ID | 微信一次性订阅消息模板 ID | 微信订阅消息下发跳过或报错 |
+| WECHAT_SUBSCRIBE_MP_STATE | 微信小程序跳转环境（developer/trial/formal） | 缺省 formal |
+| WEB_PUBLIC_URL | Web 门户对外公网 URL（用于扫码登录落地页等） | 缺省 https://mot.ulife.vip |
+| WECHAT_OA_APPID / WECHAT_OA_SECRET | 微信公众号凭证（用于公众号文章草稿箱同步与素材上传） | 微信公众号模块接口返回未配置错误 |
 
 手机号/邮箱加解密与哈希沿用 PHONE_ENCRYPTION_KEY / PHONE_HMAC_KEY（邮箱哈希的 HMAC
 输入加 `email:` 域分隔前缀，与手机号哈希不串味）。
@@ -75,15 +79,15 @@ emailVerifiedAt / hasWechat`（hasWechat = 存在未解绑的微信 oauth 绑定
 
 ## 本轮不做与待办
 
-- **Web 微信扫码登录不在本轮**：微信开放平台网站应用登录要求开放平台账号完成
-  **企业认证**（含对公审核与年审费用），属商务前置而非技术问题；认证就绪后按
-  oauth2 authorize → code 换 openid/unionid → 复用 `user_oauth_binding` 落点接入，
-  数据模型无需再变。小程序端登录不受此限（小程序 appid 凭证即可）。
+- **Web 微信开放平台原生扫码登录不在本轮**：微信开放平台网站应用登录要求开放平台账号完成
+  **企业认证**（含对公审核与年审费用），属商务前置而非技术问题；目前已通过
+  **小程序扫码确认通道**（`POST /auth/scan-login/tickets`）成功落地 Web 扫码登录。
+  开放平台原生网站应用扫码登录留待企业资质就绪后再做。
 - **邮箱补绑/换绑端点未落地**：验证码 `bind` 场景与 /auth/email/send 已支持，
   账号邮箱目前仅经邮箱注册写入；已注册账号补绑邮箱的端点列入下一迭代。
 - **微信 access_token 为进程内存缓存**：API 多副本部署时各实例独立缓存会互相顶号
   （微信同 appid 的 token 全局单例），扩容前须改为集中式 token 中控（Redis）。
-- **未实测**：微信真实接口（无正式 appid/secret，未联调 jscode2session/getPhoneNumber）、
-  SMTP 真实发信（未配真实 SMTP，未实发）——均为配置到位后的一次性联调项，不改代码。
+- **实测状态**：微信小程序真实接口已接入正式 AppID/AppSecret 并完成小程序登录/扫码/单次订阅消息下发实测；
+  SMTP 真实发信（QQ 邮箱）已在生产实测打通。
 - 原生 Android / iOS 本轮不改：新端点均为标准 REST，API 就绪即可，两端后续迭代接入
   （邮箱注册/登录的 account 字段与微信登录入口）。

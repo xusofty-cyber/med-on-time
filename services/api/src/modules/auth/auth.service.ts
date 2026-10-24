@@ -70,11 +70,6 @@ export class AuthService {
 
   async register(dto: RegisterDto, ctx: RequestContext): Promise<TokenPair> {
     const phoneHash = this.phoneCrypto.hashPhone(dto.phone);
-    // V1.3 裁定：带短信验证码则校验并置已验证；不带码未验证注册（三受限生效，见 AUTH_CHANNELS.md）。
-    if (dto.smsCode) {
-      await this.codes.verifyAndConsume(phoneHash, 'register', dto.smsCode);
-    }
-
     const existing = await this.findAccountByPhoneHash(phoneHash);
     if (existing) {
       throw new BusinessException(
@@ -82,6 +77,12 @@ export class AuthService {
         '该手机号已注册，请直接登录',
         HttpStatus.CONFLICT,
       );
+    }
+
+    // V1.3 裁定：带短信验证码则校验并置已验证；不带码未验证注册（三受限生效，见 AUTH_CHANNELS.md）。
+    // 先判重再消费验证码，避免 409 冲突时验证码被提前作废。
+    if (dto.smsCode) {
+      await this.codes.verifyAndConsume(phoneHash, 'register', dto.smsCode);
     }
 
     const passwordHash = await argon2.hash(dto.password, { type: argon2.argon2id });
@@ -127,7 +128,6 @@ export class AuthService {
   async registerByEmail(dto: RegisterByEmailDto, ctx: RequestContext): Promise<TokenPair> {
     const email = PhoneCryptoService.normalizeEmail(dto.email);
     const emailHash = this.phoneCrypto.hashEmail(email);
-    await this.codes.verifyEmailAndConsume(emailHash, 'register', dto.code);
 
     const byEmail = await this.prisma.userAccount.findFirst({
       where: { emailHash, deletedAt: null },
@@ -152,6 +152,9 @@ export class AuthService {
         );
       }
     }
+
+    // 先完成邮箱与选填手机号唯一性判重，再消费邮箱验证码，防 409 时验证码作废
+    await this.codes.verifyEmailAndConsume(emailHash, 'register', dto.code);
 
     const passwordHash = await argon2.hash(dto.password, { type: argon2.argon2id });
     const now = new Date();
@@ -230,6 +233,13 @@ export class AuthService {
         BusinessCode.NotFound,
         '该手机号未注册，请先注册',
         HttpStatus.NOT_FOUND,
+      );
+    }
+    if (!account.phoneVerifiedAt) {
+      throw new BusinessException(
+        AuthBusinessCode.PhoneNotVerified,
+        '该账号手机号未验证，暂不能通过短信验证码登录',
+        HttpStatus.FORBIDDEN,
       );
     }
     this.assertAccountUsable(account);
@@ -578,11 +588,12 @@ export class AuthService {
       );
     }
     if (ticket.status === 'pending') return { status: 'pending' };
+    // 立即同步摘除已确认票据，防止并发轮询重复签发多套会话令牌
+    this.scanTickets.delete(ticketId);
     const account = await this.prisma.userAccount.findFirst({
       where: { id: ticket.accountId!, deletedAt: null },
     });
     if (!account) {
-      this.scanTickets.delete(ticketId);
       throw new BusinessException(
         BusinessCode.NotFound,
         '确认账号不可用，请重新扫码',
@@ -596,7 +607,6 @@ export class AuthService {
       ctx,
     );
     await this.touchLogin(account.id);
-    this.scanTickets.delete(ticketId);
     return { status: 'confirmed', ...tokens };
   }
 

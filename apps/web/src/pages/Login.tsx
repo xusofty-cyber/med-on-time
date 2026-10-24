@@ -18,15 +18,19 @@ export default function Login() {
   const [error, setError] = useState<unknown>(null);
   const [busy, setBusy] = useState(false);
 
-  /** 令牌到手后的统一收尾：落令牌 → 装载账号 → 装载成员 → 进首页（密码/验证码/扫码共用） */
+  /** 令牌到手后的统一收尾：清旧状态 → 落令牌 → 装载账号 → 装载成员 → 进首页（密码/验证码/扫码共用） */
   const finishLogin = async (result: AuthResult) => {
+    actions.resetSession();
     tokenStore.set(result.accessToken, result.refreshToken);
-    if (result.account) actions.setAccount(result.account);
-    else {
+    if (result.account) {
+      actions.setAccount(result.account);
+    } else {
       try {
         actions.setAccount(await authApi.me());
-      } catch {
-        /* me 失败时由 App 守卫兜底回登录页 */
+      } catch (err) {
+        tokenStore.clear();
+        actions.resetSession();
+        throw err;
       }
     }
     // 登录后立即装载成员（此前只有整页刷新时的启动流程才拉，初次登录全站显示「还没有成员」）
@@ -72,7 +76,14 @@ export default function Login() {
           </Button>
         </div>
         {mode === 'scan' ? (
-          <ScanLoginPanel onConfirmed={(result) => void finishLogin(result)} />
+          <ScanLoginPanel
+            onConfirmed={(result) => {
+              finishLogin(result).catch((err) => {
+                setError(err);
+                actions.toast('error', err instanceof Error ? err.message : '登录失败');
+              });
+            }}
+          />
         ) : (
         <form className="flex flex-col gap-4" onSubmit={submit}>
           {mode === 'password' ? (

@@ -5,11 +5,13 @@ struct ReminderService {
     let api: APIClient
 
     func today(memberId: String) async throws -> [ReminderInstanceDTO] {
-        try await api.get("members/\(memberId)/reminders/today")
+        let resp: ReminderDayDTO = try await api.get("members/\(memberId)/reminders/today")
+        return resp.items
     }
 
     func byDate(memberId: String, date: String) async throws -> [ReminderInstanceDTO] {
-        try await api.get("members/\(memberId)/reminders", query: [URLQueryItem(name: "date", value: date)])
+        let resp: ReminderDayDTO = try await api.get("members/\(memberId)/reminders", query: [URLQueryItem(name: "date", value: date)])
+        return resp.items
     }
 
     func snooze(instanceId: String) async throws -> ReminderInstanceDTO {

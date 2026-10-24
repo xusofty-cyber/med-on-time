@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { Switch, Text, View } from '@tarojs/components';
 import { planApi } from '../lib/endpoints';
 import { toastOk } from '../lib/api';
+import { currentMember } from '../lib/store';
+import { todayInTz } from '../lib/time';
 import { COURSE_LABELS, FREQUENCY_LABELS, MEAL_LABELS, WEEKDAY_LABELS } from '../lib/dict';
 import {
   CYCLE_PRESETS,
@@ -67,7 +69,7 @@ export function PlanForm({
 }) {
   const [name, setName] = useState('');
   const [planType, setPlanType] = useState('scheduled');
-  const [startDate, setStartDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [startDate, setStartDate] = useState(() => todayInTz(currentMember()?.timezone ?? 'Asia/Shanghai'));
   const [endDate, setEndDate] = useState('');
   const [items, setItems] = useState<ItemDraft[]>([emptyItem()]);
   const [phases, setPhases] = useState<PlanPhaseInput[]>([]);
@@ -130,6 +132,30 @@ export function PlanForm({
     if (invalid) {
       setError(new Error('每条明细都要先搜索选择药品'));
       return;
+    }
+    for (let i = 0; i < items.length; i++) {
+      const it = items[i]!;
+      if (!(Number(it.doseAmount) > 0)) {
+        setError(new Error(`药品 ${i + 1}：每次剂量须大于 0`));
+        return;
+      }
+      if (it.courseType === 'fixed_days' && !(Number(it.courseDays) >= 1)) {
+        setError(new Error(`药品 ${i + 1}：固定疗程天数须至少为 1 天`));
+        return;
+      }
+      if (planType !== 'prn' && it.frequencyType === 'weekly' && !(it.frequencyRule.weekdays?.length)) {
+        setError(new Error(`药品 ${i + 1}：按周服用请至少勾选一天`));
+        return;
+      }
+    }
+    if (planType !== 'prn') {
+      for (let i = 0; i < phases.length; i++) {
+        const ph = phases[i]!;
+        if (!(Number(ph.durationDays) >= 1 && Number(ph.dailyDoseAmount) > 0)) {
+          setError(new Error(`第 ${i + 1} 阶段：持续天数须至少为 1 天且每日总剂量须大于 0`));
+          return;
+        }
+      }
     }
     setBusy(true);
     setError(null);

@@ -16,6 +16,7 @@ export interface PageResult<T> {
   total: number;
   page: number;
   pageSize: number;
+  unreadCount?: number;
 }
 
 export interface Account {
@@ -170,9 +171,9 @@ export interface PlanPayload {
   planType: string;
   startDate: string;
   endDate?: string | null;
-  note?: string;
-  storageLocation?: string;
-  additionalNote?: string;
+  note?: string | null;
+  storageLocation?: string | null;
+  additionalNote?: string | null;
   prnMinIntervalMinutes?: number | null;
   prnMaxPerDay?: number | null;
   cyclePreset?: CyclePresetKey | null;

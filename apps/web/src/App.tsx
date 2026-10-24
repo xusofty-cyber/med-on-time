@@ -13,7 +13,7 @@ import Ehr from './pages/Ehr';
 import Authorizations from './pages/Authorizations';
 import Notifications from './pages/Notifications';
 import Settings from './pages/Settings';
-import { tokenStore, setSessionExpiredHandler } from './lib/api';
+import { tokenStore, setSessionExpiredHandler, ApiError } from './lib/api';
 import { authApi, memberApi } from './lib/endpoints';
 import { actions, applyCareMode, useApp } from './lib/store';
 import { PUBLIC_ROUTES, navigate, useRoute } from './lib/router';
@@ -71,14 +71,20 @@ export default function App() {
     });
     applyCareMode();
     (async () => {
-      if (tokenStore.access) {
+      if (tokenStore.access || tokenStore.refresh) {
         try {
           const me = await authApi.me();
           actions.setAccount(me);
-          actions.setMembers(await memberApi.list());
-        } catch {
-          tokenStore.clear();
-          actions.resetSession();
+          try {
+            actions.setMembers(await memberApi.list());
+          } catch {
+            actions.toast('error', '成员列表加载失败，请稍后刷新重试');
+          }
+        } catch (err) {
+          if (err instanceof ApiError && (err.httpStatus === 401 || err.code === 401)) {
+            tokenStore.clear();
+            actions.resetSession();
+          }
         }
       }
       setBooted(true);

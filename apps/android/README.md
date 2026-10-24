@@ -4,8 +4,7 @@
 kotlinx.serialization + DataStore + WorkManager + AlarmManager，调同一套 `/api` 接口
 （契约见 `docs/dev/API_CONTRACT.md`，枚举与 `packages/shared` 逐值对齐）。
 
-> ⚠️ **未编译验证**：交付环境无 Android SDK，本工程为结构完整、引用自洽的源码，
-> 已逐文件人工复查 import 与类型；首次构建请在 Android Studio 中打开本目录执行。
+> **构建与验证实况**：工程源码已在 GitHub Actions（`.github/workflows/release.yml`）跑通 Gradle assembleRelease 构建并通过编译验证；已落地 `AlarmRingActivity` 全屏响铃闹钟与 `VoiceAnnouncer` TTS 语音强提醒呈现层。真机运行时联调待安排。
 
 ## 打开与构建
 
@@ -15,8 +14,8 @@ kotlinx.serialization + DataStore + WorkManager + AlarmManager，调同一套 `/
 
 ## 运行配置
 
-- API 基地址：默认 `http://10.0.2.2:3000/`（模拟器访问宿主机后端），编译期默认值在
-  `app/build.gradle.kts` 的 `DEFAULT_API_BASE_URL`；运行时可在 App「我的 → 设置 →
+- API 基地址：生产基地址为 `https://mot.ulife.vip/api`（本地模拟器调试可使用
+  `http://10.0.2.2:3000/api`），运行时可在 App「我的 → 设置 →
   服务器地址」修改，存 DataStore，`ApiProvider` 检测变化后自动重建 Retrofit。
 - 登录态：access token（2h）由 OkHttp Interceptor 注入；401 时 Authenticator 用
   refresh token（30d）换新并重放请求，刷新失败自动清会话回登录页。

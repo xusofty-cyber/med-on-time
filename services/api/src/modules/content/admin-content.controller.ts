@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { ContentService } from './content.service';
 import { AdminAuthGuard } from '../../common/guards/admin-auth.guard';
@@ -41,14 +41,21 @@ export class AdminContentController {
 
   @Patch('articles/:id')
   @AdminRoles('operator')
-  updateArticle(@Param('id') id: string, @Body() dto: UpdateArticleDto) {
-    return this.service.updateArticle(id, dto);
+  updateArticle(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @CurrentAdmin() admin: AuthenticatedAdmin,
+    @Body() dto: UpdateArticleDto,
+  ) {
+    return this.service.updateArticle(id, admin.adminId, dto);
   }
 
   @Delete('articles/:id')
   @AdminRoles('operator')
-  deleteArticle(@Param('id') id: string) {
-    return this.service.deleteArticle(id);
+  deleteArticle(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @CurrentAdmin() admin: AuthenticatedAdmin,
+  ) {
+    return this.service.deleteArticle(id, admin.adminId);
   }
 
   // 协议 / 同意文档版本
@@ -59,14 +66,14 @@ export class AdminContentController {
 
   @Post('consents')
   @AdminRoles('operator')
-  createConsent(@Body() dto: CreateConsentDto) {
-    return this.service.createConsent(dto);
+  createConsent(@CurrentAdmin() admin: AuthenticatedAdmin, @Body() dto: CreateConsentDto) {
+    return this.service.createConsent(admin.adminId, dto);
   }
 
   @Patch('consents/:id')
   @AdminRoles('operator')
   updateConsent(
-    @Param('id') id: string,
+    @Param('id', new ParseUUIDPipe()) id: string,
     @CurrentAdmin() admin: AuthenticatedAdmin,
     @Body() dto: UpdateConsentDto,
   ) {
@@ -75,7 +82,10 @@ export class AdminContentController {
 
   @Delete('consents/:id')
   @AdminRoles('operator')
-  deleteConsent(@Param('id') id: string) {
-    return this.service.deleteConsent(id);
+  deleteConsent(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @CurrentAdmin() admin: AuthenticatedAdmin,
+  ) {
+    return this.service.deleteConsent(id, admin.adminId);
   }
 }

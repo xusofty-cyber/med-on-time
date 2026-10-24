@@ -13,7 +13,7 @@
 
 ### 2. 关怀设置 / 通知偏好存储统一
 - 定版存储：system_config KV（DB V1.3 补专表前的过渡口径）——`member_care_settings:<memberId>`（关怀设置）、`notification_prefs:<accountId>`（通知偏好）、`notification_read_ids:<accountId>`（已读集合）。
-- 关怀设置 JSON 形状定版（写入侧与 reminder 引擎读取侧同一实现 `NotificationPrefsService`）：`{ careMode, lockScreenShowDrugDetail, cyclePreset, cycleWindowMinutes, cycleIntervalMinutes }`，后两项为显式数值覆盖、null=跟随预设；预设三档 standard 90/15、gentle 120/30、strict 60/10。
+- 关怀设置 JSON 形状定版（写入侧与 reminder 引擎读取侧同一实现 `NotificationPrefsService`）：`{ careMode, lockScreenShowDrugDetail, cyclePreset, cycleWindowMinutes, cycleIntervalMinutes, strongAlertMode }`，后两项为显式数值覆盖、null=跟随预设；`strongAlertMode` 三态单选（none/alarm/voice，默认 none，弹窗打底）；预设三档 standard 90/15、gentle 120/30、strict 60/10。
 - member 模块原内存实现 `CareSettingsStore` 已整体移除，MemberService 改经 NotificationPrefsService 落盘；成员删除时同步软删设置键。取舍说明：成员其余操作本就强依赖 DB，内存回退只会形成第二数据源且重启即丢，不保留。GET care-settings 响应保持各端既有口径（cycleWindowMinutes/cycleIntervalMinutes 为解析后的生效数值）。
 
 ### 3. frequency_rule 定版对齐
@@ -24,10 +24,10 @@
   - course_cycle：以 `{onDays, offDays?, anchorDate?, times}` 为规范形状（此前写入侧的 cycleDays 生成器根本不读，属静默失效）；cycleDays 保留为兼容字段，须与 onDays 并存且满足 cycleDays=onDays+offDays，生成器在 offDays 缺省时由差值推导；
   - on_demand：`{}`。
 
-### 4. 计划级 cycle 覆盖落地
-- 输入：plan 创建/更新接受 `cycleOverride`（预设名字符串 / `{preset, windowMinutes, intervalMinutes}` 对象 / 显式 null=清除）或扁平字段 `cyclePreset/cycleWindowMinutes/cycleIntervalMinutes`（Web/小程序表单实际口径）；并存时 cycleOverride 优先，PATCH 仅给扁平字段时与既有覆盖合并。
-- 存储：system_config 键 `plan_cycle_override:<planId>`，形状 `{cyclePreset, cycleWindowMinutes, cycleIntervalMinutes}`（null=不覆盖该分量）；计划删除时同步清理。计划响应同名三字段回显覆盖原值（皆 null=跟随成员）。
-- 生效解析（`NotificationPrefsService.getResolvedCycleForPlan`）：成员设置打底 → 计划预设整组替换 → 计划显式数值逐项替换；提醒域全部消费点已切换为计划感知解析——投递重复、missed 兜底扫描、snooze、打卡补记判定、依从统计按时口径（此前均为成员级）。
+### 4. 计划级 cycle 与 strongAlertMode 覆盖落地
+- 输入：plan 创建/更新接受 `cycleOverride`（预设名字符串 / `{preset, windowMinutes, intervalMinutes}` 对象 / 显式 null=清除）或扁平字段 `cyclePreset/cycleWindowMinutes/cycleIntervalMinutes`（Web/小程序表单实际口径）；强提醒接受 `strongAlertModeOverride`（none/alarm/voice/null）；并存时 cycleOverride 优先，PATCH 仅给扁平字段时与既有覆盖合并。
+- 存储：system_config 键 `plan_cycle_override:<planId>`，形状 `{cyclePreset, cycleWindowMinutes, cycleIntervalMinutes}`（null=不覆盖该分量）；强提醒存储键 `plan_strong_alert_override:<planId>`（值 none/alarm/voice）；计划删除时同步清理。计划响应同名字段回显覆盖原值（皆 null=跟随成员）。
+- 生效解析（`NotificationPrefsService.getResolvedCycleForPlan`）：成员设置打底 → 计划预设整组替换 → 计划显式数值逐项替换；强提醒同理以成员 strongAlertMode 打底、计划 strongAlertModeOverride 优先覆盖；提醒域全部消费点已切换为计划感知解析——投递重复、missed 兜底扫描、snooze、打卡补记判定、依从统计按时口径。
 - 全局 ValidationPipe 定版：`whitelist: true` + `forbidNonWhitelisted: false`（main.ts 已显式写明），未知字段剥离不报 400，各端可先行发送新字段。
 
 ### 5. 全局成功信封拦截器
@@ -111,8 +111,9 @@
 | 4 | 用户侧操作不进平台审计（后台按操作者类型=用户账号筛选恒空；授权创建无记录） | 授权域本有 caregiver_authorization_log 双记录（合规口径不变）；在 AuthorizationService.writeLog 单点加 audit_log 镜像：actorType='account'（设计枚举 admin/account/system）、action=care:authorization:<invited\|accepted\|rejected\|revoked\>；实测 invited+revoked 两条落库可查；误写的一条 'user' 已 SQL 更正 |
 | 5 | 药品详情「用法用量」直显原始 JSON（usageDefault 为 {text} 对象被 prettyJson 直印） | 页面改为优先展示 usageDefault.text 正文，其余形状回退 prettyJson |
 
-## 生产待接项
-- 短信网关（腾讯云/阿里云）：现为 DevStubSmsSender 只记掩码日志，验证码不实际下发——**接入前普通用户无法自助注册/验证码登录**，临时开户办法见 docs/DEPLOY.md。
-- 微信：bind/wechat 已于 2026-10-23 注册验证通道迭代实接（jscode2session + user_oauth_binding 落点，未配 appid/secret 返回 40312，见 `docs/dev/AUTH_CHANNELS.md`）；订阅消息通道仍占位（WECHAT_SUBSCRIBE_NOT_CONNECTED 留痕）。
+## 生产待接项与已知缺口
+- 短信网关（腾讯云/阿里云）：现为 DevStubSmsSender 只记掩码日志，验证码不实际下发；普通用户当前可使用邮箱验证码或手机号免验证码直接注册；短信验证码登录与短信找密待接入真实网关。
+- 微信：小程序登录/绑定与一次性订阅消息下发已于 2026-10-23 接入并实测通过；后续待扩展长期订阅消息模板申请。
 - 推送：APNs/FCM/厂商推送未接，客户端以本地排程兜底。
 - ops 队列深度指标为占位结构，待 BullMQ 队列对象导出后回填。
+- 账号注销 30 天冷静期终局清理定时任务：当前 ops 仅有 health/ready/metrics 探针，扫描 `cancel_apply_at <= now - 30d` 并执行可识别信息物理删除与健康明细不可逆匿名化的定时任务在代码中尚未实现，待后续补齐。

@@ -65,6 +65,8 @@ export default function AiProvidersPage() {
     setLoading(true);
     try {
       setRows(await listAiProviders());
+    } catch {
+      /* 错误已由 request.ts 全局提示 */
     } finally {
       setLoading(false);
     }
@@ -96,36 +98,44 @@ export default function AiProvidersPage() {
   };
 
   const submit = async () => {
-    const values = await form.validateFields();
-    const payload: AiProviderPayload = {
-      name: values.name,
-      modelName: values.modelName,
-      baseUrl: values.baseUrl,
-      capability: values.capability,
-      isActive: values.isActive,
-    };
-    if (values.apiKey) payload.apiKey = values.apiKey;
-    if (editing) {
-      await updateAiProvider(editing.id, payload);
-      message.success('配置已更新');
-    } else {
-      await createAiProvider(payload);
-      message.success('配置已创建');
+    try {
+      const values = await form.validateFields();
+      const payload: AiProviderPayload = {
+        name: values.name,
+        modelName: values.modelName,
+        baseUrl: values.baseUrl,
+        capability: values.capability,
+        isActive: values.isActive,
+      };
+      if (values.apiKey) payload.apiKey = values.apiKey;
+      if (editing) {
+        await updateAiProvider(editing.id, payload);
+        message.success('配置已更新');
+      } else {
+        await createAiProvider(payload);
+        message.success('配置已创建');
+      }
+      setModalOpen(false);
+      void load();
+    } catch {
+      /* 表单校验未通过或请求异常（request.ts 已全局提示） */
     }
-    setModalOpen(false);
-    void load();
   };
 
   const toggleActive = async (row: AiProviderItem, next: boolean) => {
-    await updateAiProvider(row.id, { isActive: next });
-    message.success(next ? '已设为生效配置' : '已停用');
-    void load();
+    try {
+      await updateAiProvider(row.id, { isActive: next });
+      message.success(next ? '已设为生效配置' : '已停用');
+      void load();
+    } catch {
+      /* 错误已由 request.ts 全局提示 */
+    }
   };
 
   const runTest = async (row: AiProviderItem) => {
     setTestingId(row.id);
     try {
-      const res = await testAiProvider(row.id);
+      const res = await testAiProvider(row.id, { silent: true });
       message.success(`连接成功：${res.model}，延迟 ${res.latencyMs}ms`);
     } catch {
       message.error('连接失败，请检查 URL、key 与模型名');
@@ -207,9 +217,13 @@ export default function AiProvidersPage() {
                 <Popconfirm
                   title="删除该配置？"
                   onConfirm={async () => {
-                    await deleteAiProvider(row.id);
-                    message.success('已删除');
-                    void load();
+                    try {
+                      await deleteAiProvider(row.id);
+                      message.success('已删除');
+                      void load();
+                    } catch {
+                      /* 错误已由 request.ts 全局提示 */
+                    }
                   }}
                 >
                   <Button size="small" danger icon={<DeleteOutlined />}>

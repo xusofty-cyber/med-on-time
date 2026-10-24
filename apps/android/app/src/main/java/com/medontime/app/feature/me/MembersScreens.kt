@@ -37,6 +37,7 @@ import com.medontime.app.data.model.MemberDto
 import com.medontime.app.data.model.MemberRelationship
 import com.medontime.app.data.model.UpdateMemberRequest
 import com.medontime.app.data.repository.MemberRepository
+import com.medontime.app.reminder.ReminderScheduler
 import com.medontime.app.ui.components.CareButton
 import com.medontime.app.ui.components.CareTextButton
 import com.medontime.app.ui.components.EmptyBox
@@ -60,6 +61,7 @@ data class MembersUiState(
 class MembersViewModel(
     private val repo: MemberRepository,
     private val store: SessionStore,
+    private val scheduler: ReminderScheduler,
 ) : ViewModel() {
     private val _state = MutableStateFlow(MembersUiState())
     val state: StateFlow<MembersUiState> = _state.asStateFlow()
@@ -74,16 +76,20 @@ class MembersViewModel(
                 }
             } catch (e: ApiException) {
                 _state.update { it.copy(loading = false, error = e.message) }
+            } catch (e: Exception) {
+                _state.update { it.copy(loading = false, error = e.message ?: "加载失败") }
             }
         }
     }
 
     fun setCurrent(member: MemberDto) {
         viewModelScope.launch {
+            scheduler.cancelAll()
             store.setCurrentMemberId(member.id)
             _state.update { it.copy(currentMemberId = member.id, message = "已切换为 ${member.displayName}") }
-            // 主题/通知缓存跟随新成员刷新
+            // 主题/通知缓存与本地提醒跟随新成员刷新
             runCatching { repo.careSettings(member.id) }
+            runCatching { scheduler.syncTimeline() }
         }
     }
 
@@ -95,6 +101,8 @@ class MembersViewModel(
                 load()
             } catch (e: ApiException) {
                 _state.update { it.copy(message = "添加失败：${e.message}") }
+            } catch (e: Exception) {
+                _state.update { it.copy(message = "添加失败：${e.message ?: "请求异常"}") }
             }
         }
     }
@@ -105,8 +113,11 @@ class MembersViewModel(
                 repo.updateMember(member.id, request)
                 _state.update { it.copy(message = "已保存") }
                 load()
+                runCatching { scheduler.syncTimeline() }
             } catch (e: ApiException) {
                 _state.update { it.copy(message = "保存失败：${e.message}") }
+            } catch (e: Exception) {
+                _state.update { it.copy(message = "保存失败：${e.message ?: "请求异常"}") }
             }
         }
     }
@@ -115,10 +126,17 @@ class MembersViewModel(
         viewModelScope.launch {
             try {
                 repo.deleteMember(member.id)
+                if (store.currentMemberId() == member.id) {
+                    scheduler.cancelAll()
+                    store.setCurrentMemberId(null)
+                }
                 _state.update { it.copy(message = "已删除") }
                 load()
+                runCatching { scheduler.syncTimeline() }
             } catch (e: ApiException) {
                 _state.update { it.copy(message = "删除失败：${e.message}") }
+            } catch (e: Exception) {
+                _state.update { it.copy(message = "删除失败：${e.message ?: "请求异常"}") }
             }
         }
     }
@@ -128,7 +146,9 @@ class MembersViewModel(
 fun MembersScreen() {
     val container = LocalAppContainer.current
     val vm: MembersViewModel = viewModel(
-        factory = viewModelFactory { MembersViewModel(container.memberRepository, container.sessionStore) },
+        factory = viewModelFactory {
+            MembersViewModel(container.memberRepository, container.sessionStore, container.reminderScheduler)
+        },
     )
     val state by vm.state.collectAsState()
     var editing by remember { mutableStateOf<MemberDto?>(null) }

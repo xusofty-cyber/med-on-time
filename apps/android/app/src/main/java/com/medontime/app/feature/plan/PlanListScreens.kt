@@ -39,6 +39,7 @@ import com.medontime.app.data.model.PlanStatus
 import com.medontime.app.data.model.PlanType
 import com.medontime.app.data.repository.MemberRepository
 import com.medontime.app.data.repository.PlanRepository
+import com.medontime.app.reminder.ReminderScheduler
 import com.medontime.app.ui.components.CareButton
 import com.medontime.app.ui.components.CareTextButton
 import com.medontime.app.ui.components.EmptyBox
@@ -64,6 +65,7 @@ class PlanListViewModel(
     private val store: SessionStore,
     private val memberRepo: MemberRepository,
     private val planRepo: PlanRepository,
+    private val scheduler: ReminderScheduler,
 ) : ViewModel() {
     private val _state = MutableStateFlow(PlanListUiState())
     val state: StateFlow<PlanListUiState> = _state.asStateFlow()
@@ -93,9 +95,14 @@ class PlanListViewModel(
     }
 
     fun selectMember(member: MemberDto) {
-        viewModelScope.launch { store.setCurrentMemberId(member.id) }
+        if (member.id == _state.value.currentMember?.id) return
         _state.update { it.copy(currentMember = member) }
-        load()
+        viewModelScope.launch {
+            scheduler.cancelAll()
+            store.setCurrentMemberId(member.id)
+            load()
+            runCatching { scheduler.syncTimeline() }
+        }
     }
 
     private fun mutate(block: suspend () -> Unit, done: String) {
@@ -104,8 +111,11 @@ class PlanListViewModel(
                 block()
                 _state.update { it.copy(message = done) }
                 load()
+                runCatching { scheduler.syncTimeline() }
             } catch (e: ApiException) {
                 _state.update { it.copy(message = "操作失败：${e.message}") }
+            } catch (e: Exception) {
+                _state.update { it.copy(message = "操作失败：${e.message ?: "请求异常"}") }
             }
         }
     }
@@ -120,7 +130,12 @@ fun PlanListScreen(onCreatePlan: (memberId: String) -> Unit, onEditPlan: (member
     val container = LocalAppContainer.current
     val vm: PlanListViewModel = viewModel(
         factory = viewModelFactory {
-            PlanListViewModel(container.sessionStore, container.memberRepository, container.planRepository)
+            PlanListViewModel(
+                container.sessionStore,
+                container.memberRepository,
+                container.planRepository,
+                container.reminderScheduler,
+            )
         },
     )
     val state by vm.state.collectAsState()

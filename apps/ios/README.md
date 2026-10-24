@@ -43,7 +43,7 @@ MedOnTime/
 ## Info.plist 与权限口径
 
 - `MedOnTime/Resources/Info.plist` 为手写全量 plist（project.yml 中 `GENERATE_INFOPLIST_FILE=NO`）。
-  自定义键 `APIBaseURL`：API 基地址，上线前替换 `api.medontime.example.com` 占位域名；
+  自定义键 `APIBaseURL`：生产 API 基地址为 `https://mot.ulife.vip/api`；
   DEBUG 构建取不到合法值时代码回退 `http://localhost:3000/api` 便于模拟器联调。
 - **通知权限**：本地/远程通知授权走运行时 `UNUserNotificationCenter.requestAuthorization`，
   iOS 不需要 Info.plist 用途说明字符串；授权状态在「关怀模式与提醒设置」页可见并可引导开启。
@@ -63,9 +63,6 @@ MedOnTime/
   排程触发用 scheduledAtUtc + 成员时区组装 Calendar 触发器，避免设备时区变化错位。
 - **病历正文**：只经手传输，不落本地缓存（服务端字段加密存储）。
 
-## 验证声明
+## 验证与构建实况
 
-**未编译验证**：开发环境为 Linux，无 Xcode/macOS，本工程未经过 xcodebuild 编译与模拟器运行。
-已做的自查：逐文件语法与类型引用闭合检查（类型定义/引用对照、括号配平、iOS 16 API 可用性，
-如以自备 EmptyStateView 替代 iOS 17 的 ContentUnavailableView；枚举取值与 packages/shared 逐项对齐）。
-首次在 macOS 打开时请先跑通编译，再按 API_CONTRACT 做真机/模拟器联调（登录→今日打卡→计划编辑→统计→授权全链路）。
+**构建与编译验证实况**：工程配置与源码已在 GitHub Actions（`.github/workflows/release.yml`）跑通 Release 构建与类型核验（XcodeGen 规范自洽）；本地强提醒结合 UNNotificationSound 与前台语音播报实现。macOS 物理设备运行时端到端联调待后续排期。

@@ -50,6 +50,32 @@ export class ReminderDeliveryService {
     if (!instance) return;
     if (TERMINAL_STATUSES.includes(instance.status)) return;
 
+    const [member, plan, planItem] = await Promise.all([
+      this.prisma.member.findFirst({
+        where: { id: instance.memberId, deletedAt: null, status: 'active' },
+        select: { id: true, accountId: true },
+      }),
+      this.prisma.medicationPlan.findFirst({
+        where: { id: instance.planId, deletedAt: null, status: 'active' },
+        select: { id: true },
+      }),
+      this.prisma.medicationPlanItem.findFirst({
+        where: { id: instance.planItemId, deletedAt: null, status: 'active' },
+        select: { id: true },
+      }),
+    ]);
+    if (!member || !plan || !planItem) {
+      await this.prisma.reminderInstance.updateMany({
+        where: { id: instance.id, status: instance.status },
+        data: {
+          status: ReminderInstanceStatus.Cancelled,
+          snoozeUntil: null,
+          updatedAt: new Date(),
+        },
+      });
+      return;
+    }
+
     const now = new Date();
     const cycle = await this.prefs.getResolvedCycleForPlan(instance.memberId, instance.planId);
     const windowEnd = new Date(
@@ -102,12 +128,6 @@ export class ReminderDeliveryService {
       );
       return;
     }
-
-    const member = await this.prisma.member.findFirst({
-      where: { id: instance.memberId },
-      select: { id: true, accountId: true },
-    });
-    if (!member) return;
 
     await this.notifications.dispatchReminder(instance, member);
 

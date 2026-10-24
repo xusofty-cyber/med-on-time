@@ -4,8 +4,8 @@ import { Text, View } from '@tarojs/components';
 import { tokenStore, toastOk } from '../../lib/api';
 import { authApi, memberApi } from '../../lib/endpoints';
 import { actions } from '../../lib/store';
-import { HOME_TAB } from '../../lib/hooks';
-import { Btn, Card, ErrorLine, Field, TxtInput } from '../../components/ui';
+import { navigateAfterAuth } from '../../lib/hooks';
+import { Btn, Card, ErrorLine, Field, PageShell, TxtInput } from '../../components/ui';
 import { SmsCodeButton } from '../../components/SmsCodeButton';
 
 /** 注册：手机号 + 短信验证码 + 密码（≥8 位）+ 昵称（选填）。与 Web 端 Register 同逻辑。 */
@@ -20,6 +20,10 @@ export default function Register() {
   const submit = async () => {
     if (!/^1\d{10}$/.test(phone)) {
       setError(new Error('请输入正确的 11 位手机号'));
+      return;
+    }
+    if (!code.trim()) {
+      setError(new Error('请输入短信验证码'));
       return;
     }
     if (password.length < 8) {
@@ -45,7 +49,7 @@ export default function Register() {
         /* 同上 */
       }
       toastOk('注册成功，请先添加要照护的成员');
-      Taro.switchTab({ url: HOME_TAB });
+      navigateAfterAuth();
     } catch (err) {
       setError(err);
     } finally {
@@ -54,7 +58,7 @@ export default function Register() {
   };
 
   return (
-    <View className='pg' style={{ paddingTop: '56rpx' }}>
+    <PageShell style={{ paddingTop: '56rpx' }}>
       <Text className='tx-title' style={{ textAlign: 'center' }}>
         注册药准时账号
       </Text>
@@ -89,6 +93,6 @@ export default function Register() {
           </Text>
         </View>
       </Card>
-    </View>
+    </PageShell>
   );
 }

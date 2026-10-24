@@ -86,16 +86,35 @@ private readonly logger = new Logger(DrugService.name);
 
 constructor(private readonly prisma: PrismaService) {}
 
-private visibilityWhere(user?: AuthenticatedUser): Prisma.DrugWhereInput {
-const platform: Prisma.DrugWhereInput = {
-sourceType: 'platform',
-reviewStatus: 'approved',
-};
-if (!user) return platform;
-return {
-OR: [platform, { sourceType: 'user_custom', createdByAccountId: user.accountId}],
-};
-}
+  private async getAccessibleAccountIds(user?: AuthenticatedUser): Promise<string[]> {
+    if (!user) return [];
+    const caredMembers = await this.prisma.caregiverAuthorization.findMany({
+      where: {
+        caregiverAccountId: user.accountId,
+        status: AuthorizationStatus.Active,
+        deletedAt: null,
+        OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+      },
+      select: { member: { select: { accountId: true } } },
+    });
+    const ids = new Set<string>([user.accountId]);
+    for (const c of caredMembers) {
+      if (c.member?.accountId) ids.add(c.member.accountId);
+    }
+    return Array.from(ids);
+  }
+
+  private async visibilityWhere(user?: AuthenticatedUser): Promise<Prisma.DrugWhereInput> {
+    const platform: Prisma.DrugWhereInput = {
+      sourceType: 'platform',
+      reviewStatus: 'approved',
+    };
+    if (!user) return platform;
+    const accountIds = await this.getAccessibleAccountIds(user);
+    return {
+      OR: [platform, { sourceType: 'user_custom', createdByAccountId: { in: accountIds } }],
+    };
+  }
 
 /**
 * GET /drugs/search：通用名 / 商品名模糊搜索。
@@ -118,107 +137,112 @@ return this.searchByContains(q, page, pageSize, user);
 }
 }
 
-private async searchByTrgm(
-q: string,
-page: number,
-pageSize: number,
-user?: AuthenticatedUser,
-) {
-const offset = (page - 1) * pageSize;
-const visibility = user
-? Prisma.sql`((source_type = 'platform' AND review_status = 'approved') OR (source_type = 'user_custom' AND created_by_account_id = ${user.accountId}::uuid))`
-: Prisma.sql`(source_type = 'platform' AND review_status = 'approved')`;
-const like = `%${q}%`;
-const match = q
-? Prisma.sql`AND (generic_name % ${q} OR brand_name % ${q} OR generic_name ILIKE ${like} OR brand_name ILIKE ${like})`
-: Prisma.empty;
-const order = q
-? Prisma.sql`GREATEST(similarity(generic_name, ${q}), COALESCE(similarity(brand_name, ${q}), 0)) DESC, generic_name ASC`
-: Prisma.sql`generic_name ASC`;
+  private async searchByTrgm(
+    q: string,
+    page: number,
+    pageSize: number,
+    user?: AuthenticatedUser,
+  ) {
+    const offset = (page - 1) * pageSize;
+    const accountIds = await this.getAccessibleAccountIds(user);
+    const visibility =
+      accountIds.length > 0
+        ? Prisma.sql`((source_type = 'platform' AND review_status = 'approved') OR (source_type = 'user_custom' AND created_by_account_id IN (${Prisma.join(accountIds.map((id) => Prisma.sql`${id}::uuid`))})))`
+        : Prisma.sql`(source_type = 'platform' AND review_status = 'approved')`;
+    const like = `%${q}%`;
+    const match = q
+      ? Prisma.sql`AND (generic_name % ${q} OR brand_name % ${q} OR generic_name ILIKE ${like} OR brand_name ILIKE ${like})`
+      : Prisma.empty;
+    const order = q
+      ? Prisma.sql`GREATEST(similarity(generic_name, ${q}), COALESCE(similarity(brand_name, ${q}), 0)) DESC, generic_name ASC`
+      : Prisma.sql`generic_name ASC`;
 
-const countRows = await this.prisma.$queryRaw<{ total: bigint}[]>`
-SELECT COUNT(*)::bigint AS total FROM drug
-WHERE deleted_at IS NULL AND ${visibility} ${match}`;
-const total = Number(countRows[0]?.total?? 0);
-const idRows = await this.prisma.$queryRaw<{ id: string}[]>`
-SELECT id FROM drug
-WHERE deleted_at IS NULL AND ${visibility} ${match}
-ORDER BY ${order}
-LIMIT ${pageSize} OFFSET ${offset}`;
-const ids = idRows.map((r) => r.id);
-const drugs = ids.length
-? await this.prisma.drug.findMany({ where: { id: { in: ids}}})
-: [];
-const byId = new Map(drugs.map((d) => [d.id, d]));
-const items = ids
-.map((id) => byId.get(id))
-.filter((d): d is Drug => d!== undefined)
-.map(toDrugResponse);
-return { items, total, page, pageSize};
-}
+    const countRows = await this.prisma.$queryRaw<{ total: bigint }[]>`
+      SELECT COUNT(*)::bigint AS total FROM drug
+      WHERE deleted_at IS NULL AND ${visibility} ${match}`;
+    const total = Number(countRows[0]?.total ?? 0);
+    const idRows = await this.prisma.$queryRaw<{ id: string }[]>`
+      SELECT id FROM drug
+      WHERE deleted_at IS NULL AND ${visibility} ${match}
+      ORDER BY ${order}
+      LIMIT ${pageSize} OFFSET ${offset}`;
+    const ids = idRows.map((r) => r.id);
+    const drugs = ids.length
+      ? await this.prisma.drug.findMany({ where: { id: { in: ids } } })
+      : [];
+    const byId = new Map(drugs.map((d) => [d.id, d]));
+    const items = ids
+      .map((id) => byId.get(id))
+      .filter((d): d is Drug => d !== undefined)
+      .map(toDrugResponse);
+    return { items, total, page, pageSize };
+  }
 
-private async searchByContains(
-q: string,
-page: number,
-pageSize: number,
-user?: AuthenticatedUser,
-) {
-const where: Prisma.DrugWhereInput = {
-deletedAt: null,
-AND: [
-this.visibilityWhere(user),
-...(q
-? [
-{
-OR: [
-{ genericName: { contains: q, mode: 'insensitive' as const}},
-{ brandName: { contains: q, mode: 'insensitive' as const}},
-],
-},
-]
-: []),
-],
-};
-const [total, drugs] = await this.prisma.$transaction([
-this.prisma.drug.count({ where}),
-this.prisma.drug.findMany({
-where,
-orderBy: { genericName: 'asc'},
-skip: (page - 1) * pageSize,
-take: pageSize,
-}),
-]);
-return { items: drugs.map(toDrugResponse), total, page, pageSize};
-}
+  private async searchByContains(
+    q: string,
+    page: number,
+    pageSize: number,
+    user?: AuthenticatedUser,
+  ) {
+    const visibility = await this.visibilityWhere(user);
+    const where: Prisma.DrugWhereInput = {
+      deletedAt: null,
+      AND: [
+        visibility,
+        ...(q
+          ? [
+              {
+                OR: [
+                  { genericName: { contains: q, mode: 'insensitive' as const } },
+                  { brandName: { contains: q, mode: 'insensitive' as const } },
+                ],
+              },
+            ]
+          : []),
+      ],
+    };
+    const [total, drugs] = await this.prisma.$transaction([
+      this.prisma.drug.count({ where }),
+      this.prisma.drug.findMany({
+        where,
+        orderBy: { genericName: 'asc' },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+    ]);
+    return { items: drugs.map(toDrugResponse), total, page, pageSize };
+  }
 
-/** GET /drugs/:id：说明书层全字段；不可见即 404（不泄漏存在性）。 */
-async getById(id: string, user?: AuthenticatedUser): Promise<DrugResponse> {
-const drug = await this.prisma.drug.findFirst({
-where: { id, deletedAt: null, AND: [this.visibilityWhere(user)]},
-});
-if (!drug) {
-throw new BusinessException(
-DrugCode.DrugNotFound,
-'drug not found',
-HttpStatus.NOT_FOUND,
-);
-}
-return toDrugResponse(drug);
-}
+  /** GET /drugs/:id：说明书层全字段；不可见即 404（不泄漏存在性）。 */
+  async getById(id: string, user?: AuthenticatedUser): Promise<DrugResponse> {
+    const visibility = await this.visibilityWhere(user);
+    const drug = await this.prisma.drug.findFirst({
+      where: { id, deletedAt: null, AND: [visibility] },
+    });
+    if (!drug) {
+      throw new BusinessException(
+        DrugCode.DrugNotFound,
+        'drug not found',
+        HttpStatus.NOT_FOUND,
+      );
+    }
+    return toDrugResponse(drug);
+  }
 
-/**
-* GET /drugs/:id/interactions：说明书结构化返回 +
-* ONC 高优先硬检标记占位。
-*
-* 口径（POC-1 结论）：相互作用层不引入 DDInter（非商用授权）；替代打法 =
-* 说明书结构化提取 + ONC 高优先清单硬检 + 药师复核队列，在 POC-3 落地。
-* 在 POC-3 接入前 oncHighPriorityCheck 恒为 placeholder 结构：调用方不得
-* 据此判定「无相互作用」，仅说明书原文可作参考。
-*/
-async getInteractions(id: string, user?: AuthenticatedUser) {
-const drug = await this.prisma.drug.findFirst({
-where: { id, deletedAt: null, AND: [this.visibilityWhere(user)]},
-});
+  /**
+   * GET /drugs/:id/interactions：说明书结构化返回 +
+   * ONC 高优先硬检标记占位。
+   *
+   * 口径（POC-1 结论）：相互作用层不引入 DDInter（非商用授权）；替代打法 =
+   * 说明书结构化提取 + ONC 高优先清单硬检 + 药师复核队列，在 POC-3 落地。
+   * 在 POC-3 接入前 oncHighPriorityCheck 恒为 placeholder 结构：调用方不得
+   * 据此判定「无相互作用」，仅说明书原文可作参考。
+   */
+  async getInteractions(id: string, user?: AuthenticatedUser) {
+    const visibility = await this.visibilityWhere(user);
+    const drug = await this.prisma.drug.findFirst({
+      where: { id, deletedAt: null, AND: [visibility] },
+    });
 if (!drug) {
 throw new BusinessException(
 DrugCode.DrugNotFound,
@@ -317,31 +341,45 @@ HttpStatus.CONFLICT,
 }
 }
 
-const drug = await this.prisma.drug.create({
-data: {
-id: uuidv7(),
-genericName: dto.genericName,
-brandName: dto.brandName?? null,
-manufacturer: dto.manufacturer?? null,
-approvalNumber: dto.approvalNumber?? null,
-barcode: dto.barcode?? null,
-categoryId: dto.categoryId?? null,
-dosageForm: dto.dosageForm,
-specification: dto.specification,
-packageDesc: dto.packageDesc?? null,
-unit: dto.unit,
-efficacy: dto.efficacy?? null,
-usageDefault: dto.usageText? { text: dto.usageText}: undefined,
-contraindications: dto.contraindications?? null,
-adverseReactions: dto.adverseReactions?? null,
-interactions: dto.interactions?? null,
-storageCondition: dto.storageCondition?? null,
-isOtc: dto.isOtc?? false,
-sourceType: 'user_custom',
-reviewStatus: 'draft',
-createdByAccountId: user.accountId,
-},
-});
+    if (dto.categoryId) {
+      const category = await this.prisma.drugCategory.findFirst({
+        where: { id: dto.categoryId, deletedAt: null },
+        select: { id: true },
+      });
+      if (!category) {
+        throw new BusinessException(
+          BusinessCode.BadRequest,
+          `drug category not found: ${dto.categoryId}`,
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+    }
+
+    const drug = await this.prisma.drug.create({
+      data: {
+        id: uuidv7(),
+        genericName: dto.genericName,
+        brandName: dto.brandName ?? null,
+        manufacturer: dto.manufacturer ?? null,
+        approvalNumber: dto.approvalNumber ?? null,
+        barcode: dto.barcode ?? null,
+        categoryId: dto.categoryId ?? null,
+        dosageForm: dto.dosageForm,
+        specification: dto.specification,
+        packageDesc: dto.packageDesc ?? null,
+        unit: dto.unit,
+        efficacy: dto.efficacy ?? null,
+        usageDefault: dto.usageText ? { text: dto.usageText } : undefined,
+        contraindications: dto.contraindications ?? null,
+        adverseReactions: dto.adverseReactions ?? null,
+        interactions: dto.interactions ?? null,
+        storageCondition: dto.storageCondition ?? null,
+        isOtc: dto.isOtc ?? false,
+        sourceType: 'user_custom',
+        reviewStatus: 'draft',
+        createdByAccountId: member.accountId,
+      },
+    });
 return toDrugResponse(drug);
 }
 

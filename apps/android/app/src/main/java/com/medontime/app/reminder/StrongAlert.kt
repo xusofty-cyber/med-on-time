@@ -1,5 +1,6 @@
 package com.medontime.app.reminder
 
+import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.media.AudioAttributes
@@ -27,6 +28,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -79,12 +82,9 @@ object VoiceAnnouncer {
         CoroutineScope(Dispatchers.Main).launch {
             var tts: TextToSpeech? = null
             tts = TextToSpeech(appContext) { status ->
-                if (status == TextToSpeech.SUCCESS) {
-                    val engine = tts ?: return@TextToSpeech
+                val engine = tts
+                if (status == TextToSpeech.SUCCESS && engine != null) {
                     runCatching { engine.language = Locale.CHINESE }
-                    repeat(3) { index ->
-                        engine.speak(text, TextToSpeech.QUEUE_ADD, null, "dose-$index")
-                    }
                     engine.setOnUtteranceProgressListener(
                         object : android.speech.tts.UtteranceProgressListener() {
                             override fun onStart(utteranceId: String?) = Unit
@@ -101,6 +101,11 @@ object VoiceAnnouncer {
                             }
                         },
                     )
+                    repeat(3) { index ->
+                        engine.speak(text, TextToSpeech.QUEUE_ADD, null, "dose-$index")
+                    }
+                } else {
+                    runCatching { engine?.shutdown() }
                 }
             }
         }
@@ -114,6 +119,18 @@ object VoiceAnnouncer {
 class AlarmRingActivity : ComponentActivity() {
     private var ringtone: Ringtone? = null
     private var vibrator: Vibrator? = null
+    private val payloadState = mutableStateOf(
+        DosePayload(
+            instanceId = "",
+            drugName = "",
+            doseAmount = "",
+            doseUnit = "",
+            localTime = "",
+            triggerAtMillis = 0L,
+            strongMode = "alarm",
+        ),
+    )
+    private val showDetailState = mutableStateOf(false)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -122,18 +139,10 @@ class AlarmRingActivity : ComponentActivity() {
             setTurnScreenOn(true)
         }
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-        val payload = DosePayload(
-            instanceId = intent.getStringExtra(EXTRA_INSTANCE_ID) ?: "",
-            drugName = intent.getStringExtra(EXTRA_DRUG_NAME) ?: "",
-            doseAmount = intent.getStringExtra(EXTRA_DOSE_AMOUNT) ?: "",
-            doseUnit = intent.getStringExtra(EXTRA_DOSE_UNIT) ?: "",
-            localTime = intent.getStringExtra(EXTRA_LOCAL_TIME) ?: "",
-            triggerAtMillis = 0L,
-            strongMode = "alarm",
-        )
-        val showDetail = intent.getBooleanExtra(EXTRA_SHOW_DETAIL, false)
-        startRinging()
+        applyIntent(intent, forceRestartRing = true)
         setContent {
+            val payload by payloadState
+            val showDetail by showDetailState
             MaterialTheme {
                 AlarmRingScreen(
                     payload = payload,
@@ -155,6 +164,24 @@ class AlarmRingActivity : ComponentActivity() {
                     },
                 )
             }
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        applyIntent(intent, forceRestartRing = false)
+    }
+
+    private fun applyIntent(intent: Intent, forceRestartRing: Boolean) {
+        val nextPayload = parsePayload(intent)
+        val nextShowDetail = intent.getBooleanExtra(EXTRA_SHOW_DETAIL, false)
+        val changedInstance = nextPayload.instanceId != payloadState.value.instanceId
+        payloadState.value = nextPayload
+        showDetailState.value = nextShowDetail
+        if (forceRestartRing || changedInstance || ringtone == null) {
+            stopRinging()
+            startRinging()
         }
     }
 
@@ -206,8 +233,18 @@ class AlarmRingActivity : ComponentActivity() {
         private const val EXTRA_LOCAL_TIME = "alarm_local_time"
         private const val EXTRA_SHOW_DETAIL = "alarm_show_detail"
 
-        fun start(context: Context, payload: DosePayload, showDrugDetail: Boolean) {
-            val intent = Intent(context, AlarmRingActivity::class.java).apply {
+        private fun parsePayload(intent: Intent): DosePayload = DosePayload(
+            instanceId = intent.getStringExtra(EXTRA_INSTANCE_ID) ?: "",
+            drugName = intent.getStringExtra(EXTRA_DRUG_NAME) ?: "",
+            doseAmount = intent.getStringExtra(EXTRA_DOSE_AMOUNT) ?: "",
+            doseUnit = intent.getStringExtra(EXTRA_DOSE_UNIT) ?: "",
+            localTime = intent.getStringExtra(EXTRA_LOCAL_TIME) ?: "",
+            triggerAtMillis = 0L,
+            strongMode = "alarm",
+        )
+
+        fun buildIntent(context: Context, payload: DosePayload, showDrugDetail: Boolean): Intent =
+            Intent(context, AlarmRingActivity::class.java).apply {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
                 putExtra(EXTRA_INSTANCE_ID, payload.instanceId)
                 putExtra(EXTRA_DRUG_NAME, payload.drugName)
@@ -216,7 +253,19 @@ class AlarmRingActivity : ComponentActivity() {
                 putExtra(EXTRA_LOCAL_TIME, payload.localTime)
                 putExtra(EXTRA_SHOW_DETAIL, showDrugDetail)
             }
-            context.startActivity(intent)
+
+        fun pendingIntent(context: Context, payload: DosePayload, showDrugDetail: Boolean): PendingIntent =
+            PendingIntent.getActivity(
+                context,
+                NotificationHelper.notificationId(payload.instanceId),
+                buildIntent(context, payload, showDrugDetail),
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+            )
+
+        fun start(context: Context, payload: DosePayload, showDrugDetail: Boolean) {
+            runCatching {
+                context.startActivity(buildIntent(context, payload, showDrugDetail))
+            }
         }
     }
 }

@@ -10,6 +10,7 @@ struct AdherenceService {
 
     /// month 口径为 yyyy-MM（成员本地月份）。
     func calendar(memberId: String, month: String) async throws -> [AdherenceCalendarDayDTO] {
-        try await api.get("members/\(memberId)/adherence/calendar", query: [URLQueryItem(name: "month", value: month)])
+        let res: AdherenceCalendarResponse = try await api.get("members/\(memberId)/adherence/calendar", query: [URLQueryItem(name: "month", value: month)])
+        return res.days
     }
 }

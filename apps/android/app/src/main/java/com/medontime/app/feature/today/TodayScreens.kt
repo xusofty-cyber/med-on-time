@@ -105,9 +105,12 @@ class TodayViewModel(
 
     fun selectMember(member: MemberDto) {
         if (member.id == _state.value.currentMember?.id) return
-        viewModelScope.launch { store.setCurrentMemberId(member.id) }
         _state.update { it.copy(currentMember = member) }
-        load()
+        viewModelScope.launch {
+            scheduler.cancelAll()
+            store.setCurrentMemberId(member.id)
+            load()
+        }
     }
 
     private fun act(instance: ReminderInstanceDto, block: suspend () -> Unit, doneMessage: String) {

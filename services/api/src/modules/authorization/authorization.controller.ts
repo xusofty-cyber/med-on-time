@@ -3,6 +3,7 @@ import {
   Controller,
   Get,
   Param,
+  ParseUUIDPipe,
   Post,
   Query,
   UseGuards,
@@ -52,7 +53,7 @@ export class AuthorizationController {
   @Post(':id/accept')
   async accept(
     @CurrentUser() user: AuthenticatedUser,
-    @Param('id') id: string,
+    @Param('id', new ParseUUIDPipe()) id: string,
   ) {
     return this.service.accept(user.accountId, id);
   }
@@ -60,7 +61,7 @@ export class AuthorizationController {
   @Post(':id/reject')
   async reject(
     @CurrentUser() user: AuthenticatedUser,
-    @Param('id') id: string,
+    @Param('id', new ParseUUIDPipe()) id: string,
   ) {
     return this.service.reject(user.accountId, id);
   }
@@ -68,7 +69,7 @@ export class AuthorizationController {
   @Post(':id/revoke')
   async revoke(
     @CurrentUser() user: AuthenticatedUser,
-    @Param('id') id: string,
+    @Param('id', new ParseUUIDPipe()) id: string,
     @Body() dto: RevokeAuthorizationDto,
   ) {
     return this.service.revoke(user.accountId, id, dto.reason);

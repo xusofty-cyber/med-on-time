@@ -3,7 +3,7 @@ import { ehrApi } from '../lib/endpoints';
 import { actions, useApp } from '../lib/store';
 import { Badge, Button, Card, EmptyState, ErrorText, Field, Modal, Select, Spinner, TextInput } from '../components/ui';
 import { ALLERGEN_TYPE_LABELS, SEVERITY_LABELS, SYMPTOM_TAGS } from '../lib/dict';
-import { fmtDateTime } from '../lib/time';
+import { fmtDateTime, nowLocalDateTime } from '../lib/time';
 import type { AdverseRecord, Allergy, EmergencyContact } from '../lib/types';
 
 type Tab = 'allergies' | 'adverse' | 'contacts' | 'records';
@@ -156,7 +156,7 @@ function Adverse({ memberId }: { memberId: string }) {
   const [tags, setTags] = useState<string[]>([]);
   const [description, setDescription] = useState('');
   const [severity, setSeverity] = useState('mild');
-  const [occurredAt, setOccurredAt] = useState(() => new Date().toISOString().slice(0, 16));
+  const [occurredAt, setOccurredAt] = useState(() => nowLocalDateTime());
   const [busy, setBusy] = useState(false);
 
   const load = async () => {

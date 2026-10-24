@@ -30,12 +30,58 @@ export abstract class RefreshSessionStore {
   abstract revokeAllByAccount(accountId: string): Promise<void>;
 }
 
+const activeSessionIds = new Set<string>();
+const revokedSessionIds = new Map<string, number>();
+const revokedAccountBeforeSec = new Map<string, number>();
+const REVOKED_RETENTION_MS = 2 * 60 * 60 * 1000; // 与 access token 2h TTL 对齐
+
+/**
+ * 供 JwtAuthGuard 同步判断会话是否已吊销：
+ * - 明确吊销的 sid 立即拒绝；
+ * - 吊销后新建的活跃 sid 放行（即使在同一秒内重新登录）；
+ * - 账号级全量吊销时间点之前签发的令牌拒绝；
+ * - 进程重启后未知但未吊销的合法令牌保持放行，不破坏无状态容灾。
+ */
+export function isSessionRevoked(
+  sessionId?: string,
+  accountId?: string,
+  tokenIatSec?: number,
+): boolean {
+  if (sessionId && revokedSessionIds.has(sessionId)) return true;
+  if (sessionId && activeSessionIds.has(sessionId)) return false;
+  if (accountId) {
+    const cutoffSec = revokedAccountBeforeSec.get(accountId);
+    if (cutoffSec !== undefined && (tokenIatSec === undefined || tokenIatSec <= cutoffSec)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 @Injectable()
 export class InMemoryRefreshSessionStore extends RefreshSessionStore {
   private readonly sessions = new Map<string, RefreshSession>();
 
+  private prune(): void {
+    const now = Date.now();
+    for (const [id, s] of this.sessions) {
+      if (s.expiresAt.getTime() < now || (s.revokedAt && now - s.revokedAt.getTime() > REVOKED_RETENTION_MS)) {
+        this.sessions.delete(id);
+        activeSessionIds.delete(id);
+      }
+    }
+    for (const [id, revokedAtMs] of revokedSessionIds) {
+      if (now - revokedAtMs > REVOKED_RETENTION_MS) {
+        revokedSessionIds.delete(id);
+      }
+    }
+  }
+
   async create(session: RefreshSession): Promise<void> {
+    this.prune();
     this.sessions.set(session.id, session);
+    activeSessionIds.add(session.id);
+    revokedSessionIds.delete(session.id);
   }
 
   async findById(id: string): Promise<RefreshSession | null> {
@@ -43,17 +89,28 @@ export class InMemoryRefreshSessionStore extends RefreshSessionStore {
   }
 
   async listByAccount(accountId: string): Promise<RefreshSession[]> {
+    this.prune();
     return [...this.sessions.values()].filter((s) => s.accountId === accountId);
   }
 
   async revoke(id: string): Promise<void> {
+    const now = new Date();
     const s = this.sessions.get(id);
-    if (s && !s.revokedAt) s.revokedAt = new Date();
+    if (s && !s.revokedAt) s.revokedAt = now;
+    activeSessionIds.delete(id);
+    revokedSessionIds.set(id, now.getTime());
   }
 
   async revokeAllByAccount(accountId: string): Promise<void> {
+    const now = new Date();
+    const nowMs = now.getTime();
+    revokedAccountBeforeSec.set(accountId, Math.floor(nowMs / 1000));
     for (const s of this.sessions.values()) {
-      if (s.accountId === accountId && !s.revokedAt) s.revokedAt = new Date();
+      if (s.accountId === accountId) {
+        if (!s.revokedAt) s.revokedAt = now;
+        activeSessionIds.delete(s.id);
+        revokedSessionIds.set(s.id, nowMs);
+      }
     }
   }
 }

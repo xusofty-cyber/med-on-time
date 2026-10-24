@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   CanActivate,
   ExecutionContext,
   ForbiddenException,
@@ -9,6 +10,8 @@ import {
 import { AuthorizationStatus } from '@med-on-time/shared';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { AuthenticatedUser } from '../decorators/current-user.decorator';
+
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
  * 成员数据隔离守卫（架构红线 5，硬规则；架构 §3.2 指定实现位置）。
@@ -26,22 +29,25 @@ export class MemberAccessGuard implements CanActivate {
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest<{
       user?: AuthenticatedUser;
-      params: Record<string, string>;
-      query: Record<string, string>;
+      params: Record<string, unknown>;
+      query: Record<string, unknown>;
       body?: Record<string, unknown>;
     }>();
     const user = request.user;
     if (!user) throw new UnauthorizedException('missing authenticated user');
 
-    const memberId =
-      request.params.memberId ??
-      request.params.id ??
-      request.query.memberId ??
-      (typeof request.body?.memberId === 'string'
-        ? (request.body.memberId as string)
-        : undefined);
+    const rawMemberId =
+      request.params?.memberId ??
+      request.query?.memberId ??
+      request.body?.memberId;
     // 未携带 memberId 的接口不归本守卫管辖（如账号自身接口）
-    if (!memberId) return true;
+    if (rawMemberId === undefined || rawMemberId === null || rawMemberId === '') {
+      return true;
+    }
+    if (typeof rawMemberId !== 'string' || !UUID_REGEX.test(rawMemberId)) {
+      throw new BadRequestException('invalid memberId');
+    }
+    const memberId = rawMemberId;
 
     const member = await this.prisma.member.findFirst({
       where: { id: memberId, deletedAt: null },

@@ -104,7 +104,14 @@ export class CheckinService {
           HttpStatus.CONFLICT,
         );
       }
-      return this.toResult(byRequestId, access.relation, true, {
+      if (byRequestId.action !== 'taken') {
+        throw new BusinessException(
+          BusinessCode.Conflict,
+          `instance already recorded with action: ${byRequestId.action}`,
+          HttpStatus.CONFLICT,
+        );
+      }
+      return this.toResult(byRequestId, access.member.accountId, true, {
         deducted: false,
         balanceAfter: null,
         reason: 'previously_recorded',
@@ -115,7 +122,14 @@ export class CheckinService {
       where: { reminderInstanceId: instance.id, deletedAt: null },
     });
     if (existing) {
-      return this.toResult(existing, access.relation, true, {
+      if (existing.action !== 'taken') {
+        throw new BusinessException(
+          BusinessCode.Conflict,
+          `instance already recorded with action: ${existing.action}`,
+          HttpStatus.CONFLICT,
+        );
+      }
+      return this.toResult(existing, access.member.accountId, true, {
         deducted: false,
         balanceAfter: null,
         reason: 'previously_recorded',
@@ -198,7 +212,14 @@ export class CheckinService {
           where: { reminderInstanceId: instance.id, deletedAt: null },
         });
         if (raced) {
-          return this.toResult(raced, access.relation, true, {
+          if (raced.action !== 'taken') {
+            throw new BusinessException(
+              BusinessCode.Conflict,
+              `instance already recorded with action: ${raced.action}`,
+              HttpStatus.CONFLICT,
+            );
+          }
+          return this.toResult(raced, access.member.accountId, true, {
             deducted: false,
             balanceAfter: null,
             reason: 'previously_recorded',
@@ -215,7 +236,7 @@ export class CheckinService {
     const created = await this.prisma.medicationIntakeRecord.findFirstOrThrow({
       where: { id: intakeId },
     });
-    return this.toResult(created, access.relation, false, stock);
+    return this.toResult(created, access.member.accountId, false, stock);
   }
 
   /** 同事务库存扣减：余量只经流水更新（DB 口径），乐观锁防并发扣减 */
@@ -359,7 +380,7 @@ export class CheckinService {
 
   private toResult(
     record: MedicationIntakeRecord,
-    relation: 'self' | 'caregiver',
+    memberAccountId: string,
     alreadyRecorded: boolean,
     stock: CheckinResult['stock'],
   ): CheckinResult {
@@ -374,7 +395,9 @@ export class CheckinService {
       isMakeup: record.isMakeup,
       operatedByAccountId: record.operatedByAccountId,
       operatorType:
-        relation === 'self' ? OperatorType.MemberSelf : OperatorType.Caregiver,
+        record.operatedByAccountId === memberAccountId
+          ? OperatorType.MemberSelf
+          : OperatorType.Caregiver,
       alreadyRecorded,
       stock,
     };

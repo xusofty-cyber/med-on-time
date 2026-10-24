@@ -5,7 +5,8 @@ struct PlanService {
     let api: APIClient
 
     func list(memberId: String) async throws -> [PlanDTO] {
-        try await api.get("members/\(memberId)/plans")
+        let res: PageResult<PlanDTO> = try await api.get("members/\(memberId)/plans")
+        return res.items
     }
 
     func create(memberId: String, _ payload: PlanPayloadDTO) async throws -> PlanDTO {
@@ -21,7 +22,8 @@ struct PlanService {
     }
 
     func history(planId: String) async throws -> [PlanChangeHistoryDTO] {
-        try await api.get("plans/\(planId)/history")
+        let res: PageResult<PlanChangeHistoryDTO> = try await api.get("plans/\(planId)/history")
+        return res.items
     }
 
     func pause(planId: String) async throws -> PlanDTO {

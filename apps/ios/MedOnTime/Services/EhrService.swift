@@ -17,7 +17,8 @@ struct EhrService {
     // MARK: 服药后不适记录
 
     func listAdverseRecords(memberId: String) async throws -> [AdverseRecordDTO] {
-        try await api.get("members/\(memberId)/adverse-records")
+        let res: PageResult<AdverseRecordDTO> = try await api.get("members/\(memberId)/adverse-records")
+        return res.items
     }
 
     func createAdverseRecord(memberId: String, _ request: AdverseRecordCreateRequest) async throws -> AdverseRecordDTO {
@@ -44,11 +45,22 @@ struct EhrService {
 
     // MARK: 病历文本
 
-    func listMedicalRecords(memberId: String) async throws -> [MedicalRecordDTO] {
+    func getMedicalRecord(memberId: String) async throws -> MedicalRecordDTO? {
         try await api.get("members/\(memberId)/medical-records")
     }
 
-    func createMedicalRecord(memberId: String, _ request: MedicalRecordCreateRequest) async throws -> MedicalRecordDTO {
+    func upsertMedicalRecord(memberId: String, _ request: UpsertMedicalRecordRequest) async throws -> MedicalRecordDTO {
         try await api.post("members/\(memberId)/medical-records", body: request)
+    }
+
+    func listMedicalRecords(memberId: String) async throws -> [MedicalRecordDTO] {
+        if let record = try await getMedicalRecord(memberId: memberId) {
+            return [record]
+        }
+        return []
+    }
+
+    func createMedicalRecord(memberId: String, _ request: UpsertMedicalRecordRequest) async throws -> MedicalRecordDTO {
+        try await upsertMedicalRecord(memberId: memberId, request)
     }
 }

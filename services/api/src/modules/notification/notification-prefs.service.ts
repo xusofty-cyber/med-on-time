@@ -335,15 +335,37 @@ const settings = await this.getCareSettings(memberId);
 return settings.strongAlertMode ?? 'none';
 }
 
-async markRead(accountId: string, notificationId: string): Promise<void> {
-const ids = await this.getReadIds(accountId);
-if (ids.includes(notificationId)) return;
-ids.push(notificationId);
-const capped = ids.slice(-READ_IDS_CAP);
-await this.writeJson(
-this.readIdsKey(accountId),
-capped,
-'站内通知已读集合（过渡存储，待通知表补 read_at 列）',
-);
-}
+  async markRead(accountId: string, notificationId: string): Promise<void> {
+    const key = this.readIdsKey(accountId);
+    await this.prisma.$transaction(async (tx) => {
+      const rows = await tx.$queryRaw<{ id: string; config_value: unknown }[]>`
+        SELECT id, config_value FROM system_config
+        WHERE config_key = ${key} AND deleted_at IS NULL
+        FOR UPDATE
+      `;
+      let ids: string[] = [];
+      const row = rows[0];
+      if (row && Array.isArray(row.config_value)) {
+        ids = row.config_value.filter((x): x is string => typeof x === 'string');
+      }
+      if (ids.includes(notificationId)) return;
+      ids.push(notificationId);
+      const capped = ids.slice(-READ_IDS_CAP);
+      if (row) {
+        await tx.systemConfig.update({
+          where: { id: row.id },
+          data: { configValue: capped as Prisma.InputJsonValue },
+        });
+      } else {
+        await tx.systemConfig.create({
+          data: {
+            id: uuidv7(),
+            configKey: key,
+            configValue: capped as Prisma.InputJsonValue,
+            description: '站内通知已读集合（过渡存储，待通知表补 read_at 列）',
+          },
+        });
+      }
+    });
+  }
 }

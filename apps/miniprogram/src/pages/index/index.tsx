@@ -3,13 +3,13 @@ import Taro, { useDidHide, useDidShow, usePullDownRefresh } from '@tarojs/taro';
 import { Text, View } from '@tarojs/components';
 import { reminderApi } from '../../lib/endpoints';
 import { toastError, toastOk } from '../../lib/api';
-import { useApp } from '../../lib/store';
+import { getState, useApp } from '../../lib/store';
 import { useSessionGuard } from '../../lib/hooks';
 import { requestReminderSubscribe } from '../../lib/notify';
 import { INSTANCE_STATUS_LABELS, MEAL_LABELS } from '../../lib/dict';
 import { fmtTime, wallTime } from '../../lib/time';
 import type { ReminderInstance } from '../../lib/types';
-import { Badge, Btn, Card, EmptyState, ErrorLine, Field, Loading, Sheet, TxtInput } from '../../components/ui';
+import { Badge, Btn, Card, EmptyState, ErrorLine, Field, Loading, PageShell, Sheet, TxtInput } from '../../components/ui';
 import { MemberBar } from '../../components/MemberBar';
 
 const DONE = new Set(['taken', 'skipped', 'cancelled']);
@@ -55,9 +55,11 @@ export default function Index() {
     if (!memberId) return;
     try {
       const data = await reminderApi.today(memberId);
+      if (getState().currentMemberId !== memberId) return;
       setItems([...data].sort((a, b) => a.scheduledAtUtc.localeCompare(b.scheduledAtUtc)));
       setError(null);
     } catch (e) {
+      if (getState().currentMemberId !== memberId) return;
       setError(e);
     }
   }, [memberId]);
@@ -123,7 +125,7 @@ export default function Index() {
   const totalCount = (items ?? []).filter((i) => i.status !== 'cancelled').length;
 
   return (
-    <View className='pg'>
+    <PageShell>
       <MemberBar />
       <View className='row-between'>
         <View className='col' style={{ gap: '6rpx' }}>
@@ -266,6 +268,6 @@ export default function Index() {
           </View>
         </View>
       </Sheet>
-    </View>
+    </PageShell>
   );
 }

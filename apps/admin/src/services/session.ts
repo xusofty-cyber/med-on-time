@@ -37,6 +37,11 @@ export function saveSession(
   localStorage.setItem(PROFILE_KEY, JSON.stringify(profile));
 }
 
+export function updateTokens(accessToken: string, refreshToken?: string): void {
+  localStorage.setItem(ACCESS_KEY, accessToken);
+  if (refreshToken) localStorage.setItem(REFRESH_KEY, refreshToken);
+}
+
 export function clearSession(): void {
   localStorage.removeItem(ACCESS_KEY);
   localStorage.removeItem(REFRESH_KEY);

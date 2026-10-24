@@ -49,8 +49,11 @@ export class MemberController {
   }
 
   @Get(':memberId')
-  async get(@Param('memberId') memberId: string) {
-    return this.service.getMember(memberId);
+  async get(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('memberId') memberId: string,
+  ) {
+    return this.service.getMember(memberId, user.accountId);
   }
 
   @Patch(':memberId')
@@ -77,9 +80,10 @@ export class MemberController {
 
   @Put(':memberId/care-settings')
   async putCareSettings(
+    @CurrentUser() user: AuthenticatedUser,
     @Param('memberId') memberId: string,
     @Body() dto: CareSettingsDto,
   ) {
-    return this.service.putCareSettings(memberId, dto);
+    return this.service.putCareSettings(memberId, dto, user.accountId);
   }
 }

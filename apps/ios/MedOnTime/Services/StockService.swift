@@ -5,7 +5,8 @@ struct StockService {
     let api: APIClient
 
     func list(memberId: String) async throws -> [StockItemDTO] {
-        try await api.get("members/\(memberId)/stock")
+        let res: PageResult<StockItemDTO> = try await api.get("members/\(memberId)/stock")
+        return res.items
     }
 
     func adjust(memberId: String, _ request: StockAdjustRequest) async throws -> StockItemDTO {

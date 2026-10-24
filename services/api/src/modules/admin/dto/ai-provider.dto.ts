@@ -18,7 +18,7 @@ export class CreateAiProviderDto {
 
   @IsString()
   @MaxLength(500)
-  @IsUrl({ require_tld: false })
+  @IsUrl({ require_tld: false, protocols: ['http', 'https'], require_protocol: true })
   baseUrl!: string;
 
   @IsString()
@@ -49,7 +49,7 @@ export class UpdateAiProviderDto {
   @IsOptional()
   @IsString()
   @MaxLength(500)
-  @IsUrl({ require_tld: false })
+  @IsUrl({ require_tld: false, protocols: ['http', 'https'], require_protocol: true })
   baseUrl?: string;
 
   /** 缺省 = 不改密钥；传新值才轮换 */

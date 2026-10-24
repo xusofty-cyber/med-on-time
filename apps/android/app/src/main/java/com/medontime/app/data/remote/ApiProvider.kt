@@ -5,6 +5,7 @@ import com.medontime.app.BuildConfig
 import com.medontime.app.core.AppJson
 import com.medontime.app.data.local.SessionStore
 import kotlinx.coroutines.runBlocking
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
@@ -36,8 +37,14 @@ class ApiProvider(private val store: SessionStore) {
             .addInterceptor(logging)
             .authenticator(TokenAuthenticator(store) { currentBaseUrl ?: BuildConfig.DEFAULT_API_BASE_URL })
             .build()
+        val normalized = if (baseUrl.endsWith("/")) baseUrl else "$baseUrl/"
+        val safeBaseUrl = if (normalized.toHttpUrlOrNull() != null) {
+            normalized
+        } else {
+            BuildConfig.DEFAULT_API_BASE_URL
+        }
         return Retrofit.Builder()
-            .baseUrl(baseUrl)
+            .baseUrl(safeBaseUrl)
             .client(client)
             .addConverterFactory(AppJson.asConverterFactory("application/json".toMediaType()))
             .build()

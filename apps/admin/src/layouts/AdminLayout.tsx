@@ -5,6 +5,7 @@ import {
   FileTextOutlined,
   LogoutOutlined,
   MedicineBoxOutlined,
+  RobotOutlined,
   ScheduleOutlined,
   SettingOutlined,
   TeamOutlined,

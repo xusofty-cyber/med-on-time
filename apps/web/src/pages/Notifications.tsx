@@ -7,14 +7,22 @@ import type { NotificationItem, NotificationPrefs } from '../lib/types';
 
 export default function Notifications() {
   const [items, setItems] = useState<NotificationItem[] | null>(null);
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const pageSize = 30;
   const [prefs, setPrefs] = useState<NotificationPrefs | null>(null);
   const [error, setError] = useState<unknown>(null);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (targetPage = page) => {
     try {
-      const page = await notificationApi.list(1);
-      setItems(page.items);
-      actions.setUnreadCount(page.items.filter((n) => !n.isRead && !n.readAt).length);
+      const res = await notificationApi.list(targetPage, pageSize);
+      setItems(res.items);
+      setTotal(res.total);
+      const count =
+        typeof res.unreadCount === 'number'
+          ? res.unreadCount
+          : res.items.filter((n) => !n.isRead && !n.readAt).length;
+      actions.setUnreadCount(count);
     } catch (e) {
       setError(e);
     }
@@ -23,17 +31,21 @@ export default function Notifications() {
     } catch {
       setPrefs({ inApp: true, sms: false, wechat: false });
     }
-  }, []);
+  }, [page]);
 
   useEffect(() => {
-    load();
-  }, [load]);
+    load(page);
+  }, [load, page]);
 
   const read = async (item: NotificationItem) => {
     if (item.isRead || item.readAt) return;
     try {
       await notificationApi.markRead(item.id);
-      setItems((list) => (list ?? []).map((n) => (n.id === item.id ? { ...n, isRead: true, readAt: new Date().toISOString() } : n)));
+      setItems((list) => {
+        const next = (list ?? []).map((n) => (n.id === item.id ? { ...n, isRead: true, readAt: new Date().toISOString() } : n));
+        actions.setUnreadCount(next.filter((n) => !n.isRead && !n.readAt).length);
+        return next;
+      });
     } catch {
       /* 已读标记失败不打扰阅读 */
     }
@@ -41,7 +53,7 @@ export default function Notifications() {
 
   const readAll = async () => {
     const unread = (items ?? []).filter((n) => !n.isRead && !n.readAt);
-    for (const n of unread) await read(n);
+    await Promise.all(unread.map(read));
     actions.setUnreadCount(0);
     actions.toast('success', '已全部标为已读');
   };
@@ -119,6 +131,25 @@ export default function Notifications() {
               );
             })}
           </ul>
+        )}
+        {total > pageSize && (
+          <div className="mt-4 flex items-center justify-between border-t border-neutral-100 pt-3 text-sm text-neutral-600">
+            <span>
+              第 {page} / {Math.ceil(total / pageSize)} 页（共 {total} 条）
+            </span>
+            <div className="flex gap-2">
+              <Button variant="ghost" disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>
+                上一页
+              </Button>
+              <Button
+                variant="ghost"
+                disabled={page * pageSize >= total}
+                onClick={() => setPage((p) => p + 1)}
+              >
+                下一页
+              </Button>
+            </div>
+          </div>
         )}
       </Card>
     </div>

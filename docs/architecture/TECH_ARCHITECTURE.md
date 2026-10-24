@@ -1,7 +1,7 @@
 # 药准时 MedOnTime —— 技术架构方案设计
 
 > 版本：V1.5（2026-10-20）| 状态：**已确认冻结**（用户 2026-10-20 确认；确认口径：选型均为大型项目验证过的成熟技术，见选型原则）
-> 更新：按设计评审 F 组决议修订通信安全口径——证书 pinning 改为监测型软失败（校验失败降级标准 TLS 继续，CA 链仍强制，降级事件全量上报 + 失败率告警）；字段级加密范围收窄为仅 AI 会话与报告、病历正文，密钥自托管起步（预留 KMS 接口）+ 主密钥 12 个月轮换；并补入扩展评审对提醒引擎的注记（PRN 不走实例生成、剂量阶段展开、库存扣减事件、计划变更历史埋点）。前版更新：Pinning 运维策略（SPKI 公钥 pinning、双 pin、证书续期密钥复用、换密钥发版过渡流程、失败率告警）。
+> 更新：按设计评审 F 组决议修订通信安全口径——证书 pinning 改为监测型软失败（校验失败降级标准 TLS 继续，CA 链仍强制，降级事件全量上报 + 失败率告警）；字段级加密覆盖高敏感 PII 与凭据（用户手机号/邮箱、病历正文、紧急联系人电话、AI 服务商 Key 与后续 AI 报告），密钥自托管起步（预留 KMS 接口）+ 主密钥 12 个月轮换；并补入扩展评审对提醒引擎的注记（PRN 不走实例生成、剂量阶段展开、库存扣减事件、计划变更历史埋点）。前版更新：Pinning 运维策略（SPKI 公钥 pinning、双 pin、证书续期密钥复用、换密钥发版过渡流程、失败率告警）。
 > 依据：《后台管理平台功能需求分析》V1.1、《用户端功能需求分析》V1.1、《数据库表结构设计》V1.0
 > 选型原则：**只选用成熟稳定、经过大型项目验证的技术**；不追新、不造轮子。
 
@@ -44,14 +44,14 @@
 |---|---|---|---|
 | **services/api** | Node.js 20 LTS + **NestJS 10** + **Prisma 5** | NestJS（2017-）模块化 + DI，被大量企业级中后台采用；Prisma 为 Postgres-first 成熟 ORM | TS 全栈，与 `packages/shared` 类型零转换共享 |
 | **任务调度** | **BullMQ** + Redis 7 | 延迟任务/重试/幂等的事实标准；提醒实例按 `scheduled_at_utc` 入延迟队列 | 替代自研定时轮 |
-| **apps/admin** | React 18 + Vite + **Ant Design 5** + ProComponents | Ant Design 是国内中后台事实标准，ProComponents 久经大厂验证 | 路由 React Router v6，图表 ECharts |
-| **apps/web** | React 18 + Vite + **Tailwind CSS** + Zustand | Tailwind v3 久经验证，响应式断点体系成熟 | PWA 用 vite-plugin-pwa（P1）；同一套代码适配 PC + 移动 |
+| **apps/admin** | React 18 + Vite + **Ant Design 5** | Ant Design 是国内中后台事实标准 | 路由 React Router v6，图表 ECharts（规划备选） |
+| **apps/web** | React 18 + Vite + **Tailwind CSS** | Tailwind v3 久经验证，响应式断点体系成熟；采用 React 原生 `useSyncExternalStore` 轻量状态（Zustand 备选） | PWA 用 vite-plugin-pwa（P1）；同一套代码适配 PC + 移动 |
 | **apps/miniprogram** | **Taro 4**（React 写法） | 京东出品，编译到微信小程序，大量生产案例 | 与 web 共用 React 心智模型；注意订阅消息须用户主动订阅 |
 | **apps/android** | **Kotlin** + Jetpack（Compose / Room / **WorkManager** / Hilt / Retrofit） | Google 官方推荐组合；WorkManager 是离线提醒调度的标准件 | 推送：FCM（海外）/ 极光·JPush 聚合（国内厂商通道） |
 | **apps/ios** | **Swift** + SwiftUI（必要时 UIKit 互操作） | Apple 官方方向；UserNotifications + APNs | 后台提醒受限，以服务端推送为主 |
 | **apps/desktop** | **Electron**（复用 `apps/web` 代码） | VS Code / Slack / Discord 验证过的成熟方案 | 定位为补充提醒（弹窗/托盘）；Tauri 为备选（较新，本期不用） |
 | **packages/shared** | TypeScript + **dayjs** + **zod** | dayjs/zod 均为久经验证的基础库 | 类型、枚举、时区工具、剂量单位换算 |
-| **packages/api-client** | **orval** / openapi-typescript（由 OpenAPI 生成） | 契约生成客户端的成熟工具链 | 杜绝手写请求层与契约漂移 |
+| **packages/api-client** | 各端手写 `endpoints.ts` 归一化适配层（orval 自动化生成为规划项） | 对齐后端实际响应形状，提供稳定类型化调用 | 兼容不同业务模块列表形状差异 |
 
 **否决项**：后端不用自研脚手架（维护成本）；管理后台不用小众 UI 库；桌面端本期不用 Tauri（生态与成熟度不如 Electron）；小程序不用原生多端手写（维护 6 端成本过高）。
 
@@ -77,11 +77,12 @@ src/
 │   ├── ehr/             # 病历条目、过敏史（敏感数据加密列）
 │   ├── stock/           # 用药库存、补药提醒
 │   ├── content/         # 知识库、公告、Banner
-│   ├── ops/             # 运营看板、报表口径
-│   ├── admin/           # 管理员账号、RBAC、操作日志
-│   └── ai/              # AI 健康助手：网关、会话、病历分析、症状分析、方案草案、安全审核
+│   ├── ops/             # 运营看板、探针（health/ready/metrics）
+│   ├── admin/           # 管理员账号、RBAC、操作日志、大模型配置与公众号文章管理
+│   ├── ai/              # AI 健康助手：网关、会话、病历分析、症状分析、方案草案、安全审核
+│   └── wechat-oa/       # 微信公众号：草稿箱同步、素材上传与发布权限边界
 ├── common/              # 统一异常、拦截器（脱敏日志）、守卫（成员隔离）、装饰器
-└── prisma/              # schema.prisma（以《数据库表结构设计》V1.2 为准，56 表含 AI 表）
+└── prisma/              # schema.prisma（定版 58 表 / 9 域）
 ```
 
 ### 3.2 提醒链路（核心链路）
@@ -105,15 +106,15 @@ src/
 - **时区**：存储 `scheduled_at_utc` + `local_date`/`local_time` + `timezone` 快照（见 DB 设计）；用户跨时区时按快照执行并提示。
 - **PRN 按需计划（扩展评审注记）**：`plan_type=prn` 的计划**不经实例生成器**、不入 BullMQ 定时队列；服用事件单独落表，写入路径强制校验最小服药间隔与单日上限（超限拒绝写入并触发强提示/急症规则），统计侧单列、不进 adherence 分子分母。
 - **剂量阶段展开（扩展评审注记）**：带剂量阶段的计划，实例生成器按「当前阶段」取剂量展开实例；阶段按时长自动递进，阶段切换本身记入计划变更历史。
-- **库存扣减（扩展评审注记）**：打卡确认成功后发布领域事件，库存模块订阅扣减成员药品库存并写流水；扣减与提醒状态机解耦，扣减失败不回滚打卡（异步重试 + 对账任务兜底）；余量不足阈值由库存模块触发补药提醒（独立通知类型，不占用药提醒实例）。
-- **计划变更历史埋点（扩展评审注记）**：计划核心字段的写路径统一经变更记录拦截器落 `plan_change_history`（改前/改后/操作人及身份），业务代码不得绕过。
+- **库存扣减**：打卡确认成功后在同一数据库事务内同步扣减成员药品库存（`member_medication` 与 `medication_stock_ledger`），写扣减流水；余量不足阈值由库存模块触发补药提醒（独立通知类型，不占用药提醒实例）。
+- **计划变更历史埋点**：计划核心字段的写路径在服务层统一写入 `plan_change_history`（记录改前/改后快照、操作人及身份），业务写路径均须留痕。
 
 ### 3.3 关键技术点
 
-- **认证**：JWT access（短）+ refresh（长，旋转）；小程序走 `code2session` 绑定账号；后台管理员独立账号体系 + RBAC，双因素（P1）。
+- **认证**：JWT access（短，2h）+ refresh（长，30d，旋转）；小程序走 `code2session` 绑定账号；后台管理员独立账号体系 + RBAC，双因素（P1）。
 - **统一异常**：`{ code, message, traceId }` 标准结构；业务码表集中维护。
 - **日志脱敏**：拦截器统一掩码病历、用药、PII、Token 字段。
-- **幂等**：提醒实例生成键 `plan_id + scheduled_at_utc`；打卡接口支持客户端幂等键（离线打卡同步）。
+- **幂等**：提醒实例生成键 `${plan_item_id}:${local_date}:${local_time}:${dose_index}`；打卡接口支持客户端幂等键（离线打卡同步）。
 - **文件**：药品图片/病历附件走对象存储（S3 兼容，选型待定），DB 只存 URL。
 
 ### 3.4 AI 子系统设计（`ai` 模块，P1）
@@ -134,14 +135,14 @@ src/
 - **网关模式**：模型厂商可替换（第三方 API / 私有化部署待定，见需求待确认第 10 题）；密钥只存引用不落库明文。
 - **异步**：病历 OCR 与长分析走 BullMQ 任务，前端轮询/推送取结果；AI 故障降级——**绝不影响提醒主流程**。
 - **合规**：AI 单独授权、可一键关闭并删历史；输出固定免责声明；医学内容审核员抽检。
-- **数据**：`AiSession` / `AiReport` / `AIConsent` / `AIConsultation` 等表见《数据库表结构设计》V1.1；会话内容脱敏检索、查看留痕。
+- **数据**：AI 域包含 `user_consent_record`、`ai_session`、`ai_message`、`ai_async_task`、`ai_report`、`ai_call_log`、`ai_provider_config` 等表；会话内容脱敏检索、查看留痕。
 
 ---
 
 ## 四、数据与接口契约
 
-- **数据库**：PostgreSQL 15+，基础 34 张表 / 8 个域 + AI 表（`AiSession` / `AiReport` / `AIConsent` / `AIConsultation` 等，见《数据库表结构设计》V1.1）；迁移工具 Prisma Migrate。
-- **OpenAPI**：`@nestjs/swagger` 自动生成，为前后端唯一契约；`packages/api-client` 由契约生成 TS 客户端。
+- **数据库**：PostgreSQL 15+，全量 Schema 共 58 张表 / 9 个域（基线 56 表经 V1.4 `ai_provider_config` 与 V1.5 `oa_article` 扩展）；迁移工具 Prisma Migrate。
+- **OpenAPI**：`@nestjs/swagger` 自动生成，为前后端契约规范；各端目前采用 hand-crafted `endpoints.ts` 归一化适配，后续规划自动化生成。
 - **枚举对齐**：`packages/shared/enums.ts` 必须与 DB 设计文档「枚举速查」逐字一致，CI 加校验脚本（P1）。
 
 ---
@@ -152,7 +153,7 @@ src/
 |---|---|
 | 认证与会话 | JWT + refresh rotation；多端登录互踢策略可配置 |
 | 权限 | 后台 RBAC（角色→菜单/按钮/接口）；用户端按「照护人 × 成员」授权矩阵 |
-| 敏感数据 | 字段级加密仅 AI 会话与报告、病历正文（见下节，评审 F-2 收窄）；服药记录等其余敏感数据靠 TLS + 成员权限 + 日志脱敏；访问审计 |
+| 敏感数据 | 字段级加密覆盖用户手机号/邮箱、病历正文、紧急联系人电话与大模型服务商 API Key（见下节，AES-256-GCM）；服药记录等其余敏感数据靠 TLS + 成员权限 + 日志脱敏；访问审计 |
 | 通知 | 模板集中管理（变量占位符）；通道降级与频控；发送记录可查 |
 | 通信安全 | 全链路 TLS 1.2+（优先 1.3）+ HSTS；移动端证书 pinning；详见下节 |
 | 可观测 | 结构化日志（traceId 串联）；指标/告警 P1（Prometheus + Grafana 候选） |
@@ -162,12 +163,12 @@ src/
 
 - **传输层**：全站强制 HTTPS（TLS 1.2+，优先 TLS 1.3），HSTS；禁用明文 HTTP 回退。
 - **移动端（Android/iOS）**：证书 pinning（公钥 pin，支持应急轮换），防公共 Wi-Fi 中间人攻击；iOS 走 ATS、Android 走 Network Security Config 强制执行。**失败口径（评审 F-1）**：pinning 校验失败时降级为标准 TLS 继续访问（CA 证书链校验仍强制，校验不过照常阻断），pinning 定位为监测型控制——降级事件全量上报服务端并纳入失败率告警；其余安全层（防重放、签名、令牌）保持失败即阻断。
-- **Web 端**：CSP 防 XSS；CSRF Token（cookie 场景）；refresh token 走 `HttpOnly + Secure + SameSite=Strict` Cookie，access token 只放内存不落 localStorage；敏感页面 `Cache-Control: no-store`。
+- **Web 端**：采用统一 Bearer Token 鉴权规范，响应体返回 `{ accessToken, refreshToken }`，存入客户端安全持久化（Web/Admin 存 localStorage，桌面端复用 Web，移动端安全存储）；请求头统一携带 `Authorization: Bearer <accessToken>`；敏感页面与接口防重放与限流。
 - **微信小程序**：微信平台强制 HTTPS；登录走 `code2session`，session_key 只存服务端。
 - **桌面端（Electron）**：沿用 Web 端策略；自动更新包签名校验。
-- **鉴权与防重放**：JWT access（短有效期）+ refresh 旋转；敏感写操作附时间戳 + nonce，后端校验时间窗口防重放；登录等高危接口限流。
+- **鉴权与防重放**：JWT access（短有效期 2h）+ refresh 旋转（30d）；敏感写操作附时间戳 + nonce，后端校验时间窗口防重放；登录等高危接口限流。
 - **密钥管理**：任何密钥、Token 不进客户端包、不进日志、不进 URL 参数；AI 等第三方密钥只存服务端引用。
-- **字段级加密（评审 F-2 收窄）**：仅 AI 会话与报告、病历正文在 TLS 之上做字段级加密（AES-256-GCM 信封加密）；服药记录、过敏史等其余数据不做字段级加密，以 TLS + 成员权限校验 + 日志脱敏保护（保住服务端检索与后台审核能力）。密钥起步自托管（评审 F-1 附带口径），代码预留 KMS 接口以便后期平迁；字段加密主密钥 12 个月轮换（双键过渡）。
+- **字段级加密**：对高敏感 PII 及配置密钥数据执行 AES-256-GCM 字段级加密落库，包括：用户手机号与邮箱（`user_account.phone/email`）、病历正文（`member_medical_record.summary_enc`）、紧急联系人电话（`emergency_contact.phone_enc`）、大模型服务商 API Key（`ai_provider_config.api_key_enc`）以及后续 AI 问答上线后的会话正文与报告；服药记录、过敏史等业务数据不做字段级加密，以 TLS + 成员权限校验 + 日志脱敏保护（保住服务端检索与后台审核能力）。密钥起步自托管，代码预留 KMS 接口以便后期平迁；字段加密主密钥 12 个月轮换（双键过渡）。
 - **日志与审计**：网关访问日志统一脱敏，禁止记录完整 Token 与病历正文；异常 TLS 握手/证书错误告警。
 - **Pinning 运维策略**：移动端 pin **公钥（SPKI）** 而非证书本体；服务端证书走 Let's Encrypt/ACME 自动续期且**复用同一密钥对**，日常续期对 pin 零影响；客户端内置**双 pin**（当前公钥 + 备用公钥），主密钥泄露时可切换备用；真正换密钥按「先发版内置新指纹 → 留 1–2 个版本过渡期 → 再切换」执行；网关设 pin 失败率监控告警，证书到期自动告警。pinning 降级事件（见上条 F-1 口径）随客户端遥测上报，服务端按设备/版本聚合，异常升高时优先排查证书链变更与中间人攻击两种可能。
 

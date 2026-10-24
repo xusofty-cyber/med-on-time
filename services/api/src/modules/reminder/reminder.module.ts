@@ -22,6 +22,6 @@ import { ReminderEngineService } from './reminder-engine.service';
     JwtAuthGuard,
     MemberAccessGuard,
   ],
-  exports: [ReminderService, ReminderGenerationService],
+  exports: [ReminderService, ReminderGenerationService, ReminderQueueService],
 })
 export class ReminderModule {}

@@ -19,16 +19,38 @@ interface ScheduledItem extends DesktopReminderItem {
   at: number;
 }
 
-function isValidItem(v: unknown): v is DesktopReminderItem {
-  if (typeof v !== 'object' || v === null) return false;
+function sanitizeString(v: unknown, maxLen = 120): string | undefined {
+  return typeof v === 'string' ? v.slice(0, maxLen) : undefined;
+}
+
+function sanitizeItem(v: unknown): DesktopReminderItem | null {
+  if (typeof v !== 'object' || v === null) return null;
   const o = v as Record<string, unknown>;
-  return (
-    typeof o['id'] === 'string' &&
-    o['id'].length > 0 &&
-    o['id'].length <= 64 &&
-    typeof o['scheduledAtUtc'] === 'string' &&
-    !Number.isNaN(Date.parse(o['scheduledAtUtc']))
-  );
+  if (
+    typeof o['id'] !== 'string' ||
+    o['id'].length === 0 ||
+    o['id'].length > 64 ||
+    typeof o['scheduledAtUtc'] !== 'string' ||
+    Number.isNaN(Date.parse(o['scheduledAtUtc']))
+  ) {
+    return null;
+  }
+  const rawDose = o['doseAmount'];
+  const doseAmount =
+    typeof rawDose === 'number' && Number.isFinite(rawDose)
+      ? rawDose
+      : typeof rawDose === 'string'
+        ? rawDose.slice(0, 32)
+        : undefined;
+  return {
+    id: o['id'],
+    scheduledAtUtc: o['scheduledAtUtc'],
+    drugNameSnapshot: sanitizeString(o['drugNameSnapshot'], 120),
+    doseAmount,
+    doseUnit: sanitizeString(o['doseUnit'], 32),
+    storageLocation: o['storageLocation'] === null ? null : sanitizeString(o['storageLocation'], 120),
+    memberDisplayName: sanitizeString(o['memberDisplayName'], 64),
+  };
 }
 
 /** 校验渲染层载荷；非法条目逐条丢弃并计数，不整批失败。 */
@@ -36,9 +58,16 @@ export function sanitizePayload(payload: unknown): SyncRemindersPayload | null {
   if (typeof payload !== 'object' || payload === null) return null;
   const o = payload as Record<string, unknown>;
   if (!Array.isArray(o['items'])) return null;
-  const items = o['items'].filter(isValidItem).slice(0, MAX_ITEMS);
+  const items: DesktopReminderItem[] = [];
+  for (const raw of o['items']) {
+    const clean = sanitizeItem(raw);
+    if (clean) {
+      items.push(clean);
+      if (items.length >= MAX_ITEMS) break;
+    }
+  }
   return {
-    localDate: typeof o['localDate'] === 'string' ? o['localDate'] : '',
+    localDate: typeof o['localDate'] === 'string' ? o['localDate'].slice(0, 32) : '',
     showDrugDetail: o['showDrugDetail'] === true,
     items,
   };

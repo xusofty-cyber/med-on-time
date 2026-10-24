@@ -3,12 +3,12 @@ import Taro, { useDidShow, usePullDownRefresh } from '@tarojs/taro';
 import { Text, View } from '@tarojs/components';
 import { planApi } from '../../lib/endpoints';
 import { toastError, toastOk } from '../../lib/api';
-import { useApp } from '../../lib/store';
+import { getState, useApp } from '../../lib/store';
 import { useSessionGuard } from '../../lib/hooks';
 import { FREQUENCY_LABELS, OPERATOR_TYPE_LABELS, PLAN_STATUS_LABELS } from '../../lib/dict';
 import { fmtDate, fmtDateTime } from '../../lib/time';
 import type { Plan, PlanChangeHistoryEntry } from '../../lib/types';
-import { Badge, Btn, Card, EmptyState, ErrorLine, Loading, Sheet } from '../../components/ui';
+import { Badge, Btn, Card, EmptyState, ErrorLine, Loading, PageShell, Sheet } from '../../components/ui';
 import { MemberBar } from '../../components/MemberBar';
 
 /** 用药计划（tab）：列表、新建/编辑入口、暂停/恢复、变更史、删除。与 Web 端 Plans 同逻辑。 */
@@ -26,9 +26,12 @@ export default function Plans() {
   const load = useCallback(async () => {
     if (!memberId) return;
     try {
-      setPlans(await planApi.list(memberId));
+      const data = await planApi.list(memberId);
+      if (getState().currentMemberId !== memberId) return;
+      setPlans(data);
       setError(null);
     } catch (e) {
+      if (getState().currentMemberId !== memberId) return;
       setError(e);
     }
   }, [memberId]);
@@ -82,7 +85,7 @@ export default function Plans() {
   };
 
   return (
-    <View className='pg'>
+    <PageShell>
       <MemberBar />
       <View className='row-between'>
         <Text className='tx-title'>用药计划</Text>
@@ -164,7 +167,7 @@ export default function Plans() {
         </View>
       )}
       {historyOf && <HistorySheet plan={historyOf} onClose={() => setHistoryOf(null)} />}
-    </View>
+    </PageShell>
   );
 }
 

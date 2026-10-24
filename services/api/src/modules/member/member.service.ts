@@ -1,6 +1,6 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
 import type { Member } from '@prisma/client';
-import { AuthorizationStatus } from '@med-on-time/shared';
+import { AuthorizationStatus, CaregiverLevel, PlanStatus, ReminderInstanceStatus } from '@med-on-time/shared';
 import { PrismaService } from '../../prisma/prisma.service';
 import { uuidv7 } from '../../common/utils/uuidv7';
 import {
@@ -12,6 +12,7 @@ import {
   NotificationPrefsService,
   type CareSettings as StoredCareSettings,
 } from '../notification/notification-prefs.service';
+import { ReminderQueueService } from '../reminder/reminder-queue.service';
 import type {
   CareSettingsDto,
   CreateMemberDto,
@@ -43,9 +44,10 @@ export class MemberService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly prefs: NotificationPrefsService,
+    private readonly reminderQueue: ReminderQueueService,
   ) {}
 
-  async createMember(accountId: string, dto: CreateMemberDto): Promise<Member> {
+  async createMember(accountId: string, dto: CreateMemberDto) {
     const count = await this.prisma.member.count({
       where: { accountId, deletedAt: null, status: { not: 'removed' } },
     });
@@ -69,7 +71,7 @@ export class MemberService {
         );
       }
     }
-    return this.prisma.member.create({
+    const created = await this.prisma.member.create({
       data: {
         id: uuidv7(),
         accountId,
@@ -82,6 +84,7 @@ export class MemberService {
         status: 'active',
       },
     });
+    return this.toMemberView(created, 'owner');
   }
 
   /** 列表作用域：本人账号的成员 + 他人授权我照护的成员（隔离红线，禁止越界）。 */
@@ -111,7 +114,7 @@ export class MemberService {
     };
   }
 
-  async getMember(memberId: string): Promise<Member> {
+  private async findMemberOrThrow(memberId: string): Promise<Member> {
     const member = await this.prisma.member.findFirst({
       where: { id: memberId, deletedAt: null },
     });
@@ -121,13 +124,20 @@ export class MemberService {
     return member;
   }
 
+  async getMember(memberId: string, viewerAccountId?: string) {
+    const member = await this.findMemberOrThrow(memberId);
+    const access =
+      viewerAccountId && member.accountId !== viewerAccountId ? 'caregiver' : 'owner';
+    return this.toMemberView(member, access);
+  }
+
   /** 更新：仅成员归属账号可改（照护人代配置走 plan 等业务线并双记，不在此口）。 */
   async updateMember(
     accountId: string,
     memberId: string,
     dto: UpdateMemberDto,
-  ): Promise<Member> {
-    const member = await this.getMember(memberId);
+  ) {
+    const member = await this.findMemberOrThrow(memberId);
     if (member.accountId !== accountId) {
       throw new BusinessException(
         BusinessCode.MemberAccessDenied,
@@ -135,7 +145,29 @@ export class MemberService {
         HttpStatus.FORBIDDEN,
       );
     }
-    return this.prisma.member.update({
+    if (dto.relationship !== undefined && dto.relationship !== member.relationship) {
+      if (member.relationship === 'self') {
+        throw new BusinessException(
+          BusinessCode.Conflict,
+          '本人成员的与本人关系不可更改',
+          HttpStatus.CONFLICT,
+        );
+      }
+      if (dto.relationship === 'self') {
+        const existingSelf = await this.prisma.member.findFirst({
+          where: { accountId, relationship: 'self', deletedAt: null, id: { not: memberId } },
+          select: { id: true },
+        });
+        if (existingSelf) {
+          throw new BusinessException(
+            BusinessCode.Conflict,
+            '本人成员已存在，不可将其他成员改为本人',
+            HttpStatus.CONFLICT,
+          );
+        }
+      }
+    }
+    const updated = await this.prisma.member.update({
       where: { id: memberId },
       data: {
         displayName: dto.displayName,
@@ -146,11 +178,12 @@ export class MemberService {
         sortOrder: dto.sortOrder,
       },
     });
+    return this.toMemberView(updated, 'owner');
   }
 
-  /** 删除：软删除（deleted_at + status=removed），仅归属账号；本人成员不可删。 */
+  /** 删除：软删除（deleted_at + status=removed），仅归属账号；本人成员不可删。同事务级联停用计划、取消待触发提醒、撤销照护授权。 */
   async deleteMember(accountId: string, memberId: string): Promise<{ deleted: boolean }> {
-    const member = await this.getMember(memberId);
+    const member = await this.findMemberOrThrow(memberId);
     if (member.accountId !== accountId) {
       throw new BusinessException(
         BusinessCode.MemberAccessDenied,
@@ -161,22 +194,123 @@ export class MemberService {
     if (member.relationship === 'self') {
       throw new BusinessException(BusinessCode.Conflict, '本人成员不可删除', HttpStatus.CONFLICT);
     }
-    await this.prisma.member.update({
-      where: { id: memberId },
-      data: { status: 'removed', deletedAt: new Date() },
+    const now = new Date();
+    const cancellableStatuses: string[] = [
+      ReminderInstanceStatus.Pending,
+      ReminderInstanceStatus.Reminded,
+      ReminderInstanceStatus.Snoozed,
+    ];
+    const cancelledInstanceIds = await this.prisma.$transaction(async (tx) => {
+      await tx.member.update({
+        where: { id: memberId },
+        data: { status: 'removed', deletedAt: now, version: { increment: 1 } },
+      });
+      await tx.medicationPlan.updateMany({
+        where: {
+          memberId,
+          deletedAt: null,
+          status: { in: [PlanStatus.Active, PlanStatus.Paused] },
+        },
+        data: { status: PlanStatus.Stopped, updatedAt: now },
+      });
+      await tx.medicationPlanItem.updateMany({
+        where: {
+          plan: { memberId },
+          deletedAt: null,
+          status: { in: ['active', 'paused'] },
+        },
+        data: { status: 'stopped', updatedAt: now },
+      });
+      const toCancel = await tx.reminderInstance.findMany({
+        where: {
+          memberId,
+          deletedAt: null,
+          status: { in: cancellableStatuses },
+        },
+        select: { id: true },
+      });
+      if (toCancel.length > 0) {
+        await tx.reminderInstance.updateMany({
+          where: {
+            memberId,
+            deletedAt: null,
+            status: { in: cancellableStatuses },
+          },
+          data: {
+            status: ReminderInstanceStatus.Cancelled,
+            snoozeUntil: null,
+            updatedAt: now,
+          },
+        });
+      }
+      await tx.caregiverAuthorization.updateMany({
+        where: {
+          memberId,
+          deletedAt: null,
+          status: {
+            in: [
+              AuthorizationStatus.PendingAccept,
+              AuthorizationStatus.Active,
+              AuthorizationStatus.Suspended,
+            ],
+          },
+        },
+        data: {
+          status: AuthorizationStatus.Revoked,
+          revokedAt: now,
+          revokedBy: accountId,
+          revokeReason: 'member_removed',
+          updatedAt: now,
+        },
+      });
+      return toCancel.map((r) => r.id);
     });
     await this.prefs.deleteCareSettings(memberId);
+    await this.reminderQueue.removeJobsForInstances(cancelledInstanceIds);
     return { deleted: true };
   }
 
   async getCareSettings(memberId: string): Promise<CareSettings> {
-    await this.getMember(memberId);
+    await this.findMemberOrThrow(memberId);
     const stored = await this.prefs.getCareSettings(memberId);
     return this.toCareSettingsView(memberId, stored);
   }
 
-  async putCareSettings(memberId: string, dto: CareSettingsDto): Promise<CareSettings> {
-    await this.getMember(memberId);
+  async putCareSettings(
+    memberId: string,
+    dto: CareSettingsDto,
+    operatorAccountId?: string,
+  ): Promise<CareSettings> {
+    const member = await this.findMemberOrThrow(memberId);
+    let operatorLevel = 'self';
+    const isOwner = !operatorAccountId || member.accountId === operatorAccountId;
+    if (!isOwner && operatorAccountId) {
+      const auth = await this.prisma.caregiverAuthorization.findFirst({
+        where: {
+          caregiverAccountId: operatorAccountId,
+          memberId,
+          status: AuthorizationStatus.Active,
+          deletedAt: null,
+          OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+        },
+        select: { level: true },
+      });
+      if (!auth) {
+        throw new BusinessException(
+          BusinessCode.MemberAccessDenied,
+          '无权访问该成员',
+          HttpStatus.FORBIDDEN,
+        );
+      }
+      if (auth.level !== CaregiverLevel.L3) {
+        throw new BusinessException(
+          BusinessCode.Forbidden,
+          '需要 L3（可配置）照护授权才可修改关怀提醒设置',
+          HttpStatus.FORBIDDEN,
+        );
+      }
+      operatorLevel = auth.level;
+    }
     const stored = await this.prefs.getCareSettings(memberId);
     const preset = dto.cyclePreset ?? stored.cyclePreset;
     const presetValues = CYCLE_PRESETS[preset];
@@ -210,6 +344,24 @@ export class MemberService {
       cycleIntervalMinutes: nextInterval,
     };
     await this.prefs.updateCareSettings(memberId, next);
+    if (operatorAccountId) {
+      await this.prisma.auditLog.create({
+        data: {
+          id: uuidv7(),
+          actorType: 'account',
+          actorId: operatorAccountId,
+          action: 'member:care_settings:update',
+          targetType: 'member',
+          targetId: memberId,
+          memberId,
+          detail: {
+            operatorRole: isOwner ? 'member_self' : 'caregiver',
+            operatorLevel,
+          },
+          result: 'success',
+        },
+      });
+    }
     return this.toCareSettingsView(memberId, next);
   }
 

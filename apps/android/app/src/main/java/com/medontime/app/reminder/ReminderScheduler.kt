@@ -31,19 +31,31 @@ class ReminderScheduler(
 ) {
     private val workManager: WorkManager get() = WorkManager.getInstance(context)
     private val alarmManager: AlarmManager? get() = context.getSystemService(AlarmManager::class.java)
+    private val activeInstanceIds = mutableSetOf<String>()
 
     /** 拉取今明两日时间线并重排本地提醒。失败静默（服务端投递仍在），下次同步周期重试。 */
     suspend fun syncTimeline() {
         val store = container.sessionStore
-        if (store.accessToken() == null) return
-        val memberId = resolveCurrentMemberId() ?: return
+        if (store.accessToken() == null) {
+            cancelAll()
+            return
+        }
+        val memberId = resolveCurrentMemberId() ?: run {
+            cancelAll()
+            return
+        }
         val today = LocalDate.now()
         val days = listOf(today, today.plusDays(1))
         val instances = mutableListOf<ReminderInstanceDto>()
+        var anyDaySucceeded = false
         for (day in days) {
             val result = runCatching { container.reminderRepository.byDate(memberId, day.toString()) }
-            result.onSuccess { instances += it.items }
+            result.onSuccess {
+                anyDaySucceeded = true
+                instances += it.items
+            }
         }
+        if (!anyDaySucceeded) return
         // 同步关怀设置缓存（锁屏药名展示开关供通知层读取）。
         val care = runCatching { container.memberRepository.careSettings(memberId) }.getOrNull()
         // 强提醒方式解析（2026-10-24）：计划覆盖 > 成员关怀设置，调度时定格进载荷，
@@ -66,10 +78,29 @@ class ReminderScheduler(
             .sortedBy { it.triggerAtMillis }
             .toList()
 
+        val previousIds = synchronized(activeInstanceIds) { activeInstanceIds.toSet() } +
+            runCatching { store.scheduledInstanceIds() }.getOrDefault(emptySet())
+        val nextIds = payloads.map { it.instanceId }.toSet()
+        val nextExact = payloads.firstOrNull { it.triggerAtMillis > now }
+
+        for (oldId in previousIds) {
+            if (oldId !in nextIds) {
+                cancelInstance(oldId)
+            } else if (oldId != nextExact?.instanceId) {
+                cancelExactAlarm(oldId)
+            }
+        }
+
         for (payload in payloads) {
             enqueueWork(payload, now)
         }
-        payloads.firstOrNull { it.triggerAtMillis > now }?.let { scheduleExactAlarm(it) }
+        nextExact?.let { scheduleExactAlarm(it) }
+
+        synchronized(activeInstanceIds) {
+            activeInstanceIds.clear()
+            activeInstanceIds.addAll(nextIds)
+        }
+        runCatching { store.saveScheduledInstanceIds(nextIds) }
     }
 
     private suspend fun resolveCurrentMemberId(): String? {
@@ -146,17 +177,35 @@ class ReminderScheduler(
         )
     }
 
+    private fun cancelExactAlarm(instanceId: String) {
+        val payload = DosePayload(instanceId, "", "", "", "", 0L)
+        runCatching { alarmManager?.cancel(alarmIntent(payload)) }
+    }
+
     /** 打卡/跳过/暂停后撤排单条实例的本地提醒。 */
     fun cancelInstance(instanceId: String) {
         workManager.cancelUniqueWork(workName(instanceId))
-        val payload = DosePayload(instanceId, "", "", "", "", 0L)
-        runCatching { alarmManager?.cancel(alarmIntent(payload)) }
+        cancelExactAlarm(instanceId)
         NotificationHelper.cancel(context, instanceId)
+        synchronized(activeInstanceIds) { activeInstanceIds.remove(instanceId) }
     }
 
-    /** 退出登录/切换账号时清排全部本地提醒。 */
+    /** 退出登录/切换账号/切换成员时清排全部本地提醒（含 WorkManager 与 AlarmManager 精确闹钟）。 */
     fun cancelAll() {
         workManager.cancelAllWorkByTag(TAG_DOSE)
+        val persisted = runCatching {
+            kotlinx.coroutines.runBlocking { container.sessionStore.scheduledInstanceIds() }
+        }.getOrDefault(emptySet())
+        val ids = synchronized(activeInstanceIds) {
+            activeInstanceIds.toSet().also { activeInstanceIds.clear() }
+        } + persisted
+        for (id in ids) {
+            cancelExactAlarm(id)
+            NotificationHelper.cancel(context, id)
+        }
+        runCatching {
+            kotlinx.coroutines.runBlocking { container.sessionStore.saveScheduledInstanceIds(emptySet()) }
+        }
     }
 
     companion object {

@@ -51,6 +51,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 
 data class SettingsUiState(
     val nickname: String = "",
@@ -92,8 +93,14 @@ class SettingsViewModel(
     }
 
     fun saveBaseUrl(url: String) {
+        val candidate = url.trim().let { if (it.endsWith("/")) it else "$it/" }
+        val parsed = candidate.toHttpUrlOrNull()
+        if (parsed == null || (parsed.scheme != "http" && parsed.scheme != "https")) {
+            _state.update { it.copy(message = "服务器地址格式不正确（须以 http:// 或 https:// 开头）") }
+            return
+        }
         viewModelScope.launch {
-            store.setBaseUrl(url)
+            store.setBaseUrl(candidate)
             apiProvider.invalidate()
             _state.update { it.copy(message = "服务器地址已更新") }
         }

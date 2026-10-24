@@ -88,17 +88,71 @@ struct EmergencyContactUpdateRequest: Encodable {
     var note: String?
 }
 
-/// 病历条目（medical-records 接口投影；正文在服务端字段加密存储，客户端只经手明文传输，不落本地缓存）。
-struct MedicalRecordDTO: Decodable, Identifiable {
+/// 病历档案（medical-records 接口投影；正文在服务端字段加密存储，客户端只经手明文传输，不落本地缓存）。
+struct MedicalRecordDTO: Codable, Identifiable {
     let id: String
-    let title: String?
-    let content: String
-    let recordDate: String?
+    let memberId: String?
+    let bloodType: String?
+    let heightCm: Double?
+    let weightKg: Double?
+    let primaryHospital: String?
+    let summary: String?
     let createdAt: Date?
+    let updatedAt: Date?
+
+    var title: String? { primaryHospital }
+    var content: String { summary ?? "" }
+    var recordDate: String? {
+        guard let date = updatedAt ?? createdAt else { return nil }
+        return ISO8601.dayString(from: date)
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id, memberId, bloodType, heightCm, weightKg, primaryHospital, summary, createdAt, updatedAt
+    }
+
+    init(
+        id: String = UUID().uuidString,
+        memberId: String? = nil,
+        bloodType: String? = nil,
+        heightCm: Double? = nil,
+        weightKg: Double? = nil,
+        primaryHospital: String? = nil,
+        summary: String? = nil,
+        createdAt: Date? = nil,
+        updatedAt: Date? = nil
+    ) {
+        self.id = id
+        self.memberId = memberId
+        self.bloodType = bloodType
+        self.heightCm = heightCm
+        self.weightKg = weightKg
+        self.primaryHospital = primaryHospital
+        self.summary = summary
+        self.createdAt = createdAt
+        self.updatedAt = updatedAt
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        memberId = try container.decodeIfPresent(String.self, forKey: .memberId)
+        bloodType = try container.decodeIfPresent(String.self, forKey: .bloodType)
+        heightCm = try container.decodeFlexibleDoubleIfPresent(forKey: .heightCm)
+        weightKg = try container.decodeFlexibleDoubleIfPresent(forKey: .weightKg)
+        primaryHospital = try container.decodeIfPresent(String.self, forKey: .primaryHospital)
+        summary = try container.decodeIfPresent(String.self, forKey: .summary)
+        createdAt = try container.decodeIfPresent(Date.self, forKey: .createdAt)
+        updatedAt = try container.decodeIfPresent(Date.self, forKey: .updatedAt)
+    }
 }
 
-struct MedicalRecordCreateRequest: Encodable {
-    var title: String?
-    let content: String
-    var recordDate: String?
+struct UpsertMedicalRecordRequest: Encodable {
+    var bloodType: String?
+    var heightCm: Double?
+    var weightKg: Double?
+    var primaryHospital: String?
+    var summary: String?
 }
+
+typealias MedicalRecordCreateRequest = UpsertMedicalRecordRequest

@@ -10,7 +10,7 @@ import { ACCOUNT_STATUS_LABELS } from '../../lib/dict';
 import { fmtDateTime } from '../../lib/time';
 import { APP_VERSION } from '../../config';
 import type { UserSession } from '../../lib/types';
-import { Badge, Btn, Card, EmptyState, ErrorLine, Field, Loading, TxtInput } from '../../components/ui';
+import { Badge, Btn, Card, EmptyState, ErrorLine, Field, Loading, PageShell, TxtInput } from '../../components/ui';
 
 /** 设置：账号资料（含手机号微信核验）、微信绑定、消息订阅、登录会话、注销说明与申请、退出登录。与 Web 端 Settings 同口径。 */
 export default function Settings() {
@@ -152,7 +152,7 @@ export default function Settings() {
   const cancelling = account?.status === 'cancelling';
 
   return (
-    <View className='pg'>
+    <PageShell>
       <Text className='tx-title'>设置</Text>
 
       <Card title='账号资料'>
@@ -207,9 +207,13 @@ export default function Settings() {
               {account?.hasWechat ? '已绑定微信，可用微信一键登录并接收订阅消息提醒' : '绑定后可用微信登录并接收订阅消息提醒'}
             </Text>
           </View>
-          <Btn variant='soft' onClick={bindWechat}>
-            绑定微信
-          </Btn>
+          {account?.hasWechat ? (
+            <Badge tone='green'>已绑定</Badge>
+          ) : (
+            <Btn variant='soft' onClick={bindWechat}>
+              绑定微信
+            </Btn>
+          )}
         </View>
         <View className='menu-row menu-row-last'>
           <View className='col grow' style={{ gap: '4rpx', marginRight: '16rpx' }}>
@@ -291,6 +295,6 @@ export default function Settings() {
       <Text className='tx-sm tx-sub' style={{ textAlign: 'center' }}>
         药准时 MedOnTime · 小程序版本 {APP_VERSION}
       </Text>
-    </View>
+    </PageShell>
   );
 }

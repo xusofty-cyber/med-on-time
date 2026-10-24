@@ -13,6 +13,7 @@ import {
   OperatorType,
   PlanStatus,
   PlanType,
+  ReminderInstanceStatus,
 } from '@med-on-time/shared';
 import { PrismaService } from '../../prisma/prisma.service';
 import {
@@ -23,6 +24,7 @@ import type { AuthenticatedUser } from '../../common/decorators/current-user.dec
 import { uuidv7 } from '../../common/utils/uuidv7';
 import { DrugService } from '../drug/drug.service';
 import { ReminderGenerationService } from '../reminder/reminder-generation.service';
+import { ReminderQueueService } from '../reminder/reminder-queue.service';
 import {
   NotificationPrefsService,
   type PlanCycleOverride,
@@ -193,7 +195,41 @@ export class PlanService {
     private readonly drugService: DrugService,
     private readonly prefs: NotificationPrefsService,
     private readonly generation: ReminderGenerationService,
+    private readonly reminderQueue: ReminderQueueService,
   ) {}
+
+  /** 取消指定计划或计划明细下待触发/顺延中/已提醒的提醒实例，返回被取消的实例 ID */
+  private async cancelPendingInstances(
+    tx: Prisma.TransactionClient,
+    filter: { planId?: string; planItemId?: { in: string[] } },
+  ): Promise<string[]> {
+    const cancellableStatuses: string[] = [
+      ReminderInstanceStatus.Pending,
+      ReminderInstanceStatus.Reminded,
+      ReminderInstanceStatus.Snoozed,
+    ];
+    const where: Prisma.ReminderInstanceWhereInput = {
+      deletedAt: null,
+      status: { in: cancellableStatuses },
+      ...(filter.planId ? { planId: filter.planId } : {}),
+      ...(filter.planItemId ? { planItemId: filter.planItemId } : {}),
+    };
+    const instances = await tx.reminderInstance.findMany({
+      where,
+      select: { id: true },
+    });
+    if (instances.length > 0) {
+      await tx.reminderInstance.updateMany({
+        where,
+        data: {
+          status: ReminderInstanceStatus.Cancelled,
+          snoozeUntil: null,
+          updatedAt: new Date(),
+        },
+      });
+    }
+    return instances.map((i) => i.id);
+  }
 
   /**
    * 当日即时生效（2026-10-23 负责人裁定）：计划创建/恢复/更新成功后，为该成员
@@ -820,10 +856,40 @@ export class PlanService {
       skip: (page - 1) * pageSize,
       take: pageSize,
     });
-    const items: ReturnType<typeof toPlanResponse>[] = [];
-    for (const plan of plans) {
-      items.push(await this.withCycleFields(await this.loadPlan(this.prisma, plan.id), plan.id));
+    const planIds = plans.map((p) => p.id);
+    if (planIds.length === 0) {
+      return { items: [], total, page, pageSize };
     }
+    const [allItems, allPhases] = await Promise.all([
+      this.prisma.medicationPlanItem.findMany({
+        where: { planId: { in: planIds }, deletedAt: null },
+        orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
+      }),
+      this.prisma.medicationPlanPhase.findMany({
+        where: { planId: { in: planIds }, deletedAt: null },
+        orderBy: [{ stageNo: 'asc' }],
+      }),
+    ]);
+    const itemsByPlan = new Map<string, MedicationPlanItem[]>();
+    for (const item of allItems) {
+      const list = itemsByPlan.get(item.planId) ?? [];
+      list.push(item);
+      itemsByPlan.set(item.planId, list);
+    }
+    const phasesByPlan = new Map<string, MedicationPlanPhase[]>();
+    for (const phase of allPhases) {
+      const list = phasesByPlan.get(phase.planId) ?? [];
+      list.push(phase);
+      phasesByPlan.set(phase.planId, list);
+    }
+    const items = await Promise.all(
+      plans.map(async (plan) => {
+        const planItems = itemsByPlan.get(plan.id) ?? [];
+        const planPhases = phasesByPlan.get(plan.id) ?? [];
+        const base = toPlanResponse(plan, planItems, planPhases);
+        return this.withCycleFields(base, plan.id);
+      }),
+    );
     return { items, total, page, pageSize };
   }
 
@@ -919,9 +985,11 @@ export class PlanService {
       }
     }
 
-    const updated = await this.prisma.$transaction(async (tx) => {
+    const { planRes, cancelledInstanceIds } = await this.prisma.$transaction(async (tx) => {
       const plan = await this.findPlanOrThrow(tx, planId);
       const historyRows: Parameters<PlanService['writeHistory']>[2] = [];
+      const cancelledInstanceIds: string[] = [];
+      const rescheduledItemIds: string[] = [];
 
       /* ---- 标量字段 ---- */
       const effectivePlanType = dto.planType ?? plan.planType;
@@ -1108,6 +1176,13 @@ export class PlanService {
               cmp('sort_order', current.sortOrder, patch.sortOrder, () => (data.sortOrder = patch.sortOrder));
             if (changes.length > 0) {
               data.version = { increment: 1 };
+              if (
+                changes.some(
+                  (c) => c.field === 'frequency_rule' || c.field === 'frequency_type',
+                )
+              ) {
+                rescheduledItemIds.push(current.id);
+              }
               await tx.medicationPlanItem.update({ where: { id: current.id }, data });
               const logId = await this.writeChangeLog(tx, {
                 planId,
@@ -1154,6 +1229,20 @@ export class PlanService {
               sortOrder: patch.sortOrder,
             };
             this.validateItemShape(newItem);
+            if (
+              effectivePlanType === PlanType.Prn &&
+              newItem.frequencyType !== 'on_demand'
+            ) {
+              throw this.validationError('按需（PRN）计划的明细频次必须为「按需」');
+            }
+            if (
+              effectivePlanType !== PlanType.Prn &&
+              newItem.frequencyType === 'on_demand'
+            ) {
+              throw this.validationError(
+                'scheduled plan items cannot use frequencyType=on_demand',
+              );
+            }
             const drug = precheckedDrugs.get(patch.drugId);
             const created = await tx.medicationPlanItem.create({
               data: {
@@ -1186,6 +1275,9 @@ export class PlanService {
             });
           }
         }
+        if (keptIds.size === 0) {
+          throw this.validationError('用药计划至少需要保留一条药品明细');
+        }
         // 未保留的既有明细 = 移除（软删除）
         for (const current of currentItems) {
           if (!keptIds.has(current.id)) {
@@ -1203,6 +1295,15 @@ export class PlanService {
               beforeSnapshot: toPlanItemResponse(current),
             });
           }
+        }
+        const itemsToCancel = [
+          ...new Set([...removedItemIds, ...rescheduledItemIds]),
+        ];
+        if (itemsToCancel.length > 0) {
+          const ids = await this.cancelPendingInstances(tx, {
+            planItemId: { in: itemsToCancel },
+          });
+          cancelledInstanceIds.push(...ids);
         }
         // 指向已移除明细的阶段一并软删除（防悬挂阶段）
         if (removedItemIds.length > 0) {
@@ -1363,14 +1464,30 @@ export class PlanService {
             'clear phases (phases: []) in the same request when switching to prn',
           );
         }
+        const ids = await this.cancelPendingInstances(tx, { planId });
+        cancelledInstanceIds.push(...ids);
       }
 
       /* ---- 落库计划本体 + 历史 ---- */
       scalarData.version = { increment: 1 };
-      await tx.medicationPlan.update({ where: { id: planId }, data: scalarData });
+      const updatedCount = await tx.medicationPlan.updateMany({
+        where: { id: planId, version: plan.version, deletedAt: null },
+        data: scalarData,
+      });
+      if (updatedCount.count === 0) {
+        throw new BusinessException(
+          BusinessCode.Conflict,
+          'plan version conflict',
+          HttpStatus.CONFLICT,
+        );
+      }
       await this.writeHistory(tx, ctx, historyRows, user.accountId);
-      return this.loadPlan(tx, planId);
+      const planRes = await this.loadPlan(tx, planId);
+      return { planRes, cancelledInstanceIds };
     });
+    if (cancelledInstanceIds.length > 0) {
+      await this.reminderQueue.removeJobsForInstances(cancelledInstanceIds);
+    }
     // cycle 覆盖后处理：cycleOverride 权威；仅扁平字段时与既有覆盖合并
     if (
       dto.cycleOverride !== undefined ||
@@ -1418,7 +1535,7 @@ export class PlanService {
     }
     // 当日即时生效：排程变更后补生成今天未到点剂量（幂等，只补缺）
     await this.triggerSameDayGeneration(existing.memberId);
-    return this.withCycleFields(updated, planId);
+    return this.withCycleFields(planRes, planId);
   }
 
   /* ---------------------------- 暂停 / 恢复 / 删除 ---------------------------- */
@@ -1457,6 +1574,7 @@ export class PlanService {
           beforeSnapshot: { status: plan.status },
           afterSnapshot: { status: PlanStatus.Paused },
         });
+        const cancelledInstanceIds = await this.cancelPendingInstances(tx, { planId });
         await this.writeHistory(
           tx,
           ctx,
@@ -1471,6 +1589,7 @@ export class PlanService {
           ],
           user.accountId,
         );
+        return { data: await this.loadPlan(tx, planId), cancelledInstanceIds };
       } else if (action === 'resume') {
         if (plan.status !== PlanStatus.Paused) {
           throw new BusinessException(
@@ -1509,6 +1628,7 @@ export class PlanService {
           ],
           user.accountId,
         );
+        return { data: await this.loadPlan(tx, planId), cancelledInstanceIds: [] };
       } else {
         // delete：软删除计划与明细/阶段，状态收口为 stopped 并留痕
         const before = await this.loadPlan(tx, planId);
@@ -1528,6 +1648,7 @@ export class PlanService {
           where: { planId, deletedAt: null },
           data: { deletedAt: now },
         });
+        const cancelledInstanceIds = await this.cancelPendingInstances(tx, { planId });
         const logId = await this.writeChangeLog(tx, {
           planId,
           memberId: plan.memberId,
@@ -1549,20 +1670,25 @@ export class PlanService {
           ],
           user.accountId,
         );
-        return { id: planId, status: PlanStatus.Stopped, deleted: true };
+        return {
+          data: { id: planId, status: PlanStatus.Stopped, deleted: true },
+          cancelledInstanceIds,
+        };
       }
-      return this.loadPlan(tx, planId);
     });
+    if (result.cancelledInstanceIds.length > 0) {
+      await this.reminderQueue.removeJobsForInstances(result.cancelledInstanceIds);
+    }
     if (action === 'delete') {
       await this.prefs.deletePlanCycleOverride(planId);
       await this.prefs.deletePlanStrongAlertOverride(planId);
-      return result;
+      return result.data;
     }
     if (action === 'resume') {
       // 当日即时生效：恢复计划立即补生成今天未到点剂量
       await this.triggerSameDayGeneration(existing.memberId);
     }
-    return this.withCycleFields(result as Record<string, unknown>, planId);
+    return this.withCycleFields(result.data as Record<string, unknown>, planId);
   }
 
   pausePlan(planId: string, user: AuthenticatedUser) {

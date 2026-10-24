@@ -122,7 +122,7 @@ final class APIClient {
             throw APIError.transport(httpStatus)
         }
 
-        if header.code == 401, authenticated, retryOn401 {
+        if (httpStatus == 401 || header.code == 401 || header.code == 40100), authenticated, retryOn401 {
             return try await refreshAndReplay(method: method, path: path, query: query, body: body)
         }
         guard header.code == 0 || header.code == 200 else {

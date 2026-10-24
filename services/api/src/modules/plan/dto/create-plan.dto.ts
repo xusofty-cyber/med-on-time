@@ -66,6 +66,7 @@ export class PlanItemInputDto {
   @Type(() => Number)
   @IsNumber()
   @IsPositive()
+  @Max(1000000)
   doseAmount!: number;
 
   @ApiProperty({ description: '单次剂量单位，如 片 / 粒 / ml / mg' })

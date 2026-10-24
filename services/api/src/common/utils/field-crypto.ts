@@ -1,5 +1,6 @@
-import { Logger } from '@nestjs/common';
+import { HttpStatus, Logger } from '@nestjs/common';
 import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes } from 'crypto';
+import { BusinessCode, BusinessException } from '../exceptions/business.exception';
 
 /**
  * 字段级加密工具（需求口径：病历正文等敏感字段加密存储）。
@@ -36,6 +37,13 @@ export class FieldCrypto {
 
   encrypt(plain: string): string {
     if (!this.key) {
+      if (process.env.NODE_ENV === 'production') {
+        throw new BusinessException(
+          BusinessCode.InternalError,
+          '生产环境必须配置 EHR_ENC_KEY（32 字节密钥），禁止敏感字段降级明文落库',
+          HttpStatus.SERVICE_UNAVAILABLE,
+        );
+      }
       if (!this.warned) {
         this.warned = true;
         this.logger.warn(
@@ -67,8 +75,15 @@ export class FieldCrypto {
   }
 }
 
-/** 电话哈希（供 emergency_contact.phone_hash 等精确匹配列）：有密钥走 HMAC，否则 SHA-256。 */
+/** 电话哈希（供 emergency_contact.phone_hash 等精确匹配列）：有密钥走 HMAC，否则仅非生产环境回退 SHA-256。 */
 export function hashPhone(phone: string, key: Buffer | null): string {
+  if (!key && process.env.NODE_ENV === 'production') {
+    throw new BusinessException(
+      BusinessCode.InternalError,
+      '生产环境必须配置 EHR_ENC_KEY（32 字节密钥），禁止电话哈希无密钥降级',
+      HttpStatus.SERVICE_UNAVAILABLE,
+    );
+  }
   return key
     ? createHmac('sha256', key).update(phone, 'utf8').digest('hex')
     : createHash('sha256').update(phone, 'utf8').digest('hex');

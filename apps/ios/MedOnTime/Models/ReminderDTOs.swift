@@ -87,6 +87,13 @@ struct IntakeRecordDTO: Decodable, Identifiable {
     let confirmationMethod: String
 }
 
+/// 成员单日提醒视图（GET /members/:memberId/reminders/today 及按日期查询接口返回）。
+struct ReminderDayDTO: Decodable {
+    let date: String
+    let timezone: String
+    let items: [ReminderInstanceDTO]
+}
+
 // MARK: - 请求体
 
 /// 打卡请求：clientRequestId 为客户端幂等键（UUID），与服务端实例幂等键共同防重复打卡。

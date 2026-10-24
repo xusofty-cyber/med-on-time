@@ -2,7 +2,7 @@
 import { useSyncExternalStore } from 'react';
 import Taro from '@tarojs/taro';
 import type { Account, CareSettings, Member } from './types';
-import { tokenStore } from './api';
+import { ApiError, tokenStore } from './api';
 import { authApi, memberApi } from './endpoints';
 
 interface AppState {
@@ -113,12 +113,13 @@ export const actions = {
     setState({ unreadCount: n });
   },
   resetSession() {
+    bootPromise = null;
     storageRemove(MEMBER_KEY);
     setState({ account: null, members: [], currentMemberId: null, careSettings: null, unreadCount: 0 });
   },
 };
 
-/** 启动恢复会话（app useLaunch 调用一次）：有 token 则拉账号与成员，失败清会话。与 Web 端 App 守卫同逻辑。 */
+/** 启动恢复会话（app useLaunch 调用一次）：有 token 则拉账号与成员，仅 401 鉴权失败清会话，弱网瞬时错误保留登录态并允许重试。 */
 let bootPromise: Promise<void> | null = null;
 export function bootstrap(): Promise<void> {
   if (!bootPromise) {
@@ -127,10 +128,18 @@ export function bootstrap(): Promise<void> {
         try {
           const me = await authApi.me();
           actions.setAccount(me);
-          actions.setMembers(await memberApi.list());
-        } catch {
-          tokenStore.clear();
-          actions.resetSession();
+          try {
+            actions.setMembers(await memberApi.list());
+          } catch {
+            /* 成员列表拉取失败保留已验证的 account 登录态，进入页面后可刷新重试 */
+          }
+        } catch (err) {
+          if (err instanceof ApiError && err.code === 401) {
+            tokenStore.clear();
+            actions.resetSession();
+          } else {
+            bootPromise = null;
+          }
         }
       }
       setState({ booted: true });

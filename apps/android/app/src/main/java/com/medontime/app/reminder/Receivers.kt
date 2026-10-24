@@ -45,11 +45,14 @@ class ExactAlarmReceiver : BroadcastReceiver() {
     }
 }
 
-/** 开机/更新后恢复本地提醒排程（服务端时间线为准重新拉取）。 */
+/** 开机/更新/系统时间或时区变更后恢复本地提醒排程（服务端时间线为准重新拉取）。 */
 class BootReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
-        if (intent.action != Intent.ACTION_BOOT_COMPLETED &&
-            intent.action != Intent.ACTION_MY_PACKAGE_REPLACED
+        val action = intent.action
+        if (action != Intent.ACTION_BOOT_COMPLETED &&
+            action != Intent.ACTION_MY_PACKAGE_REPLACED &&
+            action != Intent.ACTION_TIMEZONE_CHANGED &&
+            action != Intent.ACTION_TIME_CHANGED
         ) {
             return
         }

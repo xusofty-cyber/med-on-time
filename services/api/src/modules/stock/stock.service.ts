@@ -409,97 +409,131 @@ export class StockService {
       ctx.member.accountId,
     );
 
-    const updated = await this.prisma.$transaction(async (tx) => {
-      let row = await tx.memberMedication.findFirst({
-        where: { memberId, drugId: dto.drugId, deletedAt: null },
-      });
-      if (!row) {
-        if (dto.changeAmount < 0) {
+    let updated;
+    try {
+      updated = await this.prisma.$transaction(async (tx) => {
+        let row = await tx.memberMedication.findFirst({
+          where: { memberId, drugId: dto.drugId },
+        });
+        if (!row) {
+          if (dto.changeAmount < 0) {
+            throw new BusinessException(
+              StockCode.InsufficientStock,
+              'no stock record to deduct from',
+              HttpStatus.BAD_REQUEST,
+            );
+          }
+          row = await tx.memberMedication.create({
+            data: {
+              id: uuidv7(),
+              memberId,
+              drugId: dto.drugId,
+              stockQuantity: 0,
+              stockUnit: dto.stockUnit ?? drug.unit,
+              status: 'in_use',
+            },
+          });
+        } else if (row.deletedAt !== null) {
+          if (dto.changeAmount < 0) {
+            throw new BusinessException(
+              StockCode.InsufficientStock,
+              'no stock record to deduct from',
+              HttpStatus.BAD_REQUEST,
+            );
+          }
+          await tx.memberMedication.update({
+            where: { id: row.id },
+            data: {
+              deletedAt: null,
+              stockQuantity: 0,
+              stockUnit: dto.stockUnit ?? drug.unit,
+              status: 'in_use',
+              version: { increment: 1 },
+            },
+          });
+          row = await tx.memberMedication.findUniqueOrThrow({ where: { id: row.id } });
+        }
+        if (row.status === 'archived') {
+          throw this.validationError('stock record is archived');
+        }
+        const balanceBefore = Number(row.stockQuantity);
+        const balanceAfter = Math.round((balanceBefore + dto.changeAmount) * 100) / 100;
+        if (balanceAfter < 0) {
           throw new BusinessException(
             StockCode.InsufficientStock,
-            'no stock record to deduct from',
+            'stock quantity cannot go below 0',
             HttpStatus.BAD_REQUEST,
           );
         }
-        row = await tx.memberMedication.create({
+        const nextStatus = balanceAfter === 0 ? 'depleted' : 'in_use';
+        // 乐观锁更新余额：version 不符说明并发扣减，整单回滚报 409
+        const affected = await tx.memberMedication.updateMany({
+          where: { id: row.id, version: row.version },
           data: {
-            id: uuidv7(),
-            memberId,
-            drugId: dto.drugId,
-            stockQuantity: 0,
-            stockUnit: dto.stockUnit ?? drug.unit,
-            status: 'in_use',
+            stockQuantity: balanceAfter,
+            version: { increment: 1 },
+            status: nextStatus,
+            ...(dto.expiryDate
+              ? {
+                  currentBatchExpiryDate: new Date(
+                    `${dto.expiryDate.slice(0, 10)}T00:00:00.000Z`,
+                  ),
+                }
+              : {}),
+            ...(dto.storageLocation !== undefined
+              ? { storageLocation: dto.storageLocation }
+              : {}),
           },
         });
-      }
-      if (row.status === 'archived') {
-        throw this.validationError('stock record is archived');
-      }
-      const balanceBefore = Number(row.stockQuantity);
-      const balanceAfter = Math.round((balanceBefore + dto.changeAmount) * 100) / 100;
-      if (balanceAfter < 0) {
-        throw new BusinessException(
-          StockCode.InsufficientStock,
-          'stock quantity cannot go below 0',
-          HttpStatus.BAD_REQUEST,
-        );
-      }
-      const nextStatus = balanceAfter === 0 ? 'depleted' : 'in_use';
-      // 乐观锁更新余额：version 不符说明并发扣减，整单回滚报 409
-      const affected = await tx.memberMedication.updateMany({
-        where: { id: row.id, version: row.version },
-        data: {
-          stockQuantity: balanceAfter,
-          version: { increment: 1 },
-          status: nextStatus,
-          ...(dto.expiryDate
-            ? {
-                currentBatchExpiryDate: new Date(
-                  `${dto.expiryDate.slice(0, 10)}T00:00:00.000Z`,
-                ),
-              }
-            : {}),
-          ...(dto.storageLocation !== undefined
-            ? { storageLocation: dto.storageLocation }
-            : {}),
-        },
+        if (affected.count === 0) {
+          throw new BusinessException(
+            BusinessCode.Conflict,
+            'stock version conflict, please retry',
+            HttpStatus.CONFLICT,
+          );
+        }
+        await tx.medicationStockLedger.create({
+          data: {
+            id: uuidv7(),
+            memberMedicationId: row.id,
+            memberId,
+            drugId: dto.drugId,
+            changeType: dto.changeType,
+            changeAmount: dto.changeAmount,
+            balanceAfter,
+            operatorAccountId: user.accountId,
+            operatorType: ctx.operatorType,
+            note: dto.note ?? null,
+          },
+        });
+        return tx.memberMedication.findFirstOrThrow({
+          where: { id: row.id },
+          include: {
+            drug: {
+              select: {
+                genericName: true,
+                brandName: true,
+                specification: true,
+                dosageForm: true,
+                unit: true,
+              },
+            },
+          },
+        });
       });
-      if (affected.count === 0) {
+    } catch (err) {
+      if (
+        err instanceof Prisma.PrismaClientKnownRequestError &&
+        err.code === 'P2002'
+      ) {
         throw new BusinessException(
           BusinessCode.Conflict,
           'stock version conflict, please retry',
           HttpStatus.CONFLICT,
         );
       }
-      await tx.medicationStockLedger.create({
-        data: {
-          id: uuidv7(),
-          memberMedicationId: row.id,
-          memberId,
-          drugId: dto.drugId,
-          changeType: dto.changeType,
-          changeAmount: dto.changeAmount,
-          balanceAfter,
-          operatorAccountId: user.accountId,
-          operatorType: ctx.operatorType,
-          note: dto.note ?? null,
-        },
-      });
-      return tx.memberMedication.findFirstOrThrow({
-        where: { id: row.id },
-        include: {
-          drug: {
-            select: {
-              genericName: true,
-              brandName: true,
-              specification: true,
-              dosageForm: true,
-              unit: true,
-            },
-          },
-        },
-      });
-    });
+      throw err;
+    }
 
     const today = localToday(ctx.member.timezone);
     const usageMap = await this.computeDailyUsageMap(memberId, today);

@@ -46,7 +46,7 @@ await window.medontimeDesktop?.syncReminders({
 - `showDrugDetail=false` 时系统通知正文**不含药名/剂量**（与锁屏口径一致，契约默认 OFF）。
 - 登出/切换成员调用 `clearReminders()` 清空调度；通知点击经 `onReminderActivated(instanceId)` 回调渲染层。
 - 同一实例只通知一次；过点 15 分钟内补发，更久不打扰。
-- 注意：web 端目前尚未调用该桥（其今日页用浏览器 Notification 兜底），接入为 web 侧后续小改动。
+- Web 端（`apps/web`）今日提醒页已完整接入该桥（`syncDesktopReminders` / `clearDesktopReminders`），实现 Web 页面与桌面端本地系统通知双向联动。
 
 ## 安全基线
 

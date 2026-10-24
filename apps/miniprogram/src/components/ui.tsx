@@ -1,6 +1,68 @@
 /** 通用 UI 组件（Taro 版，对应 Web 端 components/ui.tsx 的视觉与语义口径）。 */
-import type { PropsWithChildren, ReactNode } from 'react';
+import { Component, type CSSProperties, type PropsWithChildren, type ReactNode } from 'react';
+import Taro from '@tarojs/taro';
 import { Input, Picker, ScrollView, Switch, Text, View } from '@tarojs/components';
+import { careModeOn, currentMember, useApp } from '../lib/store';
+import { todayInTz } from '../lib/time';
+
+class PageErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
+  state: { error: Error | null } = { error: null };
+
+  static getDerivedStateFromError(error: Error): { error: Error } {
+    return { error };
+  }
+
+  render() {
+    if (this.state.error) {
+      return (
+        <View className='col' style={{ gap: '20rpx' }}>
+          <Text className='tx-title'>页面出错了</Text>
+          <Text className='tx-md' style={{ lineHeight: 1.7 }}>
+            {String(this.state.error.message ?? this.state.error)}
+          </Text>
+          <Text className='tx-sm tx-sub' style={{ lineHeight: 1.7 }}>
+            请把这一屏截图发给开发者定位，可点击下方按钮重试或返回首页。
+          </Text>
+          <View className='row' style={{ gap: '12rpx' }}>
+            <View className='grow'>
+              <Btn variant='soft' block onClick={() => this.setState({ error: null })}>
+                重试
+              </Btn>
+            </View>
+            <View className='grow'>
+              <Btn
+                block
+                onClick={() => {
+                  this.setState({ error: null });
+                  Taro.switchTab({ url: '/pages/index/index' });
+                }}
+              >
+                返回首页
+              </Btn>
+            </View>
+          </View>
+        </View>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+/** 页面根容器：在每个小程序 Page 真实节点上挂载 .care-on 类与页面级可复位 ErrorBoundary。 */
+export function PageShell({
+  style,
+  children,
+}: {
+  style?: CSSProperties;
+} & PropsWithChildren) {
+  const careSettings = useApp((s) => s.careSettings);
+  const careOn = careSettings ? careSettings.careMode : careModeOn();
+  return (
+    <View className={`pg${careOn ? ' care-on' : ''}`} style={style}>
+      <PageErrorBoundary>{children}</PageErrorBoundary>
+    </View>
+  );
+}
 
 export function Btn({
   variant = 'primary',
@@ -145,7 +207,7 @@ export function DatePick({
   onChange: (v: string) => void;
   placeholder?: string;
 }) {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayInTz(currentMember()?.timezone ?? 'Asia/Shanghai');
   return (
     <Picker mode='date' value={value || today} onChange={(e) => onChange(e.detail.value)}>
       <View className='input pick-row'>

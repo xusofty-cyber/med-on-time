@@ -63,6 +63,7 @@ interface WxErrorBody {
 export class WechatOaService {
   private readonly logger = new Logger(WechatOaService.name);
   private tokenCache: { token: string; expiresAt: number } | null = null;
+  private tokenPromise: Promise<string> | null = null;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -210,8 +211,8 @@ export class WechatOaService {
       if (!res.media_id) this.throwWx(res, '同步到草稿箱失败');
       draftId = res.media_id;
     }
-    const updated = await this.prisma.oaArticle.update({
-      where: { id: row.id },
+    const updateRes = await this.prisma.oaArticle.updateMany({
+      where: { id: row.id, version: row.version, deletedAt: null },
       data: {
         wxDraftMediaId: draftId,
         contentHtml: html,
@@ -219,6 +220,14 @@ export class WechatOaService {
         version: { increment: 1 },
       },
     });
+    if (updateRes.count === 0) {
+      throw new BusinessException(
+        BusinessCode.Conflict,
+        '文章在同步期间已被修改，请刷新后重试',
+        HttpStatus.CONFLICT,
+      );
+    }
+    const updated = await this.mustFind(row.id);
     return this.toView(updated);
   }
 
@@ -228,10 +237,18 @@ export class WechatOaService {
     if (row.wxDraftMediaId) {
       await this.wxPost('/cgi-bin/draft/delete', { media_id: row.wxDraftMediaId });
     }
-    const updated = await this.prisma.oaArticle.update({
-      where: { id: row.id },
+    const updateRes = await this.prisma.oaArticle.updateMany({
+      where: { id: row.id, version: row.version, deletedAt: null },
       data: { wxDraftMediaId: null, lastSyncedAt: null, version: { increment: 1 } },
     });
+    if (updateRes.count === 0) {
+      throw new BusinessException(
+        BusinessCode.Conflict,
+        '文章在撤回期间已被修改，请刷新后重试',
+        HttpStatus.CONFLICT,
+      );
+    }
+    const updated = await this.mustFind(row.id);
     return this.toView(updated);
   }
 
@@ -254,17 +271,27 @@ export class WechatOaService {
     if (!force && this.tokenCache && this.tokenCache.expiresAt > Date.now() + 60_000) {
       return this.tokenCache.token;
     }
-    const { appid, secret } = this.credentials();
-    const res = (await this.wxFetch(
-      `https://api.weixin.qq.com/cgi-bin/token?grant_type=client_credential&appid=${encodeURIComponent(appid)}&secret=${encodeURIComponent(secret)}`,
-      { method: 'GET' },
-    )) as WxErrorBody & { access_token?: string; expires_in?: number };
-    if (!res.access_token) this.throwWx(res, '获取公众号 access_token 失败');
-    this.tokenCache = {
-      token: res.access_token,
-      expiresAt: Date.now() + (res.expires_in ?? 7200) * 1000,
-    };
-    return res.access_token;
+    if (this.tokenPromise) {
+      return this.tokenPromise;
+    }
+    this.tokenPromise = (async () => {
+      try {
+        const { appid, secret } = this.credentials();
+        const res = (await this.wxFetch(
+          `https://api.weixin.qq.com/cgi-bin/token?grant_type=client_credential&appid=${encodeURIComponent(appid)}&secret=${encodeURIComponent(secret)}`,
+          { method: 'GET' },
+        )) as WxErrorBody & { access_token?: string; expires_in?: number };
+        if (!res.access_token) this.throwWx(res, '获取公众号 access_token失败');
+        this.tokenCache = {
+          token: res.access_token,
+          expiresAt: Date.now() + (res.expires_in ?? 7200) * 1000,
+        };
+        return res.access_token;
+      } finally {
+        this.tokenPromise = null;
+      }
+    })();
+    return this.tokenPromise;
   }
 
   /** 带 token 的 JSON POST；token 失效（40001/42001/40014）自动刷新重试一次。 */
@@ -284,12 +311,19 @@ export class WechatOaService {
     return res;
   }
 
+  private maskUrl(url: string): string {
+    return url.replace(/([?&](?:secret|access_token)=)[^&]+/gi, '$1***');
+  }
+
   private async wxFetch(url: string, init: RequestInit): Promise<unknown> {
     try {
       const r = await fetch(url, { ...init, signal: AbortSignal.timeout(20_000) });
+      if (!r.ok) {
+        throw new Error(`HTTP ${r.status} ${r.statusText}`);
+      }
       return await r.json();
     } catch (err) {
-      this.logger.error(`wechat oa fetch failed: ${String(err)}`);
+      this.logger.error(`wechat oa fetch failed: ${this.maskUrl(url)}: ${String(err)}`);
       throw new BusinessException(
         OaBusinessCode.UpstreamError,
         '微信接口网络异常，请稍后重试',

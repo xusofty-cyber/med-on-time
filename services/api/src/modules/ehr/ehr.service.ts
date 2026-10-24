@@ -1,6 +1,7 @@
 import { HttpStatus, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { MemberAllergy, MemberMedicalRecord } from '@prisma/client';
+import { AuthorizationStatus, CaregiverLevel } from '@med-on-time/shared';
 import { PrismaService } from '../../prisma/prisma.service';
 import { BusinessCode, BusinessException } from '../../common/exceptions/business.exception';
 import { FieldCrypto, hashPhone, resolveFieldEncKey } from '../../common/utils/field-crypto';
@@ -64,7 +65,7 @@ export class EhrService {
     operatorAccountId: string,
     dto: PutAllergiesDto,
   ): Promise<MemberAllergy[]> {
-    const member = await this.requireMember(memberId);
+    const access = await this.requireMemberWriteAccess(memberId, operatorAccountId, 'L3');
     // 结构化引用按类型校验（DB V1.2：drug_category / drug 二选一）
     for (const item of dto.items) {
       const type = item.allergenType ?? 'other';
@@ -94,7 +95,7 @@ export class EhrService {
         }
       }
     }
-    const source = member.accountId === operatorAccountId ? 'self_report' : 'caregiver_report';
+    const source = access.isOwner ? 'self_report' : 'caregiver_report';
     await this.prisma.$transaction(async (tx) => {
       await tx.memberAllergy.updateMany({
         where: { memberId, deletedAt: null },
@@ -117,6 +118,23 @@ export class EhrService {
           },
         });
       }
+      await tx.auditLog.create({
+        data: {
+          id: uuidv7(),
+          actorType: 'account',
+          actorId: operatorAccountId,
+          action: 'ehr:allergy:replace',
+          targetType: 'member_allergy',
+          targetId: memberId,
+          memberId,
+          detail: {
+            itemCount: dto.items.length,
+            operatorRole: access.isOwner ? 'member_self' : 'caregiver',
+            operatorLevel: access.level,
+          },
+          result: 'success',
+        },
+      });
     });
     return this.listAllergies(memberId);
   }
@@ -124,7 +142,7 @@ export class EhrService {
   // ------------------------------------------------------------ 服药后不适
 
   async createAdverseRecord(memberId: string, operatorAccountId: string, dto: CreateAdverseRecordDto) {
-    await this.requireMember(memberId);
+    const access = await this.requireMemberWriteAccess(memberId, operatorAccountId, 'L2');
     // 关联服药事件为可选（DB V1.2 三个关联列均可空，独立记录不适是合法口径）；
     // 传了关联则必须属于该成员并校验存在性（下方逐项校验）。
     // 关联事件必须属于该成员；planItemId 缺省时从关联事件推导（按药聚合口径）
@@ -161,7 +179,7 @@ export class EhrService {
         throw new BusinessException(BusinessCode.BadRequest, `unknown symptom tags: ${invalid.join(', ')}`);
       }
     }
-    return this.prisma.intakeAdverseRecord.create({
+    const created = await this.prisma.intakeAdverseRecord.create({
       data: {
         id: uuidv7(),
         memberId,
@@ -176,6 +194,15 @@ export class EhrService {
         recordedByAccountId: operatorAccountId,
       },
     });
+    await this.writeEhrAudit(
+      operatorAccountId,
+      'ehr:adverse_record:create',
+      'intake_adverse_record',
+      created.id,
+      memberId,
+      access,
+    );
+    return created;
   }
 
   async listAdverseRecords(memberId: string, query: PageQueryDto, severity?: string) {
@@ -206,8 +233,12 @@ export class EhrService {
     return rows.map((row) => this.toContactView(row));
   }
 
-  async createEmergencyContact(memberId: string, dto: CreateEmergencyContactDto) {
-    await this.requireMember(memberId);
+  async createEmergencyContact(
+    memberId: string,
+    dto: CreateEmergencyContactDto,
+    operatorAccountId?: string,
+  ) {
+    const access = await this.requireMemberWriteAccess(memberId, operatorAccountId, 'L3');
     const max = await this.emergencyContactMax();
     const count = await this.prisma.emergencyContact.count({ where: { memberId, deletedAt: null } });
     if (count >= max) {
@@ -226,10 +257,26 @@ export class EhrService {
         note: dto.note ?? null,
       },
     });
+    if (operatorAccountId) {
+      await this.writeEhrAudit(
+        operatorAccountId,
+        'ehr:emergency_contact:create',
+        'emergency_contact',
+        row.id,
+        memberId,
+        access,
+      );
+    }
     return this.toContactView(row);
   }
 
-  async updateEmergencyContact(memberId: string, contactId: string, dto: UpdateEmergencyContactDto) {
+  async updateEmergencyContact(
+    memberId: string,
+    contactId: string,
+    dto: UpdateEmergencyContactDto,
+    operatorAccountId?: string,
+  ) {
+    const access = await this.requireMemberWriteAccess(memberId, operatorAccountId, 'L3');
     const existing = await this.prisma.emergencyContact.findFirst({
       where: { id: contactId, memberId, deletedAt: null },
     });
@@ -247,10 +294,25 @@ export class EhrService {
       data.phoneHash = hashPhone(phone, this.encKey);
     }
     const row = await this.prisma.emergencyContact.update({ where: { id: contactId }, data });
+    if (operatorAccountId) {
+      await this.writeEhrAudit(
+        operatorAccountId,
+        'ehr:emergency_contact:update',
+        'emergency_contact',
+        row.id,
+        memberId,
+        access,
+      );
+    }
     return this.toContactView(row);
   }
 
-  async deleteEmergencyContact(memberId: string, contactId: string): Promise<{ deleted: true }> {
+  async deleteEmergencyContact(
+    memberId: string,
+    contactId: string,
+    operatorAccountId?: string,
+  ): Promise<{ deleted: true }> {
+    const access = await this.requireMemberWriteAccess(memberId, operatorAccountId, 'L3');
     const existing = await this.prisma.emergencyContact.findFirst({
       where: { id: contactId, memberId, deletedAt: null },
       select: { id: true },
@@ -262,6 +324,16 @@ export class EhrService {
       where: { id: contactId },
       data: { deletedAt: new Date() },
     });
+    if (operatorAccountId) {
+      await this.writeEhrAudit(
+        operatorAccountId,
+        'ehr:emergency_contact:delete',
+        'emergency_contact',
+        contactId,
+        memberId,
+        access,
+      );
+    }
     return { deleted: true };
   }
 
@@ -276,8 +348,12 @@ export class EhrService {
   }
 
   /** POST 写入（upsert 语义）：已有则更新字段，未传字段保留原值。 */
-  async upsertMedicalRecord(memberId: string, dto: UpsertMedicalRecordDto) {
-    await this.requireMember(memberId);
+  async upsertMedicalRecord(
+    memberId: string,
+    dto: UpsertMedicalRecordDto,
+    operatorAccountId?: string,
+  ) {
+    const access = await this.requireMemberWriteAccess(memberId, operatorAccountId, 'L3');
     const existing = await this.prisma.memberMedicalRecord.findFirst({
       where: { memberId, deletedAt: null },
     });
@@ -294,6 +370,16 @@ export class EhrService {
       : await this.prisma.memberMedicalRecord.create({
           data: { id: uuidv7(), memberId, ...data },
         });
+    if (operatorAccountId) {
+      await this.writeEhrAudit(
+        operatorAccountId,
+        'ehr:medical_record:upsert',
+        'member_medical_record',
+        row.id,
+        memberId,
+        access,
+      );
+    }
     return this.toMedicalRecordView(row);
   }
 
@@ -308,6 +394,86 @@ export class EhrService {
       throw new BusinessException(BusinessCode.NotFound, 'member not found', HttpStatus.NOT_FOUND);
     }
     return member;
+  }
+
+  /**
+   * 档案域写权限与照护等级校验（红线 5 & 红线 6）：
+   * - 成员归属账号：放行（level = 'self'）；
+   * - 照护人：须持有 active 且未过期的授权，过敏/紧急联系人/病历要求 L3（可配置），
+   *   服药不适记录要求 L2（可协助）及以上，L1（仅查看）禁止任何写操作。
+   */
+  private async requireMemberWriteAccess(
+    memberId: string,
+    operatorAccountId: string | undefined,
+    minLevel: 'L2' | 'L3',
+  ): Promise<{ id: string; accountId: string; isOwner: boolean; level: string }> {
+    const member = await this.requireMember(memberId);
+    if (!operatorAccountId || member.accountId === operatorAccountId) {
+      return { ...member, isOwner: true, level: 'self' };
+    }
+    const auth = await this.prisma.caregiverAuthorization.findFirst({
+      where: {
+        caregiverAccountId: operatorAccountId,
+        memberId,
+        status: AuthorizationStatus.Active,
+        deletedAt: null,
+        OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+      },
+      select: { level: true },
+    });
+    if (!auth) {
+      throw new BusinessException(
+        BusinessCode.MemberAccessDenied,
+        '无权访问该成员数据',
+        HttpStatus.FORBIDDEN,
+      );
+    }
+    if (minLevel === 'L3' && auth.level !== CaregiverLevel.L3) {
+      throw new BusinessException(
+        BusinessCode.Forbidden,
+        '需要 L3（可配置）照护授权才可修改健康档案与紧急联系人',
+        HttpStatus.FORBIDDEN,
+      );
+    }
+    if (
+      minLevel === 'L2' &&
+      auth.level !== CaregiverLevel.L2 &&
+      auth.level !== CaregiverLevel.L3
+    ) {
+      throw new BusinessException(
+        BusinessCode.Forbidden,
+        '需要 L2 及以上照护授权才可记录服药不适',
+        HttpStatus.FORBIDDEN,
+      );
+    }
+    return { ...member, isOwner: false, level: auth.level };
+  }
+
+  /** 代操作双记审计（记录实际操作人 actorId 与归属成员 memberId，敏感正文不进 detail）。 */
+  private async writeEhrAudit(
+    operatorAccountId: string,
+    action: string,
+    targetType: string,
+    targetId: string,
+    memberId: string,
+    access: { isOwner: boolean; level: string },
+  ): Promise<void> {
+    await this.prisma.auditLog.create({
+      data: {
+        id: uuidv7(),
+        actorType: 'account',
+        actorId: operatorAccountId,
+        action,
+        targetType,
+        targetId,
+        memberId,
+        detail: {
+          operatorRole: access.isOwner ? 'member_self' : 'caregiver',
+          operatorLevel: access.level,
+        },
+        result: 'success',
+      },
+    });
   }
 
   private async symptomTagDictionary(): Promise<string[]> {

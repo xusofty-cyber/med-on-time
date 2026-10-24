@@ -6,7 +6,7 @@ import { isLoggedIn } from '../services/session';
 export default function RequireAuth({ children }: { children: ReactNode }) {
   const location = useLocation();
   if (!isLoggedIn()) {
-    return <Navigate to="/login" replace state={{ from: location.pathname }} />;
+    return <Navigate to="/login" replace state={{ from: `${location.pathname}${location.search}` }} />;
   }
   return <>{children}</>;
 }

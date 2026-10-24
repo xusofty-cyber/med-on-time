@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { MemberAccessGuard } from '../../common/guards/member-access.guard';
 import { AuthModule } from '../auth/auth.module';
 import { NotificationModule } from '../notification/notification.module';
+import { ReminderModule } from '../reminder/reminder.module';
 import { MemberController } from './member.controller';
 import { MemberService } from './member.service';
 
@@ -12,7 +13,7 @@ import { MemberService } from './member.service';
  * 强依赖 DB，内存回退只会形成第二数据源，不保留。
  */
 @Module({
-  imports: [AuthModule, NotificationModule],
+  imports: [AuthModule, NotificationModule, ReminderModule],
   controllers: [MemberController],
   providers: [MemberService, MemberAccessGuard],
   exports: [MemberService],

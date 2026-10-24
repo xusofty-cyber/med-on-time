@@ -46,7 +46,7 @@ struct RegisterView: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(Theme.primary)
-                .disabled(viewModel.isSubmitting || !viewModel.phoneIsValid || viewModel.code.isEmpty || viewModel.password.count < 6)
+                .disabled(viewModel.isSubmitting || !viewModel.phoneIsValid || viewModel.code.isEmpty || !viewModel.passwordIsValid)
             }
             .padding(24)
         }

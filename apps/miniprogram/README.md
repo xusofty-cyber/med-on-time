@@ -6,11 +6,11 @@
 ## 页面（4 tab + 子页）
 
 - tab：`pages/index` 今日提醒（时间线、打卡/稍后/跳过、下拉刷新、30 秒轮询到点横幅）、
-  `pages/plans` 用药计划、`pages/adherence` 依从统计（周/月汇总 + 月历热力）、`pages/me` 我的
+  `pages/plans` 用药计划（含拍照识药入口）、`pages/adherence` 依从统计（周/月汇总 + 月历热力）、`pages/me` 我的
 - 子页：`pages/login` 登录（密码/验证码 + 忘记密码重置）、`pages/register` 注册、
-  `pages/plan-edit` 计划新建/编辑、`pages/members` 成员管理与关怀设置、
+  `pages/plan-edit` 计划新建/编辑（含周期与强提醒覆盖 strongAlertModeOverride）、`pages/members` 成员管理与关怀设置（含 strongAlertMode none/alarm/voice）、
   `pages/authorizations` 照护授权、`pages/notifications` 消息中心与提醒偏好、
-  `pages/settings` 设置（资料/会话/订阅/注销说明）
+  `pages/settings` 设置（资料/会话/订阅/注销说明）、`pages/scan-login` 扫码确认登录 Web
 
 ## 构建
 
@@ -21,20 +21,9 @@ pnpm --filter @med-on-time/miniprogram typecheck  # tsc --noEmit
 
 用微信开发者工具导入 `dist/`（`project.config.json` 的 `miniprogramRoot` 已指向 dist）。
 
-## 上线前待配置（微信平台侧）
+## 当前配置与上线实况（体验版已上线）
 
-1. **appid**：`project.config.json` 当前为 `touristappid` 占位，换正式小程序 appid。
-2. **request 合法域名**：`src/config.ts` 的 `API_BASE` 生产值须为 HTTPS 域名，
-   并在公众平台「开发管理 → 开发设置 → 服务器域名」登记；本地联调可勾选「不校验合法域名」。
-3. **订阅消息模板**：在公众平台「功能 → 订阅消息」申请用药提醒模板，把模板 ID 填入
-   `src/config.ts` 的 `SUBSCRIBE_TEMPLATE_IDS`，且后端 `wechat_subscribe` 通道须同步
-   配置同一批模板 ID。未配置前订阅入口走占位提示（见 `src/lib/notify.ts`）。
-   注意平台规则：订阅消息必须由用户主动点击触发；小程序无本地定时通知 API，
-   程序关闭后的到点触达依赖服务端按订阅授权下发，前台由今日页轮询 + 震动兜底。
-4. **tab 图标**：`src/app.config.ts` 的 tabBar 当前为纯文字，UI 图标资源到位后补 `iconPath`。
-5. **微信登录与手机号验证**：正式 appid 填 `project.config.json`（与第 1 项为同一 appid）；
-   后端 env 须配 `WECHAT_MINIAPP_APPID` / `WECHAT_MINIAPP_SECRET`（在微信公众平台
-   「开发管理 → 开发设置」获取，须与小程序 appid 为同一主体）；未配置时微信登录
-   返回业务码 40312（微信未配置），前端直接透出后端 message。手机号验证走
-   `getPhoneNumber`（微信核验真号，无需短信网关）：登录页微信一键登录后未验证时
-   先引导验证，设置页账号资料区也可随时补验。
+1. **正式 AppID**：已配置正式小程序 AppID `wxfc47179d51798ba2`（仓库内 `project.config.json` 保持 `touristappid` 占位以防个人开发者环境冲突，CI/上传脚本按环境变量或本地注入）。
+2. **request 合法域名**：`src/config.ts` 已配置生产地址 `API_BASE = 'https://mot.ulife.vip/api'`，并在微信公众平台服务器域名白名单登记。
+3. **订阅消息模板**：已在公众平台申请单次用药提醒模板，模板 ID 已填入 `src/config.ts` 的 `SUBSCRIBE_TEMPLATE_IDS`（`2S6XZXrPDUFeIK0TEhQo91bZDvgbPt31bqW7Y1vXgLg`），后端已对齐实发。
+4. **功能集成**：已支持小程序一键登录、微信手机号补验、扫码确认登录 Web（`pages/scan-login`）、药品拍照识药以及强提醒配置。体验版 1.0.6 已上传待审。

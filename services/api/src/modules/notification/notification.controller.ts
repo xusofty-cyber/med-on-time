@@ -4,6 +4,7 @@ import {
   UseGuards,
   HttpStatus,
   Param,
+  ParseUUIDPipe,
   Post,
   Put,
   Body,
@@ -56,7 +57,7 @@ export class NotificationController {
   @Post(':id/read')
   async markRead(
     @CurrentUser() user: AuthenticatedUser | undefined,
-    @Param('id') id: string,
+    @Param('id', new ParseUUIDPipe()) id: string,
   ) {
     const accountId = requireAccountId(user);
     await this.service.markRead(accountId, id);

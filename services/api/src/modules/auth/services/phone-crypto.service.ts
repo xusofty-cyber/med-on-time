@@ -21,7 +21,14 @@ export class PhoneCryptoService {
   private readonly hmacKey: string;
 
   constructor(private readonly config: ConfigService) {
+    const isProd = process.env.NODE_ENV === 'production';
     const rawKey = this.config.get<string>('PHONE_ENCRYPTION_KEY');
+    const rawHmacKey = this.config.get<string>('PHONE_HMAC_KEY');
+    if (isProd && (!rawKey || !rawHmacKey)) {
+      throw new Error(
+        '生产环境必须配置 PHONE_ENCRYPTION_KEY 与 PHONE_HMAC_KEY，禁止回退开发默认密钥',
+      );
+    }
     if (rawKey) {
       this.encKey = PhoneCryptoService.parseKey(rawKey);
     } else {
@@ -30,9 +37,8 @@ export class PhoneCryptoService {
       );
       this.encKey = Buffer.alloc(32, 0x2a);
     }
-    this.hmacKey =
-      this.config.get<string>('PHONE_HMAC_KEY') ?? 'dev-phone-hmac-key';
-    if (!this.config.get<string>('PHONE_HMAC_KEY')) {
+    this.hmacKey = rawHmacKey ?? 'dev-phone-hmac-key';
+    if (!rawHmacKey) {
       this.logger.warn('PHONE_HMAC_KEY 未配置，使用开发默认值（生产环境禁止）');
     }
   }

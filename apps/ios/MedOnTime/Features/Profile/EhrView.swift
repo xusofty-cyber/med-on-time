@@ -82,7 +82,7 @@ final class EhrViewModel: ObservableObject {
     func addMedicalRecord(memberId: String, request: MedicalRecordCreateRequest) async -> Bool {
         do {
             let created = try await ehrService.createMedicalRecord(memberId: memberId, request)
-            medicalRecords.insert(created, at: 0)
+            medicalRecords = [created]
             errorMessage = nil
             return true
         } catch {
@@ -249,20 +249,39 @@ struct EhrView: View {
     }
 
     private var recordsSection: some View {
-        Section("病历") {
+        Section("病历与健康信息") {
             ForEach(viewModel.medicalRecords) { record in
-                VStack(alignment: .leading, spacing: 3) {
-                    if let title = record.title, !title.isEmpty {
-                        Text(title)
+                VStack(alignment: .leading, spacing: 4) {
+                    if let hospital = record.primaryHospital, !hospital.isEmpty {
+                        Text("主诊机构：\(hospital)")
                             .font(.headline)
                     }
-                    Text(record.content)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(4)
+                    if let summary = record.summary, !summary.isEmpty {
+                        Text(summary)
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(4)
+                    }
+                    HStack(spacing: 12) {
+                        if let blood = record.bloodType, !blood.isEmpty {
+                            Text("血型：\(blood)")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        if let h = record.heightCm {
+                            Text(String(format: "身高：%.0fcm", h))
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        if let w = record.weightKg {
+                            Text(String(format: "体重：%.1fkg", w))
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
                     if let date = record.recordDate {
-                        Text(String(date.prefix(10)))
-                            .font(.caption)
+                        Text("更新于：\(date)")
+                            .font(.caption2)
                             .foregroundStyle(.secondary)
                     }
                 }
@@ -270,7 +289,7 @@ struct EhrView: View {
             Button {
                 showRecordForm = true
             } label: {
-                Label("添加病历", systemImage: "plus.circle")
+                Label(viewModel.medicalRecords.isEmpty ? "添加病历档案" : "编辑病历档案", systemImage: "pencil.circle")
             }
         }
     }
@@ -463,29 +482,35 @@ struct EmergencyContactFormView: View {
     }
 }
 
-/// 病历添加表单（正文在服务端字段加密存储）。
+/// 病历添加/修改表单（正文在服务端字段加密存储）。
 struct MedicalRecordFormView: View {
     let onSubmit: (MedicalRecordCreateRequest) async -> Bool
 
-    @State private var title = ""
+    @State private var hospital = ""
+    @State private var bloodType = ""
+    @State private var heightText = ""
+    @State private var weightText = ""
     @State private var content = ""
-    @State private var hasDate = false
-    @State private var recordDate = Date()
     @State private var isSubmitting = false
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         NavigationStack {
             Form {
-                TextField("标题（选填，如：2026 年体检）", text: $title)
-                Toggle("填写记录日期", isOn: $hasDate)
-                if hasDate {
-                    DatePicker("记录日期", selection: $recordDate, displayedComponents: .date)
+                Section("基本医疗指标") {
+                    TextField("主诊医院/机构（选填）", text: $hospital)
+                    TextField("血型（选填，如 A/B/AB/O）", text: $bloodType)
+                    TextField("身高 cm（选填）", text: $heightText)
+                        .keyboardType(.decimalPad)
+                    TextField("体重 kg（选填）", text: $weightText)
+                        .keyboardType(.decimalPad)
                 }
-                TextField("病历内容", text: $content, axis: .vertical)
-                    .lineLimit(6...12)
+                Section("病历与健康摘要") {
+                    TextField("病历、既往病史与健康摘要", text: $content, axis: .vertical)
+                        .lineLimit(6...12)
+                }
             }
-            .navigationTitle("添加病历")
+            .navigationTitle("病历档案")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("取消") { dismiss() }
@@ -495,15 +520,17 @@ struct MedicalRecordFormView: View {
                         Task {
                             isSubmitting = true
                             let ok = await onSubmit(MedicalRecordCreateRequest(
-                                title: title.isEmpty ? nil : title,
-                                content: content,
-                                recordDate: hasDate ? ISO8601.dayString(from: recordDate) : nil
+                                bloodType: bloodType.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : bloodType,
+                                heightCm: Double(heightText),
+                                weightKg: Double(weightText),
+                                primaryHospital: hospital.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : hospital,
+                                summary: content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : content
                             ))
                             isSubmitting = false
                             if ok { dismiss() }
                         }
                     }
-                    .disabled(isSubmitting || content.isEmpty)
+                    .disabled(isSubmitting)
                 }
             }
         }

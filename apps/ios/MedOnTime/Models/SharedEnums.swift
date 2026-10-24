@@ -4,6 +4,21 @@ import Foundation
 // 纪律：枚举值一律小写蛇形英文；预留值（*_RESERVED）只登记不启用，MVP 端禁止提交。
 // 后端按同一清单做 CHECK 校验，客户端出现清单外取值视为契约破坏，直接解码失败暴露问题。
 
+/// 强提醒模式：none 普通通知 / alarm 强提醒闹钟 / voice 语音播报（定版口径）。
+enum StrongAlertMode: String, Codable, CaseIterable {
+    case none
+    case alarm
+    case voice
+
+    var label: String {
+        switch self {
+        case .none: return "普通通知"
+        case .alarm: return "强提醒闹钟"
+        case .voice: return "语音播报"
+        }
+    }
+}
+
 /// 照护授权级别：L1 仅查看 / L2 可协助 / L3 可配置
 enum CaregiverLevel: String, Codable, CaseIterable {
     case l1 = "L1"

@@ -1,10 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Taro, { useRouter } from '@tarojs/taro';
 import { Button, Text, View } from '@tarojs/components';
 import { authApi } from '../../lib/endpoints';
 import { toastError } from '../../lib/api';
-import { useSessionGuard } from '../../lib/hooks';
-import { Card, Loading } from '../../components/ui';
+import { consumePendingScanTicket, setPendingScanTicket, useSessionGuard } from '../../lib/hooks';
+import { Card, Loading, PageShell } from '../../components/ui';
 
 /**
  * 扫码登录网页版（2026-10-23 裁定路线：小程序扫码确认）：
@@ -22,9 +22,16 @@ function extractTicket(raw: string | undefined): string | null {
 }
 
 export default function ScanLogin() {
-  const { booted, account } = useSessionGuard();
   const router = useRouter();
-  const [ticket, setTicket] = useState<string | null>(extractTicket(router.params.t));
+  const initialTicket = extractTicket(router.params.t);
+  const { booted, account } = useSessionGuard();
+  if (initialTicket && !account) {
+    setPendingScanTicket(initialTicket);
+  }
+  const [ticket, setTicket] = useState<string | null>(initialTicket);
+  useEffect(() => {
+    if (account) consumePendingScanTicket();
+  }, [account]);
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
   const [scanError, setScanError] = useState('');
@@ -59,10 +66,10 @@ export default function ScanLogin() {
   if (!account) return <Loading text='正在前往登录…' />;
 
   return (
-    <View className='pg'>
+    <PageShell>
       <Card>
         <View className='col' style={{ gap: '16rpx' }}>
-          <Text className='tx-lg tx-strong'>登录药准时网页版</Text>
+          <Text className='tx-h tx-strong'>登录药准时网页版</Text>
           {done ? (
             <>
               <Text className='tx-md'>已确认登录，网页版将自动进入您的账号。</Text>
@@ -102,6 +109,6 @@ export default function ScanLogin() {
       <Text className='tx-sm tx-sub'>
         安全提示：只有您本人在电脑上打开的网页版才应确认；他人发来的二维码不要扫。
       </Text>
-    </View>
+    </PageShell>
   );
 }

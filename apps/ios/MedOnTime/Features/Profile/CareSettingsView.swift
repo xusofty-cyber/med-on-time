@@ -43,6 +43,18 @@ struct CareSettingsView: View {
                     .foregroundStyle(.secondary)
             }
 
+            Section("强提醒模式") {
+                Picker("强提醒模式", selection: $draft.strongAlertMode) {
+                    ForEach(StrongAlertMode.allCases, id: \.self) { mode in
+                        Text(mode.label).tag(mode)
+                    }
+                }
+                .pickerStyle(.segmented)
+                Text(strongAlertHint)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+
             Section("本地通知兜底") {
                 HStack {
                     Text("通知权限")
@@ -118,6 +130,17 @@ struct CareSettingsView: View {
             return "已关闭（请到系统设置开启）"
         default:
             return "未设置"
+        }
+    }
+
+    private var strongAlertHint: String {
+        switch draft.strongAlertMode {
+        case .none:
+            return "普通通知：系统标准横幅与提示音。"
+        case .alarm:
+            return "强提醒闹钟：系统高优先级强音提醒。"
+        case .voice:
+            return "语音播报：到点由系统语音播报服药提醒（药名受锁屏隐私控制）。"
         }
     }
 

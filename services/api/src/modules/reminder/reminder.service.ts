@@ -1,5 +1,5 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
-import type { ReminderInstance } from '@prisma/client';
+import { Prisma, type ReminderInstance } from '@prisma/client';
 import { ReminderInstanceStatus } from '@med-on-time/shared';
 import { PrismaService } from '../../prisma/prisma.service';
 import {
@@ -248,31 +248,65 @@ export class ReminderService {
     }
 
     const clientRequestId = dto.clientRequestId ?? `skip:${instance.id}`;
-    await this.prisma.$transaction(async (tx) => {
-      await tx.medicationIntakeRecord.create({
-        data: {
-          id: uuidv7(),
-          reminderInstanceId: instance.id,
-          memberId: instance.memberId,
-          planItemId: instance.planItemId,
-          action: 'skipped',
-          takenAt: null,
-          recordedAt: new Date(),
-          isMakeup: false,
-          operatedByAccountId: accountId,
-          skipReason: dto.reason ?? null,
-          clientRequestId,
-          confirmationMethod: 'tap',
-        },
+    try {
+      await this.prisma.$transaction(async (tx) => {
+        await tx.medicationIntakeRecord.create({
+          data: {
+            id: uuidv7(),
+            reminderInstanceId: instance.id,
+            memberId: instance.memberId,
+            planItemId: instance.planItemId,
+            action: 'skipped',
+            takenAt: null,
+            recordedAt: new Date(),
+            isMakeup: false,
+            operatedByAccountId: accountId,
+            skipReason: dto.reason ?? null,
+            clientRequestId,
+            confirmationMethod: 'tap',
+          },
+        });
+        const updated = await tx.reminderInstance.updateMany({
+          where: {
+            id: instance.id,
+            version: instance.version,
+            status: { in: skippable },
+          },
+          data: {
+            status: ReminderInstanceStatus.Skipped,
+            version: { increment: 1 },
+          },
+        });
+        if (updated.count === 0) {
+          throw new BusinessException(
+            BusinessCode.Conflict,
+            'instance status or version conflict, please retry',
+            HttpStatus.CONFLICT,
+          );
+        }
       });
-      await tx.reminderInstance.update({
-        where: { id: instance.id },
-        data: {
-          status: ReminderInstanceStatus.Skipped,
-          version: { increment: 1 },
-        },
-      });
-    });
+    } catch (err) {
+      if (
+        err instanceof Prisma.PrismaClientKnownRequestError &&
+        err.code === 'P2002'
+      ) {
+        const raced = await this.prisma.medicationIntakeRecord.findFirst({
+          where: { reminderInstanceId: instance.id, deletedAt: null },
+        });
+        if (raced) {
+          if (raced.action === 'skipped') {
+            const current = await this.getInstanceView(instance.id);
+            return { instance: current, alreadyRecorded: true };
+          }
+          throw new BusinessException(
+            BusinessCode.Conflict,
+            `instance already recorded with action: ${raced.action}`,
+            HttpStatus.CONFLICT,
+          );
+        }
+      }
+      throw err;
+    }
     await this.adherence.recomputeDailyStats(instance.memberId, [
       dbDateToStr(instance.localDate),
     ]);

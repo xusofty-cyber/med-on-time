@@ -4,9 +4,9 @@ import { Button, Text, View } from '@tarojs/components';
 import { ApiError, tokenStore, toastError, toastInfo, toastOk } from '../../lib/api';
 import { authApi, memberApi } from '../../lib/endpoints';
 import { actions, useApp } from '../../lib/store';
-import { HOME_TAB } from '../../lib/hooks';
+import { navigateAfterAuth } from '../../lib/hooks';
 import type { Account, AuthResult } from '../../lib/types';
-import { Btn, Card, ErrorLine, Field, SegTabs, TxtInput } from '../../components/ui';
+import { Btn, Card, ErrorLine, Field, PageShell, SegTabs, TxtInput } from '../../components/ui';
 import { SmsCodeButton } from '../../components/SmsCodeButton';
 
 /** 登录：手机号/邮箱 + 密码 / 短信验证码双模式；含忘记密码（验证码重置）。与 Web 端 Login 同逻辑。 */
@@ -26,9 +26,9 @@ export default function Login() {
   const [needPhoneVerify, setNeedPhoneVerify] = useState(false);
   const phoneVerifyPendingRef = useRef(false);
 
-  /* 已登录状态下进入登录页（冷启动恢复会话）→ 直接进今日提醒；待完成手机号验证时除外 */
+  /* 已登录状态下进入登录页（冷启动恢复会话）→ 直接进今日提醒或回跳待确认扫码页；待完成手机号验证时除外 */
   useEffect(() => {
-    if (booted && account && !phoneVerifyPendingRef.current) Taro.switchTab({ url: HOME_TAB });
+    if (booted && account && !phoneVerifyPendingRef.current) navigateAfterAuth();
   }, [booted, account]);
 
   /** 落令牌 / setAccount / 拉成员（与原 submit 同口径）；onAccount 在 setAccount 前回调，供微信登录预置验证引导标记。 */
@@ -83,7 +83,7 @@ export default function Login() {
           : await authApi.loginByCode({ phone: identifier, code });
       await persistSession(result);
       toastOk('登录成功');
-      Taro.switchTab({ url: HOME_TAB });
+      navigateAfterAuth();
     } catch (err) {
       if (err instanceof ApiError && err.code === 401) setError(new Error('账号或密码不正确'));
       else setError(err);
@@ -116,7 +116,7 @@ export default function Login() {
         setNeedPhoneVerify(true);
         return;
       }
-      Taro.switchTab({ url: HOME_TAB });
+      navigateAfterAuth();
     } catch (err) {
       setError(err);
     } finally {
@@ -127,7 +127,7 @@ export default function Login() {
   const goHomeAfterPhoneVerifyGuide = () => {
     phoneVerifyPendingRef.current = false;
     setNeedPhoneVerify(false);
-    Taro.switchTab({ url: HOME_TAB });
+    navigateAfterAuth();
   };
 
   /** getPhoneNumber 回调（必须原生 Button 触发）：e.detail.code 为微信核验动态令牌。 */
@@ -154,7 +154,7 @@ export default function Login() {
   };
 
   return (
-    <View className='pg' style={{ paddingTop: '72rpx' }}>
+    <PageShell style={{ paddingTop: '72rpx' }}>
       <View className='col' style={{ alignItems: 'center', gap: '12rpx' }}>
         <Text className='tx-title' style={{ fontSize: '56rpx' }}>
           药准时 MedOnTime
@@ -236,7 +236,7 @@ export default function Login() {
       <Text className='tx-sm tx-sub' style={{ textAlign: 'center' }}>
         登录即代表同意《用户协议》与《隐私政策》；用药数据仅用于提醒与照护。
       </Text>
-    </View>
+    </PageShell>
   );
 }
 
@@ -246,6 +246,18 @@ function ResetPasswordForm({ onDone }: { onDone: () => void }) {
   const [newPassword, setNewPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const submit = async () => {
+    if (!/^1\d{10}$/.test(phone)) {
+      toastError(new Error('请输入正确的 11 位手机号'));
+      return;
+    }
+    if (!code.trim()) {
+      toastError(new Error('请输入短信验证码'));
+      return;
+    }
+    if (newPassword.length < 8) {
+      toastError(new Error('新密码至少 8 位'));
+      return;
+    }
     setBusy(true);
     try {
       await authApi.resetPassword({ phone, code, newPassword });

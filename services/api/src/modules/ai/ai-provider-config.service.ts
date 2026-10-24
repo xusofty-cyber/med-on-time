@@ -1,7 +1,9 @@
 import { HttpStatus, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { uuidv7 } from '../../common/utils/uuidv7';
+import { assertSafeAiBaseUrl } from '../../common/utils/ssrf.util';
 import {
   FieldCrypto,
   resolveFieldEncKey,
@@ -104,6 +106,7 @@ export class AiProviderConfigService {
 
   async create(input: AiProviderConfigInput): Promise<AiProviderConfigView> {
     this.assertCryptoReady();
+    assertSafeAiBaseUrl(input.baseUrl);
     if (!input.apiKey) {
       throw new BusinessException(
         BusinessCode.BadRequest,
@@ -112,28 +115,42 @@ export class AiProviderConfigService {
       );
     }
     const capability = input.capability ?? 'general';
-    const row = await this.prisma.$transaction(async (tx) => {
-      if (input.isActive) {
-        await tx.aiProviderConfig.updateMany({
-          where: { capability, isActive: true, deletedAt: null },
-          data: { isActive: false },
+    try {
+      const row = await this.prisma.$transaction(async (tx) => {
+        if (input.isActive) {
+          await tx.aiProviderConfig.updateMany({
+            where: { capability, isActive: true, deletedAt: null },
+            data: { isActive: false },
+          });
+        }
+        return tx.aiProviderConfig.create({
+          data: {
+            id: uuidv7(),
+            name: input.name,
+            modelName: input.modelName,
+            baseUrl: input.baseUrl,
+            apiKeyCipher: this.crypto.encrypt(input.apiKey!),
+            apiKeyLast4: input.apiKey!.slice(-4),
+            capability,
+            isActive: input.isActive ?? false,
+          },
         });
-      }
-      return tx.aiProviderConfig.create({
-        data: {
-          id: uuidv7(),
-          name: input.name,
-          modelName: input.modelName,
-          baseUrl: input.baseUrl,
-          apiKeyCipher: this.crypto.encrypt(input.apiKey!),
-          apiKeyLast4: input.apiKey!.slice(-4),
-          capability,
-          isActive: input.isActive ?? false,
-        },
       });
-    });
-    this.cache.clear();
-    return this.toView(row);
+      this.cache.clear();
+      return this.toView(row);
+    } catch (err) {
+      if (
+        err instanceof Prisma.PrismaClientKnownRequestError &&
+        err.code === 'P2002'
+      ) {
+        throw new BusinessException(
+          BusinessCode.Conflict,
+          '同 capability 下已有生效配置，请先停用或重试',
+          HttpStatus.CONFLICT,
+        );
+      }
+      throw err;
+    }
   }
 
   async update(
@@ -150,29 +167,46 @@ export class AiProviderConfigService {
         HttpStatus.NOT_FOUND,
       );
     }
+    if (input.baseUrl !== undefined) {
+      assertSafeAiBaseUrl(input.baseUrl);
+    }
     const capability = input.capability ?? existing.capability;
-    const row = await this.prisma.$transaction(async (tx) => {
-      if (input.isActive) {
-        await tx.aiProviderConfig.updateMany({
-          where: { capability, isActive: true, deletedAt: null, id: { not: id } },
-          data: { isActive: false },
-        });
+    try {
+      const row = await this.prisma.$transaction(async (tx) => {
+        if (input.isActive) {
+          await tx.aiProviderConfig.updateMany({
+            where: { capability, isActive: true, deletedAt: null, id: { not: id } },
+            data: { isActive: false },
+          });
+        }
+        const data: Record<string, unknown> = {};
+        if (input.name !== undefined) data.name = input.name;
+        if (input.modelName !== undefined) data.modelName = input.modelName;
+        if (input.baseUrl !== undefined) data.baseUrl = input.baseUrl;
+        if (input.capability !== undefined) data.capability = input.capability;
+        if (input.isActive !== undefined) data.isActive = input.isActive;
+        if (input.apiKey) {
+          this.assertCryptoReady();
+          data.apiKeyCipher = this.crypto.encrypt(input.apiKey);
+          data.apiKeyLast4 = input.apiKey.slice(-4);
+        }
+        return tx.aiProviderConfig.update({ where: { id }, data });
+      });
+      this.cache.clear();
+      return this.toView(row);
+    } catch (err) {
+      if (
+        err instanceof Prisma.PrismaClientKnownRequestError &&
+        err.code === 'P2002'
+      ) {
+        throw new BusinessException(
+          BusinessCode.Conflict,
+          '同 capability 下已有生效配置，请先停用或重试',
+          HttpStatus.CONFLICT,
+        );
       }
-      const data: Record<string, unknown> = {};
-      if (input.name !== undefined) data.name = input.name;
-      if (input.modelName !== undefined) data.modelName = input.modelName;
-      if (input.baseUrl !== undefined) data.baseUrl = input.baseUrl;
-      if (input.capability !== undefined) data.capability = input.capability;
-      if (input.isActive !== undefined) data.isActive = input.isActive;
-      if (input.apiKey) {
-        this.assertCryptoReady();
-        data.apiKeyCipher = this.crypto.encrypt(input.apiKey);
-        data.apiKeyLast4 = input.apiKey.slice(-4);
-      }
-      return tx.aiProviderConfig.update({ where: { id }, data });
-    });
-    this.cache.clear();
-    return this.toView(row);
+      throw err;
+    }
   }
 
   async remove(id: string): Promise<{ id: string; deleted: true }> {

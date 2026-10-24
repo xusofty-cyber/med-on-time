@@ -24,15 +24,17 @@ async function bootstrap(): Promise<void> {
   app.useGlobalInterceptors(new EnvelopeInterceptor(), new LoggingMaskInterceptor());
   app.enableShutdownHooks();
 
-  // OpenAPI 为前后端唯一契约（架构 §四）：/api/docs 页面，/api/docs-json 供 orval 生成客户端
-  const swaggerConfig = new DocumentBuilder()
-    .setTitle('药准时 MedOnTime API')
-    .setDescription('全平台用药提醒系统后端接口契约')
-    .setVersion('0.1.0')
-    .addBearerAuth()
-    .build();
-  const document = SwaggerModule.createDocument(app, swaggerConfig);
-  SwaggerModule.setup('api/docs', app, document);
+  // OpenAPI 为前后端唯一契约（架构 §四）：仅非生产环境或显式开启 ENABLE_SWAGGER=true 时挂载
+  if (process.env.NODE_ENV !== 'production' || process.env.ENABLE_SWAGGER === 'true') {
+    const swaggerConfig = new DocumentBuilder()
+      .setTitle('药准时 MedOnTime API')
+      .setDescription('全平台用药提醒系统后端接口契约')
+      .setVersion('0.1.0')
+      .addBearerAuth()
+      .build();
+    const document = SwaggerModule.createDocument(app, swaggerConfig);
+    SwaggerModule.setup('api/docs', app, document);
+  }
 
   const config = app.get(ConfigService);
   const port = config.get<number>('port') ?? 3000;

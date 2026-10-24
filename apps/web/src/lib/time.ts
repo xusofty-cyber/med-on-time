@@ -1,28 +1,56 @@
 /** 时间工具：后端 ISO 8601 UTC 存储，前端按成员时区渲染墙钟时间。 */
 
+const DEFAULT_TZ = 'Asia/Shanghai';
+
+export function isValidTimeZone(tz?: string): boolean {
+  if (!tz) return false;
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone: tz });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function safeFormat(locale: string, options: Intl.DateTimeFormatOptions, date: Date): string {
+  try {
+    return new Intl.DateTimeFormat(locale, options).format(date);
+  } catch {
+    return new Intl.DateTimeFormat(locale, { ...options, timeZone: DEFAULT_TZ }).format(date);
+  }
+}
+
 export function fmtTime(iso: string, timeZone?: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
-  return new Intl.DateTimeFormat('zh-CN', {
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-    timeZone,
-  }).format(d);
+  return safeFormat(
+    'zh-CN',
+    {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+      timeZone,
+    },
+    d,
+  );
 }
 
 export function fmtDateTime(iso: string, timeZone?: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
-  return new Intl.DateTimeFormat('zh-CN', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-    timeZone,
-  }).format(d);
+  return safeFormat(
+    'zh-CN',
+    {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+      timeZone,
+    },
+    d,
+  );
 }
 
 export function fmtDate(iso: string | null | undefined): string {
@@ -31,13 +59,25 @@ export function fmtDate(iso: string | null | undefined): string {
 }
 
 /** 某时区下的今天 YYYY-MM-DD */
-export function todayInTz(timeZone: string): string {
-  return new Intl.DateTimeFormat('en-CA', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    timeZone,
-  }).format(new Date());
+export function todayInTz(timeZone = DEFAULT_TZ): string {
+  return safeFormat(
+    'en-CA',
+    {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      timeZone,
+    },
+    new Date(),
+  );
+}
+
+/** 当前时区下的本地日期时间（用于 <input type="datetime-local"> 默认值）YYYY-MM-DDTHH:mm */
+export function nowLocalDateTime(timeZone = DEFAULT_TZ): string {
+  const d = new Date();
+  const datePart = todayInTz(timeZone);
+  const timePart = fmtTime(d.toISOString(), timeZone);
+  return `${datePart}T${timePart}`;
 }
 
 export function monthOf(dateStr: string): string {

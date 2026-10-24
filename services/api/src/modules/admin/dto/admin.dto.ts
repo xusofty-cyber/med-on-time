@@ -4,6 +4,7 @@ import {
   IsInt,
   IsOptional,
   IsString,
+  IsUUID,
   Max,
   MaxLength,
   Min,
@@ -51,7 +52,7 @@ export class ListAccountsQueryDto extends PageQueryDto {
 
 export class ListMembersQueryDto extends PageQueryDto {
   @IsOptional()
-  @IsString()
+  @IsUUID()
   accountId?: string;
 
   @IsOptional()
@@ -105,7 +106,7 @@ export class DrugReviewDto {
 
 export class ListPlansQueryDto extends PageQueryDto {
   @IsOptional()
-  @IsString()
+  @IsUUID()
   memberId?: string;
 
   @IsOptional()
@@ -137,7 +138,7 @@ export class ListAuditLogsQueryDto extends PageQueryDto {
   actorType?: string;
 
   @IsOptional()
-  @IsString()
+  @IsUUID()
   actorId?: string;
 
   @IsOptional()
@@ -150,7 +151,7 @@ export class ListAuditLogsQueryDto extends PageQueryDto {
   targetType?: string;
 
   @IsOptional()
-  @IsString()
+  @IsUUID()
   memberId?: string;
 }
 

@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Reflector } from '@nestjs/core';
+import { PrismaService } from '../../prisma/prisma.service';
 import { verifyJwt } from '../utils/jwt';
 import {
   ADMIN_ROLES_KEY,
@@ -25,9 +26,10 @@ export class AdminAuthGuard implements CanActivate {
   constructor(
     private readonly reflector: Reflector,
     private readonly config: ConfigService,
+    private readonly prisma: PrismaService,
   ) {}
 
-  canActivate(context: ExecutionContext): boolean {
+  async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest<{
       headers: Record<string, string | undefined>;
       user?: AuthenticatedUser;
@@ -43,20 +45,38 @@ export class AdminAuthGuard implements CanActivate {
       (process.env.NODE_ENV === 'production' ? undefined : 'med-on-time-dev-admin-secret');
     if (!secret) throw new UnauthorizedException('admin jwt secret not configured');
 
-    let admin: AuthenticatedAdmin;
+    let adminId: string;
     try {
       const payload = verifyJwt(header.slice('Bearer '.length), secret);
       if (payload.type !== 'admin' || payload.aud !== 'admin') {
         throw new Error('not an admin token');
       }
-      admin = {
-        adminId: payload.sub,
-        username: payload.username ?? '',
-        roles: payload.roles ?? [],
-      };
+      adminId = payload.sub;
     } catch {
       throw new UnauthorizedException('invalid or expired admin token');
     }
+
+    const adminRow = await this.prisma.adminUser.findFirst({
+      where: { id: adminId, status: 'active', deletedAt: null },
+      include: {
+        userRoles: {
+          where: { deletedAt: null },
+          include: { role: true },
+        },
+      },
+    });
+    if (!adminRow) {
+      throw new UnauthorizedException('admin account unavailable');
+    }
+
+    const roles = adminRow.userRoles
+      .filter((ur) => ur.role.deletedAt === null)
+      .map((ur) => ur.role.code);
+    const admin: AuthenticatedAdmin = {
+      adminId: adminRow.id,
+      username: adminRow.username,
+      roles,
+    };
     request.admin = admin;
     request.user = { accountId: '', adminId: admin.adminId };
 

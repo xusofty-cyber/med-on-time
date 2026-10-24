@@ -22,22 +22,24 @@
 - `on_demand`：`{}`（仅 PRN 计划，不生成实例）。
 - 全部排程类型 `times` 必填，元素为本地墙钟 "HH:mm"。
 
-## cycle（提醒周期）定版
+## cycle（提醒周期）与强提醒（strongAlertMode）定版
 - 预设三档：标准 standard=90/15、温和 gentle=120/30、严格 strict=60/10（窗口分钟/间隔分钟）。
-- 成员级：`PUT /members/:memberId/care-settings` 写入，存储定版为 system_config 键 `member_care_settings:<memberId>`，JSON 形状 `{ careMode, lockScreenShowDrugDetail, cyclePreset, cycleWindowMinutes, cycleIntervalMinutes }`（后两项为显式数值覆盖，null=跟随预设）——写入侧（member 模块）与读取侧（reminder 引擎 NotificationPrefsService）同一实现。GET 响应中的 cycleWindowMinutes/cycleIntervalMinutes 为解析后生效值。通知偏好同理走 `notification_prefs:<accountId>`。
-- 计划级覆盖：plan 创建/更新接受 `cycleOverride`（预设名字符串，或 `{ preset, windowMinutes, intervalMinutes }` 对象；显式 null=清除覆盖）或扁平字段 `cyclePreset/cycleWindowMinutes/cycleIntervalMinutes`（Web/小程序表单口径；二者并存时 cycleOverride 优先，PATCH 仅给扁平字段时与既有覆盖合并）。存储键 `plan_cycle_override:<planId>`，形状 `{ cyclePreset, cycleWindowMinutes, cycleIntervalMinutes }`（null=不覆盖该分量）。计划响应同名字段回显覆盖原值（皆 null=跟随成员）。
-- 生效解析顺序（生成 missed 判定 / 投递重复 / snooze 统一）：成员设置打底 → 计划覆盖预设整组替换 → 计划覆盖显式数值逐项替换。
+- 成员级：`GET/PUT /members/:memberId/care-settings` 读写，存储定版为 system_config 键 `member_care_settings:<memberId>`，JSON 形状 `{ careMode, lockScreenShowDrugDetail, cyclePreset, cycleWindowMinutes, cycleIntervalMinutes, strongAlertMode }`（后两项为显式数值覆盖，null=跟随预设；`strongAlertMode` 为三态单选 `'none' | 'alarm' | 'voice'`，默认 `'none'`，弹窗打底）——写入侧（member 模块）与读取侧（reminder 引擎 NotificationPrefsService）同一实现。GET 响应中的 cycleWindowMinutes/cycleIntervalMinutes 为解析后生效值。通知偏好同理走 `notification_prefs:<accountId>`。
+- 计划级覆盖：
+  - **周期覆盖**：plan 创建/更新接受 `cycleOverride`（预设名字符串，或 `{ preset, windowMinutes, intervalMinutes }` 对象；显式 null=清除覆盖）或扁平字段 `cyclePreset/cycleWindowMinutes/cycleIntervalMinutes`（Web/小程序表单口径；二者并存时 cycleOverride 优先，PATCH 仅给扁平字段时与既有覆盖合并）。存储键 `plan_cycle_override:<planId>`，形状 `{ cyclePreset, cycleWindowMinutes, cycleIntervalMinutes }`（null=不覆盖该分量）。计划响应同名字段回显覆盖原值（皆 null=跟随成员）。
+  - **强提醒覆盖**：plan 创建/更新接受 `strongAlertModeOverride`（`'none' | 'alarm' | 'voice' | null`），存储键 `plan_strong_alert_override:<planId>`，计划响应回显 `strongAlertModeOverride`。
+- 生效解析顺序（生成 missed 判定 / 投递重复 / snooze / 强提醒方式统一）：成员设置打底 → 计划覆盖预设整组替换 → 计划覆盖显式数值逐项替换。
 
 ## 用户端接口（account 主体）
-- auth: POST /auth/register（手机号+密码；**2026-10-23 下午修正对齐 V1.3 裁定**：smsCode 可选——带码校验通过置 phone_verified_at，不带码为未验证注册、三受限生效；registerChannel 可选默认 web）, POST /auth/login（{account, password}：account 含 @ 按邮箱查、否则按手机号查；旧 {phone, password} 兼容）, POST /auth/login/code（手机号+验证码）, POST /auth/refresh, POST /auth/logout, POST /auth/password/reset（验证码重置）, GET /auth/me
+- auth: POST /auth/sms/send {phone, scene}（短信验证码下发桩）, POST /auth/register（手机号+密码；**2026-10-23 下午修正对齐 V1.3 裁定**：smsCode 可选——带码校验通过置 phone_verified_at，不带码为未验证注册、三受限生效；registerChannel 可选默认 web）, POST /auth/login（{account, password}：account 含 @ 按邮箱查、否则按手机号查；旧 {phone, password} 兼容）, POST /auth/login/code（手机号+验证码）, POST /auth/refresh, POST /auth/logout, POST /auth/password/reset（验证码重置）, GET /auth/me
 - auth（V1.3 注册验证通道，2026-10-23 定版，全文见 `docs/dev/AUTH_CHANNELS.md`）: POST /auth/email/send {email, scene}（scene: register/login/reset_password/bind；限频与短信同口径 60s/5 次每小时/5 分钟有效/5 次尝试）, POST /auth/register/email {email, code, password, nickname?, phone?}（邮箱已验证建号；phone 选填只登记不验证）, POST /auth/wechat/miniapp/login {code, phoneCode?}（code 换 openid 登录/建号；带 phoneCode 一并核验手机号；未配 appid/secret 返回 40312）, POST /auth/wechat/bind {code}（需登录；旧路径 POST /auth/bind/wechat 同实现）, POST /auth/phone/verify/wechat {phoneCode}（需登录；微信核验手机号落库/置验证，不一致返回 40910 不覆盖账号根）。账号视图（GET /auth/me、GET/PATCH /account/profile）含 phoneVerified/hasPhone/emailMasked/emailVerified/hasEmail/hasWechat。
 - 扫码登录 Web（2026-10-23 裁定：小程序扫码确认，不走开放平台网站应用）: POST /auth/scan-login/tickets {platform?, deviceName?}（公开；返回 {ticketId, qrContent, expiresIn=300}，票据进程内存储 TTL 5 分钟——多副本部署前须迁 Redis）, GET /auth/scan-login/tickets/:id（公开轮询；pending 返回 {status:"pending"}，confirmed 一次性换发正式令牌并销票，后续轮询 404）, POST /auth/scan-login/confirm {ticketId}（需登录；以调用者账号确认，被他人已确认返回 403）。qrContent 为 Web 落地页 `/#/scan-login?t=<ticketId>`；小程序确认页 pages/scan-login（参数 t 或页内扫一扫取票，须本人点确认）。
 - auth 段业务码（禁止复用）: 40312 WechatNotConfigured（微信通道未配置）, 40320 PhoneNotVerified（手机号未验证：禁开短信提醒、禁短信找回密码）, 40321 PhoneVerificationRequired（接受照护授权前须完成手机号验证）, 40910 PhoneMismatch（微信核验号与登记号不一致）。
-- account: GET/PATCH /account/profile, POST /account/cancel（注销申请→30 天冷静期）, GET /account/sessions, DELETE /account/sessions/:id
-- member: POST /members（上限 10/账号）, GET /members, GET/PATCH/DELETE /members/:memberId, PUT /members/:memberId/care-settings（关怀模式/提醒偏好：cycle 预设 标准90/15、温和120/30、严格60/10，可按计划覆盖；锁屏显示药品详情默认 OFF）
+- account: GET/PATCH /account/profile, POST /account/cancel（注销申请→30 天冷静期）, POST /account/cancel/withdraw（撤销注销申请，恢复 active）, GET /account/sessions, DELETE /account/sessions/:id
+- member: POST /members（上限 10/账号）, GET /members, GET/PATCH/DELETE /members/:memberId, GET/PUT /members/:memberId/care-settings（关怀模式/强提醒/提醒偏好：strongAlertMode 三态 none/alarm/voice；cycle 预设 标准90/15、温和120/30、严格60/10，可按计划覆盖；锁屏显示药品详情默认 OFF）
 - authorization: POST /authorizations（发起照护授权）, GET /authorizations（我授权的/授权我的）, POST /authorizations/:id/accept|reject|revoke（上限 5 照护人/成员；一切代操作写 authorization_log 双记录）。V1.3：accept 要求接受者手机号已验证（未验证返回 40321），且其手机号哈希须与邀请的照护人手机号哈希一致（不一致返回 40910）；邀请创建不变。
-- drug: GET /drugs/search?q=&page（名称/通用名 trgm 模糊）, GET /drugs/:id（说明书层字段）, GET /drugs/:id/interactions（相互作用：说明书结构化字段 + ONC 高优先硬检标记）, POST /members/:memberId/drugs/custom（自建药品）
-- plan: POST /members/:memberId/plans（类型：常规/PRN 按需；含 course+dose phases 阶段数组、存放位置 storage_location、附加备注 note、cycle 覆盖）, GET /members/:memberId/plans, GET/PATCH/DELETE /plans/:planId, GET /plans/:planId/history（变更史）, POST /plans/:planId/pause|resume
+- drug: GET /drugs/search?q=&page（名称/通用名 trgm 模糊）, GET /drugs/:id（说明书层字段）, GET /drugs/:id/interactions（相互作用：说明书结构化字段 + ONC 高优先硬检标记）, POST /members/:memberId/drugs/custom（自建药品）, POST /drugs/photo-recognize（拍照识药：Base64 提取药名候选回查现有药品库，不直接入库建档）
+- plan: POST /members/:memberId/plans（类型：常规/PRN 按需；含 course+dose phases 阶段数组、存放位置 storage_location、附加备注 note、cycle 覆盖与 strongAlertModeOverride 强提醒覆盖）, GET /members/:memberId/plans, GET/PATCH/DELETE /plans/:planId, GET /plans/:planId/history（变更史）, POST /plans/:planId/pause|resume
 - reminder: GET /members/:memberId/reminders/today, GET /members/:memberId/reminders?date=, POST /reminders/:instanceId/snooze（按 cycle 顺延）, POST /reminders/:instanceId/skip
 - checkin: POST /reminders/:instanceId/checkin（服药打卡：一实例仅一条有效 intake_record）, GET /members/:memberId/checkins?from&to
 - adherence: GET /members/:memberId/adherence/summary?range=week|month（应服/实服/按时率）, GET /members/:memberId/adherence/calendar?month=
@@ -45,17 +47,19 @@
 - ehr: 过敏档案 GET/PUT /members/:memberId/allergies；服药后不适记录 POST/GET /members/:memberId/adverse-records（**关联服药事件可选**：intakeRecordId/reminderInstanceId/prnIntakeId 三列 DB 可空，传了才校验归属，2026-10-23 修正）；紧急联系人 CRUD /members/:memberId/emergency-contacts；**健康概况** POST/GET /members/:memberId/medical-records（每位成员一条：bloodType/heightCm/weightKg/primaryHospital/summary，upsert 语义，summary 字段加密存储——非条目列表，Web 端已按此模型实现「健康概况」页签）
 - notification: GET /notifications（站内）, POST /notifications/:id/read, GET/PUT /notification-prefs（渠道：站内/短信（用户自选开启）/微信（占位））。V1.3：PUT 开启 sms 时账号手机号须已验证，未验证返回 40320；POST /auth/password/reset 同理（未验证返回 40320）。
 - content: GET /content/articles?locale=, GET /content/articles/:id（简/繁/英 locale 内容组）
-- ai: 全部返回「未开通」占位（POC-2 未评测 + 外部医学审校前入口不开）
+- ai: POST /ai/sessions, GET /ai/sessions, POST /ai/sessions/:sessionId/messages, POST /ai/tasks, GET /ai/tasks, GET /ai/quota（当 AI_ENABLED!==true 时统一返回 40310 NotEnabled，POC-2 评测与外部医学审校前保持关闭）
 
 ## 后台接口（admin 主体，/api/admin 前缀）
 - POST /admin/auth/login；GET /admin/dashboard（注册/活跃/提醒投递/待核验药品计数）
 - 账号与成员：GET /admin/accounts, GET /admin/accounts/:id, POST /admin/accounts/:id/freeze|unfreeze；GET /admin/members
 - 药品库：GET /admin/drugs（按 review_status 过滤）, GET /admin/drugs/:id, PATCH /admin/drugs/:id/review（核验通过/驳回，双人核验：reviewer 与 verifier 两段）, POST /admin/drugs/import-seed（导入 drug_seed_200.json，pending 条目置未发布）
 - 计划监管：GET /admin/plans?memberId=, GET /admin/plans/:id/history
-- 内容：CRUD /admin/content/articles（多语言内容组）, 协议文档版本 CRUD /admin/content/consents（consent versioning）
+- 内容与公众号：CRUD /admin/content/articles（多语言内容组）, 协议文档版本 CRUD /admin/content/consents（consent versioning）；公众号文章管理：GET /admin/oa-articles, GET /admin/oa-articles/:id, POST /admin/oa-articles, PATCH /admin/oa-articles/:id, DELETE /admin/oa-articles/:id, POST /admin/oa-articles/:id/cover, POST /admin/oa-articles/:id/sync, POST /admin/oa-articles/:id/unsync
+- 大模型配置：GET /admin/ai-providers, POST /admin/ai-providers, PATCH /admin/ai-providers/:id, DELETE /admin/ai-providers/:id, POST /admin/ai-providers/:id/test
 - 客服裁决：GET /admin/disputes, POST /admin/disputes/:id/resolve（客服全权裁决，双记录前后值）
 - 审计：GET /admin/audit-logs（audit_log 分区表查询）
-- 系统：GET /admin/app-versions, POST /admin/app-versions
+- 系统：GET /admin/app-versions, POST /admin/app-versions, PATCH /admin/app-versions/:id, DELETE /admin/app-versions/:id
+- 运维探针（公开）：GET /ops/health, GET /ops/ready, GET /ops/metrics（返回 code=0 统一信封）
 
 ## 提醒引擎（reminder 模块内，BullMQ）
 - 生成器：每日为活跃 plan 按成员本地时区生成次日 reminder_instance（scheduled_at_utc + local_date/local_time + timezone 快照；幂等键 = plan_item_id + local_date + local_time + dose_index，唯一约束兜底）。**当日即时生效（2026-10-23 裁定）**：计划创建/恢复/更新成功后同步调用 `generateTodayUpcoming(memberId)`，为该成员补生成今天 scheduledAtUtc 晚于当前时刻的剂量（按全天时刻解析剂量后过滤，已过时刻不落实例）；生成失败只记日志不回滚计划操作。

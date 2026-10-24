@@ -78,26 +78,29 @@ export class EhrController {
   @Post('emergency-contacts')
   createEmergencyContact(
     @Param('memberId') memberId: string,
+    @CurrentUser() user: AuthenticatedUser,
     @Body() dto: CreateEmergencyContactDto,
   ) {
-    return this.service.createEmergencyContact(memberId, dto);
+    return this.service.createEmergencyContact(memberId, dto, user.accountId);
   }
 
   @Patch('emergency-contacts/:contactId')
   updateEmergencyContact(
     @Param('memberId') memberId: string,
     @Param('contactId') contactId: string,
+    @CurrentUser() user: AuthenticatedUser,
     @Body() dto: UpdateEmergencyContactDto,
   ) {
-    return this.service.updateEmergencyContact(memberId, contactId, dto);
+    return this.service.updateEmergencyContact(memberId, contactId, dto, user.accountId);
   }
 
   @Delete('emergency-contacts/:contactId')
   deleteEmergencyContact(
     @Param('memberId') memberId: string,
     @Param('contactId') contactId: string,
+    @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.service.deleteEmergencyContact(memberId, contactId);
+    return this.service.deleteEmergencyContact(memberId, contactId, user.accountId);
   }
 
   // 病历（正文加密存储）
@@ -107,7 +110,11 @@ export class EhrController {
   }
 
   @Post('medical-records')
-  upsertMedicalRecord(@Param('memberId') memberId: string, @Body() dto: UpsertMedicalRecordDto) {
-    return this.service.upsertMedicalRecord(memberId, dto);
+  upsertMedicalRecord(
+    @Param('memberId') memberId: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: UpsertMedicalRecordDto,
+  ) {
+    return this.service.upsertMedicalRecord(memberId, dto, user.accountId);
   }
 }

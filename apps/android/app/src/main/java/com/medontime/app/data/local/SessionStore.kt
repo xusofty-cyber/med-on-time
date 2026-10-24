@@ -6,6 +6,7 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.medontime.app.BuildConfig
 import kotlinx.coroutines.flow.Flow
@@ -32,6 +33,7 @@ class SessionStore(private val context: Context) {
         val BASE_URL = stringPreferencesKey("base_url")
         val CARE_MODE = booleanPreferencesKey("care_mode")
         val LOCK_SCREEN_SHOW_DRUG = booleanPreferencesKey("lock_screen_show_drug")
+        val SCHEDULED_INSTANCE_IDS = stringSetPreferencesKey("scheduled_instance_ids")
     }
 
     val accessTokenFlow: Flow<String?> = context.dataStore.data.map { it[Keys.ACCESS_TOKEN] }
@@ -50,6 +52,14 @@ class SessionStore(private val context: Context) {
     suspend fun baseUrl(): String = context.dataStore.data.first()[Keys.BASE_URL] ?: BuildConfig.DEFAULT_API_BASE_URL
     suspend fun lockScreenShowDrug(): Boolean =
         context.dataStore.data.first()[Keys.LOCK_SCREEN_SHOW_DRUG] ?: false
+    suspend fun scheduledInstanceIds(): Set<String> =
+        context.dataStore.data.first()[Keys.SCHEDULED_INSTANCE_IDS] ?: emptySet()
+
+    suspend fun saveScheduledInstanceIds(ids: Set<String>) {
+        context.dataStore.edit { prefs ->
+            if (ids.isEmpty()) prefs.remove(Keys.SCHEDULED_INSTANCE_IDS) else prefs[Keys.SCHEDULED_INSTANCE_IDS] = ids
+        }
+    }
 
     suspend fun saveTokens(accessToken: String, refreshToken: String) {
         context.dataStore.edit {

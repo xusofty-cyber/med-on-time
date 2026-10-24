@@ -10,6 +10,7 @@ import { uuidv7 } from '../../common/utils/uuidv7';
 import type { AuthenticatedAdmin } from '../../common/decorators/admin.decorator';
 import { DrugSeedImportService, type DrugSeedImportResult } from './drug-seed-import.service';
 import { PhoneCryptoService } from '../auth/services/phone-crypto.service';
+import { SessionService } from '../auth/services/session.service';
 import type {
   AdminLoginDto,
   CreateAppVersionDto,
@@ -44,12 +45,49 @@ export const DRUG_REVIEW_VERIFY_ACTION = 'admin:drug:review_verify';
  */
 @Injectable()
 export class AdminService {
+  private static readonly LOCKOUT_WINDOW_MS = 15 * 60 * 1000;
+  private static readonly MAX_FAILED_ATTEMPTS = 5;
+  private static readonly LOCKOUT_DURATION_MS = 15 * 60 * 1000;
+  private readonly loginAttempts = new Map<string, { failures: number[]; lockedUntil?: number }>();
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
     private readonly seedImport: DrugSeedImportService,
     private readonly phoneCrypto: PhoneCryptoService,
+    private readonly sessionService: SessionService,
   ) {}
+
+  private assertNotLocked(key: string, now: number): void {
+    const entry = this.loginAttempts.get(key);
+    if (!entry) return;
+    if (entry.lockedUntil && entry.lockedUntil > now) {
+      const waitMin = Math.ceil((entry.lockedUntil - now) / 60_000);
+      throw new BusinessException(
+        BusinessCode.Forbidden,
+        `连续登录失败次数过多，已锁定，请 ${waitMin} 分钟后重试`,
+        HttpStatus.FORBIDDEN,
+      );
+    }
+  }
+
+  private recordLoginFailure(key: string, now: number): void {
+    let entry = this.loginAttempts.get(key);
+    if (!entry) {
+      entry = { failures: [] };
+      this.loginAttempts.set(key, entry);
+    }
+    entry.failures = entry.failures.filter((t) => now - t < AdminService.LOCKOUT_WINDOW_MS);
+    entry.failures.push(now);
+    if (entry.failures.length >= AdminService.MAX_FAILED_ATTEMPTS) {
+      entry.lockedUntil = now + AdminService.LOCKOUT_DURATION_MS;
+      entry.failures = [];
+    }
+  }
+
+  private clearLoginFailures(key: string): void {
+    this.loginAttempts.delete(key);
+  }
 
   /** 密文手机号 → 脱敏展示（138****1234）；解密失败/无手机号返回 null，页面显示「-」。 */
   private maskPhoneSafe(ciphertext: string | null | undefined): string | null {
@@ -64,11 +102,19 @@ export class AdminService {
   // ------------------------------------------------------------------ 登录
 
   async login(dto: AdminLoginDto, ctx: AdminRequestContext) {
+    const now = Date.now();
+    this.assertNotLocked(dto.username, now);
+    if (ctx.ip) {
+      this.assertNotLocked(`ip:${ctx.ip}`, now);
+    }
+
     const admin = await this.prisma.adminUser.findFirst({
       where: { username: dto.username, deletedAt: null },
       include: { userRoles: { where: { deletedAt: null }, include: { role: true } } },
     });
     if (!admin) {
+      this.recordLoginFailure(dto.username, now);
+      if (ctx.ip) this.recordLoginFailure(`ip:${ctx.ip}`, now);
       throw new BusinessException(BusinessCode.Unauthorized, '用户名或密码不正确', HttpStatus.UNAUTHORIZED);
     }
     let passwordOk = false;
@@ -78,6 +124,8 @@ export class AdminService {
       passwordOk = false;
     }
     if (!passwordOk) {
+      this.recordLoginFailure(dto.username, now);
+      if (ctx.ip) this.recordLoginFailure(`ip:${ctx.ip}`, now);
       await this.writeAudit({
         adminId: admin.id,
         action: 'admin:auth:login',
@@ -89,6 +137,8 @@ export class AdminService {
       });
       throw new BusinessException(BusinessCode.Unauthorized, '用户名或密码不正确', HttpStatus.UNAUTHORIZED);
     }
+    this.clearLoginFailures(dto.username);
+    if (ctx.ip) this.clearLoginFailures(`ip:${ctx.ip}`);
     if (admin.status !== 'active') {
       throw new BusinessException(
         BusinessCode.Forbidden,
@@ -109,6 +159,8 @@ export class AdminService {
       detail: { username: admin.username, roles },
       ctx,
     });
+    this.clearLoginFailures(dto.username);
+    if (ctx.ip) this.clearLoginFailures(`ip:${ctx.ip}`);
     const accessToken = signJwt(
       { sub: admin.id, type: 'admin', aud: 'admin', username: admin.username, roles },
       this.adminSecret(),
@@ -321,6 +373,9 @@ export class AdminService {
       data: { status: target },
       select: { id: true, status: true, updatedAt: true },
     });
+    if (frozen) {
+      await this.sessionService.revokeAllSessions(id);
+    }
     await this.writeAudit({
       adminId: admin.adminId,
       action: frozen ? 'admin:account:freeze' : 'admin:account:unfreeze',
@@ -789,6 +844,20 @@ export class AdminService {
       );
     }
     return secret;
+  }
+
+  /** 公开审计记录写入方法供后台控制器调用 */
+  async recordAudit(params: {
+    adminId: string;
+    action: string;
+    targetType: string;
+    targetId?: string;
+    memberId?: string;
+    detail?: Prisma.InputJsonValue;
+    result?: 'success' | 'denied' | 'failed';
+    ctx?: AdminRequestContext;
+  }): Promise<void> {
+    return this.writeAudit(params);
   }
 
   /** 审计落库（audit_log 只追加；detail 禁止写入明文敏感值——调用方只传状态/结论级信息）。 */

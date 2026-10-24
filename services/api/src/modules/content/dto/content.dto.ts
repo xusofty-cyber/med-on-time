@@ -6,6 +6,7 @@ import {
   IsISO8601,
   IsOptional,
   IsString,
+  IsUUID,
   Max,
   MaxLength,
   Min,
@@ -52,7 +53,7 @@ export class AdminListArticlesQueryDto extends ListArticlesQueryDto {
   status?: string;
 
   @IsOptional()
-  @IsString()
+  @IsUUID()
   contentGroupId?: string;
 }
 

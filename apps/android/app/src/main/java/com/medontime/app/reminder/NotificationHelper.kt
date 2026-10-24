@@ -96,6 +96,11 @@ object NotificationHelper {
             genericBuilder(context, payload.instanceId)
                 .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
         }
+        if (payload.strongMode == "alarm") {
+            val fullScreenIntent = AlarmRingActivity.pendingIntent(context, payload, showDrugDetail)
+            builder.setCategory(NotificationCompat.CATEGORY_ALARM)
+                .setFullScreenIntent(fullScreenIntent, true)
+        }
         NotificationManagerCompat.from(context).notify(notificationId(payload.instanceId), builder.build())
     }
 

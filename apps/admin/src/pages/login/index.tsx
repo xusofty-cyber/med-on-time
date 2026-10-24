@@ -1,10 +1,10 @@
 import { LockOutlined, UserOutlined } from '@ant-design/icons';
 import { LoginForm, ProFormText } from '@ant-design/pro-components';
 import { message } from 'antd';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { adminLogin } from '../../api/admin';
 import { ApiError } from '../../services/request';
-import { saveSession } from '../../services/session';
+import { isLoggedIn, saveSession } from '../../services/session';
 
 interface LoginValues {
   username: string;
@@ -15,7 +15,12 @@ interface LoginValues {
 export default function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const from = (location.state as { from?: string } | null)?.from ?? '/dashboard';
+  const rawFrom = (location.state as { from?: string } | null)?.from;
+  const from = rawFrom && /^\/(?!\/|login)/.test(rawFrom) ? rawFrom : '/dashboard';
+
+  if (isLoggedIn()) {
+    return <Navigate to="/dashboard" replace />;
+  }
 
   const onFinish = async (values: LoginValues): Promise<boolean> => {
     try {

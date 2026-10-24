@@ -44,6 +44,7 @@ struct PlanPayloadDTO: Encodable {
     var cyclePreset: CyclePreset?
     var cycleWindowMinutes: Int?
     var cycleIntervalMinutes: Int?
+    var strongAlertMode: StrongAlertMode?
     var items: [PlanItemInputDTO]
     var phases: [PlanPhaseInputDTO]?
 }
@@ -134,6 +135,7 @@ struct PlanDTO: Decodable, Identifiable {
     let cyclePreset: CyclePreset?
     let cycleWindowMinutes: Int?
     let cycleIntervalMinutes: Int?
+    let strongAlertModeOverride: StrongAlertMode?
     let items: [PlanItemDTO]?
     let phases: [PlanPhaseDTO]?
     let createdAt: Date?

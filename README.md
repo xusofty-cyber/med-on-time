@@ -3,7 +3,7 @@
 全平台用药提醒系统：帮助用户及家人按时服药。
 
 - 中文名：药准时 / 英文名：MedOnTime
-- 设计文档：`docs/`（用户端需求 V1.8、后台需求 V1.5、数据库设计 V1.2（56 表 / 9 域）、技术架构 V1.5 已冻结、UI 规范 V1.0；PDF 在 Release design-v1.0）
+- 设计文档：`docs/`（用户端需求 V1.8、后台需求 V1.5、数据库设计 V1.2（基线 56 表，演进为 58 表 / 9 域）、技术架构 V1.5 已冻结、UI 规范 V1.0；PDF 在 Release design-v1.0）
 - 接手与文档总索引：[`docs/HANDOVER.md`](docs/HANDOVER.md) / [`docs/README.md`](docs/README.md)
 - 上线状态（2026-10-23）：生产已部署——用户端 https://mot.ulife.vip 、后台 https://admin.ulife.vip （部署实况见 `docs/DEPLOY.md` 附录 B）
 
@@ -49,7 +49,7 @@ med-on-time/
 
 ## 快速开始
 
-各端技术选型见各目录 README（待定）。workspace 约定：
+各端技术选型已在 `docs/architecture/TECH_ARCHITECTURE.md`（V1.5 冻结版）确立并在各子工程落地。workspace 常用命令：
 
 ```bash
 pnpm install
@@ -63,4 +63,4 @@ pnpm install
 
 ## License
 
-待定。
+[MIT](LICENSE)

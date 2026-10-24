@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { AiService } from './ai.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
@@ -31,7 +31,7 @@ export class AiController {
   @Post('sessions/:sessionId/messages')
   sendMessage(
     @CurrentUser() user: AuthenticatedUser,
-    @Param('sessionId') sessionId: string,
+    @Param('sessionId', new ParseUUIDPipe()) sessionId: string,
     @Body() dto: SendAiMessageDto,
   ) {
     return this.service.sendMessage(user.accountId, sessionId, dto);

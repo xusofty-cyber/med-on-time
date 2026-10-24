@@ -56,10 +56,6 @@ function previewHtml(source: string): string {
     .join('\n');
 }
 
-function errMsg(e: unknown): string {
-  return e instanceof Error ? e.message : '操作失败';
-}
-
 /** 公众号文章：后台写稿 → 同步到公众号草稿箱；发布仍在公众号侧人工点（接口无权限） */
 export default function OaArticlesTab() {
   const [rows, setRows] = useState<OaArticleItem[]>([]);
@@ -74,8 +70,8 @@ export default function OaArticlesTab() {
     setLoading(true);
     try {
       setRows(await listOaArticles());
-    } catch (e) {
-      message.error(errMsg(e));
+    } catch {
+      /* 错误已由 request.ts 全局提示 */
     } finally {
       setLoading(false);
     }
@@ -100,7 +96,12 @@ export default function OaArticlesTab() {
   };
 
   const save = async () => {
-    const values = await form.validateFields();
+    let values: OaArticlePayload;
+    try {
+      values = await form.validateFields();
+    } catch {
+      return;
+    }
     setSaving(true);
     try {
       if (editing === 'new') {
@@ -114,8 +115,8 @@ export default function OaArticlesTab() {
         setEditing(updated);
         void reload();
       }
-    } catch (e) {
-      message.error(errMsg(e));
+    } catch {
+      /* 错误已由 request.ts 全局提示 */
     } finally {
       setSaving(false);
     }
@@ -127,8 +128,8 @@ export default function OaArticlesTab() {
       await fn();
       message.success(okText);
       void reload();
-    } catch (e) {
-      message.error(errMsg(e));
+    } catch {
+      /* 错误已由 request.ts 全局提示 */
     } finally {
       setBusyId(null);
     }
@@ -156,8 +157,8 @@ export default function OaArticlesTab() {
           setEditing(updated);
           message.success('封面已上传到微信素材库');
           void reload();
-        } catch (e) {
-          message.error(errMsg(e));
+        } catch {
+          /* 错误已由 request.ts 全局提示 */
         } finally {
           setBusyId(null);
         }

@@ -1,4 +1,14 @@
 /** 枚举 → 中文标签字典（取值一律来自 packages/shared 枚举与 DB 附录 B 口径）。 */
+import {
+  AccountStatus,
+  AllergenType,
+  AuthorizationStatus,
+  CaregiverLevel,
+  OperatorType,
+  PlanStatus,
+  ReminderInstanceStatus,
+  StockChangeType,
+} from '@med-on-time/shared';
 
 export const RELATIONSHIP_LABELS: Record<string, string> = {
   self: '本人',
@@ -19,20 +29,20 @@ export const GENDER_LABELS: Record<string, string> = {
 };
 
 export const PLAN_STATUS_LABELS: Record<string, string> = {
-  active: '进行中',
-  paused: '已暂停',
-  finished: '已完成',
-  stopped: '已停止',
+  [PlanStatus.Active]: '进行中',
+  [PlanStatus.Paused]: '已暂停',
+  [PlanStatus.Finished]: '已完成',
+  [PlanStatus.Stopped]: '已停止',
 };
 
 export const INSTANCE_STATUS_LABELS: Record<string, string> = {
-  pending: '待提醒',
-  reminded: '待服用',
-  taken: '已服用',
-  snoozed: '已稍后',
-  skipped: '已跳过',
-  missed: '已漏服',
-  cancelled: '已取消',
+  [ReminderInstanceStatus.Pending]: '待提醒',
+  [ReminderInstanceStatus.Reminded]: '待服用',
+  [ReminderInstanceStatus.Taken]: '已服用',
+  [ReminderInstanceStatus.Snoozed]: '已稍后',
+  [ReminderInstanceStatus.Skipped]: '已跳过',
+  [ReminderInstanceStatus.Missed]: '已漏服',
+  [ReminderInstanceStatus.Cancelled]: '已取消',
 };
 
 export const FREQUENCY_LABELS: Record<string, string> = {
@@ -75,31 +85,31 @@ export const SEVERITY_LABELS: Record<string, string> = {
 };
 
 export const ALLERGEN_TYPE_LABELS: Record<string, string> = {
-  drug_category: '药物类别',
-  drug: '具体药品',
-  other: '其他过敏原',
+  [AllergenType.DrugCategory]: '药物类别',
+  [AllergenType.Drug]: '具体药品',
+  [AllergenType.Other]: '其他过敏原',
 };
 
 export const AUTH_STATUS_LABELS: Record<string, string> = {
-  pending_accept: '待接受',
-  active: '生效中',
-  suspended: '已暂停',
-  revoked: '已撤销',
-  expired: '已过期',
-  rejected: '已拒绝',
+  [AuthorizationStatus.PendingAccept]: '待接受',
+  [AuthorizationStatus.Active]: '生效中',
+  [AuthorizationStatus.Suspended]: '已暂停',
+  [AuthorizationStatus.Revoked]: '已撤销',
+  [AuthorizationStatus.Expired]: '已过期',
+  [AuthorizationStatus.Rejected]: '已拒绝',
 };
 
 export const LEVEL_LABELS: Record<string, string> = {
-  L1: 'L1 仅查看',
-  L2: 'L2 可协助打卡',
-  L3: 'L3 可配置计划',
+  [CaregiverLevel.L1]: 'L1 仅查看',
+  [CaregiverLevel.L2]: 'L2 可协助打卡',
+  [CaregiverLevel.L3]: 'L3 可配置计划',
 };
 
 export const OPERATOR_TYPE_LABELS: Record<string, string> = {
-  member_self: '成员本人',
-  caregiver: '照护人',
-  admin_cs: '客服',
-  system: '系统',
+  [OperatorType.MemberSelf]: '成员本人',
+  [OperatorType.Caregiver]: '照护人',
+  [OperatorType.AdminCs]: '客服',
+  [OperatorType.System]: '系统',
 };
 
 export const SYMPTOM_TAGS: { value: string; label: string }[] = [
@@ -113,17 +123,17 @@ export const SYMPTOM_TAGS: { value: string; label: string }[] = [
 ];
 
 export const STOCK_CHANGE_LABELS: Record<string, string> = {
-  restock: '补货入库',
-  manual_adjust: '手动调整',
-  expiry_writeoff: '过期作废',
-  intake_deduct: '服药扣减',
+  [StockChangeType.Restock]: '补货入库',
+  [StockChangeType.ManualAdjust]: '手动调整',
+  [StockChangeType.ExpiryWriteoff]: '过期作废',
+  [StockChangeType.IntakeDeduct]: '服药扣减',
 };
 
 export const ACCOUNT_STATUS_LABELS: Record<string, string> = {
-  active: '正常',
-  frozen: '已冻结',
-  cancelling: '注销冷静期中',
-  cancelled: '已注销',
+  [AccountStatus.Active]: '正常',
+  [AccountStatus.Frozen]: '已冻结',
+  [AccountStatus.Cancelling]: '注销冷静期中',
+  [AccountStatus.Cancelled]: '已注销',
 };
 
 export const WEEKDAY_LABELS = ['一', '二', '三', '四', '五', '六', '日'];

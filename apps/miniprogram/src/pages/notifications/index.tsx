@@ -3,12 +3,12 @@ import Taro, { usePullDownRefresh, useReachBottom } from '@tarojs/taro';
 import { Text, View } from '@tarojs/components';
 import { notificationApi } from '../../lib/endpoints';
 import { toastError } from '../../lib/api';
-import { actions } from '../../lib/store';
+import { actions, getState } from '../../lib/store';
 import { useSessionGuard } from '../../lib/hooks';
 import { requestReminderSubscribe } from '../../lib/notify';
 import { fmtDateTime } from '../../lib/time';
 import type { NotificationItem, NotificationPrefs } from '../../lib/types';
-import { Btn, Card, EmptyState, ErrorLine, Loading, SwitchRow } from '../../components/ui';
+import { Btn, Card, EmptyState, ErrorLine, Loading, PageShell, SwitchRow } from '../../components/ui';
 
 /** 消息中心：提醒偏好（站内/短信自选/微信占位）+ 站内通知列表（分页、点开即已读）。 */
 export default function Notifications() {
@@ -27,6 +27,9 @@ export default function Notifications() {
       const res = await notificationApi.list(page);
       totalRef.current = res.total;
       pageRef.current = page;
+      if (page === 1) {
+        actions.setUnreadCount(res.unreadTotal ?? res.items.filter((x) => !x.isRead).length);
+      }
       setItems((prev) => (replace || prev === null ? res.items : [...prev, ...res.items]));
       setError(null);
     } catch (e) {
@@ -67,7 +70,11 @@ export default function Notifications() {
     if (!prefs) return;
     if (on) {
       /* 微信通道为占位：开启前先走订阅授权（模板未配置时给占位提示，见 lib/notify.ts） */
-      await requestReminderSubscribe();
+      const res = await requestReminderSubscribe();
+      if (res !== 'ok') {
+        setPrefs({ ...prefs, wechat: false });
+        return;
+      }
     }
     await savePrefs({ ...prefs, wechat: on });
   };
@@ -77,8 +84,7 @@ export default function Notifications() {
       try {
         await notificationApi.markRead(n.id);
         setItems((prev) => (prev ?? []).map((x) => (x.id === n.id ? { ...x, isRead: true } : x)));
-        const page = await notificationApi.list(1);
-        actions.setUnreadCount(page.items.filter((x) => !x.isRead).length);
+        actions.setUnreadCount(Math.max(0, getState().unreadCount - 1));
       } catch {
         /* 已读回写失败不阻塞阅读 */
       }
@@ -87,7 +93,7 @@ export default function Notifications() {
   };
 
   return (
-    <View className='pg'>
+    <PageShell>
       <Text className='tx-title'>消息中心</Text>
       <Card title='提醒偏好'>
         {prefs === null ? (
@@ -161,6 +167,6 @@ export default function Notifications() {
           </View>
         )}
       </Card>
-    </View>
+    </PageShell>
   );
 }

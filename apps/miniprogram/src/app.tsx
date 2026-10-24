@@ -5,7 +5,8 @@ import { Text, View } from '@tarojs/components';
 import './app.scss';
 import { setSessionExpiredHandler, tokenStore } from './lib/api';
 import { actions, bootstrap, careModeOn, useApp } from './lib/store';
-import { LOGIN_PAGE } from './lib/hooks';
+import { HOME_TAB, LOGIN_PAGE } from './lib/hooks';
+import { Btn } from './components/ui';
 
 /**
  * 小程序入口：
@@ -34,8 +35,26 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | 
             {String(this.state.error.message ?? this.state.error)}
           </Text>
           <Text className='tx-sm tx-sub' style={{ lineHeight: 1.7 }}>
-            请把这一屏截图发给开发者定位，并尝试返回上一页或重启小程序。
+            请把这一屏截图发给开发者定位，可点击下方按钮重试或返回首页。
           </Text>
+          <View className='row' style={{ gap: '12rpx' }}>
+            <View className='grow'>
+              <Btn variant='soft' block onClick={() => this.setState({ error: null })}>
+                重试
+              </Btn>
+            </View>
+            <View className='grow'>
+              <Btn
+                block
+                onClick={() => {
+                  this.setState({ error: null });
+                  Taro.switchTab({ url: HOME_TAB });
+                }}
+              >
+                返回首页
+              </Btn>
+            </View>
+          </View>
         </View>
       );
     }

@@ -1,30 +1,29 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import Taro from '@tarojs/taro';
 import { Text, View } from '@tarojs/components';
-import { authorizationApi } from '../../lib/endpoints';
+import { authorizationApi, memberApi } from '../../lib/endpoints';
 import { toastError, toastOk } from '../../lib/api';
-import { useApp } from '../../lib/store';
+import { actions, useApp } from '../../lib/store';
 import { useSessionGuard } from '../../lib/hooks';
 import { AUTH_STATUS_LABELS, LEVEL_LABELS } from '../../lib/dict';
 import { fmtDate } from '../../lib/time';
 import type { Authorization } from '../../lib/types';
-import { Badge, Btn, Card, DatePick, EmptyState, ErrorLine, Field, Loading, Pick, Sheet, TxtInput } from '../../components/ui';
+import { Badge, Btn, Card, DatePick, EmptyState, ErrorLine, Field, Loading, PageShell, Pick, Sheet, TxtInput } from '../../components/ui';
 
 const MAX_CAREGIVERS = 5;
 
 /** 照护授权：我授权的人 / 授权我的人两组；发起、接受、拒绝、撤销。与 Web 端 Authorizations 同逻辑。 */
 export default function Authorizations() {
   useSessionGuard();
-  const account = useApp((s) => s.account);
   const members = useApp((s) => s.members);
-  const [list, setList] = useState<Authorization[] | null>(null);
+  const [groups, setGroups] = useState<{ granted: Authorization[]; received: Authorization[] } | null>(null);
   const [error, setError] = useState<unknown>(null);
   const [formOpen, setFormOpen] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
 
   const load = async () => {
     try {
-      setList(await authorizationApi.list());
+      setGroups(await authorizationApi.list());
       setError(null);
     } catch (e) {
       setError(e);
@@ -34,8 +33,8 @@ export default function Authorizations() {
     void load();
   }, []);
 
-  const mine = (list ?? []).filter((a) => a.grantedByAccountId === account?.id);
-  const incoming = (list ?? []).filter((a) => a.grantedByAccountId !== account?.id);
+  const mine = groups?.granted ?? [];
+  const incoming = groups?.received ?? [];
   const memberName = (id: string) => members.find((m) => m.id === id)?.displayName ?? '成员';
 
   const act = async (id: string, fn: () => Promise<unknown>, ok: string) => {
@@ -44,6 +43,11 @@ export default function Authorizations() {
       await fn();
       toastOk(ok);
       await load();
+      try {
+        actions.setMembers(await memberApi.list());
+      } catch {
+        /* 成员列表刷新失败不阻塞当前授权操作 */
+      }
     } catch (e) {
       toastError(e);
     } finally {
@@ -62,7 +66,7 @@ export default function Authorizations() {
   };
 
   return (
-    <View className='pg'>
+    <PageShell>
       <View className='row-between'>
         <Text className='tx-title'>照护授权</Text>
         <Btn onClick={() => setFormOpen(true)}>+ 发起授权</Btn>
@@ -72,7 +76,7 @@ export default function Authorizations() {
         位照护人；所有代操作都会双记录操作人与归属成员。
       </Text>
       <ErrorLine error={error} />
-      {list === null ? (
+      {groups === null ? (
         <Loading />
       ) : (
         <>
@@ -131,7 +135,7 @@ export default function Authorizations() {
         </>
       )}
       <CreateAuthSheet open={formOpen} onClose={() => setFormOpen(false)} onCreated={load} />
-    </View>
+    </PageShell>
   );
 }
 
@@ -205,7 +209,7 @@ function CreateAuthSheet({
         memberId,
         caregiverPhone,
         level,
-        expiresAt: expiresAt ? `${expiresAt}T23:59:59.000Z` : null,
+        expiresAt: expiresAt ? `${expiresAt}T23:59:59+08:00` : null,
       });
       toastOk('授权邀请已发出，等待对方接受');
       onClose();

@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useState } from 'react';
-import { authorizationApi } from '../lib/endpoints';
+import { authorizationApi, memberApi } from '../lib/endpoints';
 import { actions, useApp } from '../lib/store';
 import { Badge, Button, Card, EmptyState, ErrorText, Field, Modal, Select, Spinner, TextInput } from '../components/ui';
 import { AUTH_STATUS_LABELS, LEVEL_LABELS, RELATIONSHIP_LABELS } from '../lib/dict';
@@ -29,6 +29,7 @@ export default function Authorizations() {
 
   const mine = list?.granted ?? [];
   const incoming = list?.received ?? [];
+  const ownMembers = members.filter((m) => !m.accessLevel || m.accessLevel === 'owner');
   const memberName = (id: string) => members.find((m) => m.id === id)?.displayName ?? '成员';
 
   const act = async (id: string, fn: () => Promise<unknown>, ok: string) => {
@@ -37,6 +38,7 @@ export default function Authorizations() {
       await fn();
       actions.toast('success', ok);
       await load();
+      memberApi.list().then(actions.setMembers).catch(() => undefined);
     } catch (e) {
       actions.toast('error', e instanceof Error ? e.message : '操作失败');
     } finally {
@@ -48,7 +50,9 @@ export default function Authorizations() {
     <div className="flex flex-col gap-5">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-medgreen-dark">照护授权</h1>
-        <Button onClick={() => setFormOpen(true)}>+ 发起授权</Button>
+        <Button disabled={ownMembers.length === 0} onClick={() => setFormOpen(true)}>
+          + 发起授权
+        </Button>
       </div>
       <p className="text-neutral-600">
         授权家人或照护人代为查看（L1）、协助打卡（L2）或配置计划（L3）。每位成员最多 {MAX_CAREGIVERS} 位照护人；所有代操作都会双记录操作人与归属成员。
@@ -172,6 +176,10 @@ function CreateAuthModal({ onClose, onSaved }: { onClose: () => void; onSaved: (
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
+    if (!memberId) {
+      setError(new Error('请先添加自有成员后再发起授权'));
+      return;
+    }
     if (!/^1\d{10}$/.test(caregiverPhone)) {
       setError(new Error('请输入受邀人正确的 11 位手机号（对方需已注册药准时账号）'));
       return;

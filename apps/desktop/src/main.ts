@@ -32,6 +32,13 @@ const target: ContentTarget = resolveContentTarget();
 const errorPagePath = path.join(__dirname, '..', 'assets', 'error.html');
 const preloadPath = path.join(__dirname, 'preload.js');
 const trayIconPath = path.join(__dirname, '..', 'assets', 'tray.png');
+const buildIconPath = path.join(
+  __dirname,
+  '..',
+  'build',
+  process.platform === 'win32' ? 'icon.ico' : 'icon.png',
+);
+const windowIconPath = fs.existsSync(buildIconPath) ? buildIconPath : trayIconPath;
 
 let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
@@ -62,17 +69,20 @@ const MIME: Record<string, string> = {
 };
 
 function registerLocalProtocol(webRoot: string): void {
+  const rootResolved = path.resolve(webRoot);
   protocol.handle(APP_SCHEME, async (request) => {
     try {
       const url = new URL(request.url);
       if (url.hostname !== APP_HOST) return new Response('not found', { status: 404 });
       const rel = decodeURIComponent(url.pathname).replace(/^\/+/, '');
-      let filePath = path.join(webRoot, rel);
-      if (!filePath.startsWith(webRoot)) return new Response('forbidden', { status: 403 });
+      let filePath = path.resolve(rootResolved, rel);
+      if (filePath !== rootResolved && !filePath.startsWith(rootResolved + path.sep)) {
+        return new Response('forbidden', { status: 403 });
+      }
       if (!fs.existsSync(filePath) || fs.statSync(filePath).isDirectory()) {
         // SPA 回退：无扩展名的路由路径回 index.html；静态资源缺失则 404
         if (path.extname(rel)) return new Response('not found', { status: 404 });
-        filePath = path.join(webRoot, 'index.html');
+        filePath = path.join(rootResolved, 'index.html');
       }
       const data = await fs.promises.readFile(filePath);
       const type = MIME[path.extname(filePath).toLowerCase()] ?? 'application/octet-stream';
@@ -110,11 +120,13 @@ function createWindow(): BrowserWindow {
     minHeight: 600,
     backgroundColor: themedBackground(),
     title: '药准时 MedOnTime',
+    icon: process.platform !== 'darwin' ? windowIconPath : undefined,
     webPreferences: {
       preload: preloadPath,
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
+      webSecurity: true,
     },
   });
   if (saved.isMaximized) win.maximize();
@@ -191,7 +203,9 @@ function showMainWindow(): void {
 // ---------------------------------------------------------------- 开机自启
 function applyAutoLaunch(enabled: boolean): void {
   if (process.platform === 'win32' || process.platform === 'darwin') {
-    app.setLoginItemSettings({ openAtLogin: enabled, path: process.execPath });
+    if (app.isPackaged) {
+      app.setLoginItemSettings({ openAtLogin: enabled, path: process.execPath });
+    }
     return;
   }
   // Linux：写 ~/.config/autostart 桌面项（仅打包形态有稳定可执行路径）
@@ -199,10 +213,11 @@ function applyAutoLaunch(enabled: boolean): void {
     const dir = path.join(app.getPath('home'), '.config', 'autostart');
     const file = path.join(dir, 'medontime.desktop');
     if (enabled && app.isPackaged) {
+      const escapedExec = `"${process.execPath.replace(/"/g, '\\"')}"`;
       fs.mkdirSync(dir, { recursive: true });
       fs.writeFileSync(
         file,
-        `[Desktop Entry]\nType=Application\nName=MedOnTime\nExec=${process.execPath}\nX-GNOME-Autostart-enabled=true\n`,
+        `[Desktop Entry]\nType=Application\nName=MedOnTime\nExec=${escapedExec}\nX-GNOME-Autostart-enabled=true\n`,
         'utf-8',
       );
     } else if (fs.existsSync(file)) {

@@ -45,6 +45,7 @@ export class PlanItemPatchDto {
   @Type(() => Number)
   @IsNumber()
   @IsPositive()
+  @Max(1000000)
   doseAmount?: number;
 
   @ApiPropertyOptional()

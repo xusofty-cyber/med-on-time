@@ -4,6 +4,7 @@ import { actions } from '../lib/store';
 import { Button, ErrorText, Field, Select, TextInput } from './ui';
 import { DrugPicker } from './DrugPicker';
 import { COURSE_LABELS, FREQUENCY_LABELS, MEAL_LABELS, WEEKDAY_LABELS } from '../lib/dict';
+import { todayInTz } from '../lib/time';
 import { CYCLE_PRESETS, STRONG_ALERT_LABELS, type CyclePresetKey, type Drug, type Plan, type PlanItemInput, type PlanPayload, type PlanPhaseInput, type StrongAlertMode } from '../lib/types';
 
 interface ItemDraft extends PlanItemInput {
@@ -28,9 +29,20 @@ function emptyItem(): ItemDraft {
 }
 
 function itemFromPlan(item: NonNullable<Plan['items']>[number]): ItemDraft {
+  const fallbackDrug: Drug | null =
+    item.drug ??
+    (item.drugId
+      ? {
+          id: item.drugId,
+          genericName: item.drugNameSnapshot || '已选药品',
+          dosageForm: '',
+          specification: item.doseUnit ? `单位：${item.doseUnit}` : '',
+          unit: item.doseUnit,
+        }
+      : null);
   return {
     key: keySeq++,
-    drug: item.drug ?? null,
+    drug: fallbackDrug,
     drugId: item.drugId,
     doseAmount: Number(item.doseAmount),
     doseUnit: item.doseUnit,
@@ -56,7 +68,7 @@ export function PlanForm({
 }) {
   const [name, setName] = useState('');
   const [planType, setPlanType] = useState('scheduled');
-  const [startDate, setStartDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [startDate, setStartDate] = useState(() => todayInTz());
   const [endDate, setEndDate] = useState('');
   const [items, setItems] = useState<ItemDraft[]>([emptyItem()]);
   const [phases, setPhases] = useState<PlanPhaseInput[]>([]);
@@ -126,8 +138,8 @@ export function PlanForm({
       planType,
       startDate,
       endDate: endDate || null,
-      storageLocation: storageLocation || undefined,
-      additionalNote: additionalNote || undefined,
+      storageLocation: storageLocation.trim() ? storageLocation.trim() : plan ? null : undefined,
+      additionalNote: additionalNote.trim() ? additionalNote.trim() : plan ? null : undefined,
       /* 非 PRN 计划必须整字段缺省：传 null 会被后端按「已提供」拒绝（prn 参数仅限 prn 计划） */
       ...(planType === 'prn'
         ? { prnMinIntervalMinutes: Number(prnMinInterval), prnMaxPerDay: Number(prnMaxPerDay) }

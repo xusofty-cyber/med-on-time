@@ -14,17 +14,119 @@ import type {
   UpdateConsentDto,
 } from './dto/content.dto';
 
+const ALLOWED_TAGS = new Set([
+  'p', 'br', 'strong', 'b', 'em', 'i', 'u', 's', 'strike', 'del',
+  'ul', 'ol', 'li', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+  'blockquote', 'pre', 'code', 'span', 'div', 'hr',
+  'table', 'thead', 'tbody', 'tr', 'th', 'td', 'a', 'img', 'sub', 'sup',
+]);
+
+const DANGEROUS_BLOCKS =
+  /<(script|style|iframe|object|embed|svg|video|audio|form|template|applet|details|dialog|marquee)[\s\S]*?<\/\1>/gi;
+const DANGEROUS_TAGS =
+  /<(script|style|iframe|object|embed|svg|video|audio|form|link|meta|template|applet|base|details|dialog|marquee|input|button|select|textarea|body|head|html)[^>]*>/gi;
+
+function decodeHtmlEntities(str: string): string {
+  return str
+    .replace(/&#(\d+);?/g, (_, code: string) => String.fromCharCode(Number(code)))
+    .replace(/&#x([0-9a-f]+);?/gi, (_, hex: string) => String.fromCharCode(parseInt(hex, 16)))
+    .replace(/&quot;/gi, '"')
+    .replace(/&apos;/gi, "'")
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&amp;/gi, '&');
+}
+
+function cleanHref(rawHref: string): string {
+  const decoded = decodeHtmlEntities(rawHref).trim().replace(/[\x00-\x1f\x7f\s]+/g, '');
+  if (/^(?:javascript|data|vbscript):/i.test(decoded)) {
+    return '#';
+  }
+  if (/^(?:https?:\/\/|\/|mailto:)/i.test(decoded)) {
+    return rawHref;
+  }
+  return '#';
+}
+
+function cleanSrc(rawSrc: string): string {
+  const decoded = decodeHtmlEntities(rawSrc).trim().replace(/[\x00-\x1f\x7f\s]+/g, '');
+  if (/^(?:javascript|data|vbscript):/i.test(decoded)) {
+    return '';
+  }
+  if (/^(?:https?:\/\/|\/)/i.test(decoded)) {
+    return rawSrc;
+  }
+  return '';
+}
+
 /**
- * 富文本基础清洗（DB 8.3 口径：入库前 XSS 清洗）。
- * 移除 script/iframe/object 等危险标签、on* 事件属性与 javascript: 链接；
- * 生产环境建议再接 DOMPurify 级清洗库（当前依赖集未含，属已知缺口）。
+ * 富文本安全清洗（DB 8.3 口径：入库前 XSS 清洗）。
+ * 白名单过滤标签与属性，剔除任何 on* 事件与 javascript:/data: 协议注入。
  */
 export function sanitizeHtml(html: string): string {
-  return html
-    .replace(/<\s*(script|iframe|object|embed|form|link|meta|style)[^>]*>[\s\S]*?<\/\s*\1\s*>/gi, '')
-    .replace(/<\s*(script|iframe|object|embed|form|link|meta|style)[^>]*\/?\s*>/gi, '')
-    .replace(/\son\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '')
-    .replace(/(href|src)\s*=\s*("\s*javascript:[^"]*"|'\s*javascript:[^']*')/gi, '$1="#"');
+  if (!html) return '';
+  let out = html.replace(/<!--[\s\S]*?-->/g, '');
+  out = out.replace(DANGEROUS_BLOCKS, '');
+  out = out.replace(DANGEROUS_TAGS, '');
+
+  out = out.replace(
+    /<\s*(\/?)\s*([a-zA-Z0-9]+)((?:[^>"']|"[^"]*"|'[^']*')*)\s*(\/?)>/g,
+    (_match, slash: string, rawTagName: string, rawAttrs: string, selfClose: string) => {
+      const tagName = rawTagName.toLowerCase();
+      if (!ALLOWED_TAGS.has(tagName)) {
+        return '';
+      }
+      if (slash === '/') {
+        return `</${tagName}>`;
+      }
+
+      const attrRegex = /([a-zA-Z0-9_-]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+)))?/g;
+      const keptAttrs: string[] = [];
+      let attrMatch: RegExpExecArray | null;
+
+      while ((attrMatch = attrRegex.exec(rawAttrs)) !== null) {
+        const attrName = attrMatch[1];
+        if (!attrName) continue;
+        const lowerName = attrName.toLowerCase();
+        if (lowerName.startsWith('on')) continue;
+
+        const rawVal = attrMatch[2] ?? attrMatch[3] ?? attrMatch[4] ?? '';
+
+        if (tagName === 'a') {
+          if (lowerName === 'href') {
+            const safeHref = cleanHref(rawVal);
+            keptAttrs.push(`href="${safeHref.replace(/"/g, '&quot;')}"`);
+          } else if (lowerName === 'title') {
+            keptAttrs.push(`title="${rawVal.replace(/"/g, '&quot;')}"`);
+          } else if (lowerName === 'target' && (rawVal === '_blank' || rawVal === '_self')) {
+            keptAttrs.push(`target="${rawVal}"`);
+            if (rawVal === '_blank') keptAttrs.push('rel="noopener noreferrer"');
+          }
+        } else if (tagName === 'img') {
+          if (lowerName === 'src') {
+            const safeSrc = cleanSrc(rawVal);
+            if (safeSrc) keptAttrs.push(`src="${safeSrc.replace(/"/g, '&quot;')}"`);
+          } else if (lowerName === 'alt' || lowerName === 'title') {
+            keptAttrs.push(`${lowerName}="${rawVal.replace(/"/g, '&quot;')}"`);
+          } else if ((lowerName === 'width' || lowerName === 'height') && /^\d+%?$/.test(rawVal)) {
+            keptAttrs.push(`${lowerName}="${rawVal}"`);
+          }
+        } else {
+          if (lowerName === 'class' && /^[a-zA-Z0-9_\-\s]+$/.test(rawVal)) {
+            keptAttrs.push(`class="${rawVal.replace(/"/g, '&quot;')}"`);
+          } else if (lowerName === 'title') {
+            keptAttrs.push(`title="${rawVal.replace(/"/g, '&quot;')}"`);
+          }
+        }
+      }
+
+      const attrsString = keptAttrs.length > 0 ? ' ' + keptAttrs.join(' ') : '';
+      const close = selfClose || tagName === 'br' || tagName === 'hr' || tagName === 'img' ? ' /' : '';
+      return `<${tagName}${attrsString}${close}>`;
+    },
+  );
+
+  return out;
 }
 
 /**
@@ -99,9 +201,34 @@ export class ContentService {
     return { items, total, page: query.page, pageSize: query.pageSize };
   }
 
+  private async writeAudit(
+    adminId: string,
+    action: string,
+    targetType: string,
+    targetId?: string,
+    detail?: Record<string, unknown>,
+  ): Promise<void> {
+    try {
+      await this.prisma.auditLog.create({
+        data: {
+          id: uuidv7(),
+          actorType: 'admin',
+          actorId: adminId,
+          action,
+          targetType,
+          targetId: targetId ?? null,
+          detail: detail ? (detail as Prisma.InputJsonValue) : undefined,
+          result: 'success',
+        },
+      });
+    } catch {
+      // 审计日志异常不阻断主流程
+    }
+  }
+
   async createArticle(authorAdminId: string, dto: CreateArticleDto) {
     const status = dto.status ?? 'draft';
-    return this.prisma.contentArticle.create({
+    const created = await this.prisma.contentArticle.create({
       data: {
         id: uuidv7(),
         title: dto.title,
@@ -114,9 +241,15 @@ export class ContentService {
         authorAdminId,
       },
     });
+    await this.writeAudit(authorAdminId, 'admin:content:article:create', 'content_article', created.id, {
+      title: dto.title,
+      category: dto.category,
+      status,
+    });
+    return created;
   }
 
-  async updateArticle(id: string, dto: UpdateArticleDto) {
+  async updateArticle(id: string, adminId: string, dto: UpdateArticleDto) {
     const existing = await this.prisma.contentArticle.findFirst({
       where: { id, deletedAt: null },
       select: { id: true, status: true, publishedAt: true },
@@ -133,10 +266,15 @@ export class ContentService {
       if (dto.status === 'published' && !existing.publishedAt) data.publishedAt = new Date();
       if (dto.status === 'draft') data.publishedAt = null;
     }
-    return this.prisma.contentArticle.update({ where: { id }, data });
+    const updated = await this.prisma.contentArticle.update({ where: { id }, data });
+    await this.writeAudit(adminId, 'admin:content:article:update', 'content_article', id, {
+      title: dto.title,
+      status: dto.status,
+    });
+    return updated;
   }
 
-  async deleteArticle(id: string): Promise<{ deleted: true }> {
+  async deleteArticle(id: string, adminId: string): Promise<{ deleted: true }> {
     const existing = await this.prisma.contentArticle.findFirst({
       where: { id, deletedAt: null },
       select: { id: true },
@@ -145,6 +283,7 @@ export class ContentService {
       throw new BusinessException(BusinessCode.NotFound, 'article not found', HttpStatus.NOT_FOUND);
     }
     await this.prisma.contentArticle.update({ where: { id }, data: { deletedAt: new Date() } });
+    await this.writeAudit(adminId, 'admin:content:article:delete', 'content_article', id);
     return { deleted: true };
   }
 
@@ -169,7 +308,7 @@ export class ContentService {
     return { items, total, page: query.page, pageSize: query.pageSize };
   }
 
-  async createConsent(dto: CreateConsentDto) {
+  async createConsent(adminId: string, dto: CreateConsentDto) {
     const clash = await this.prisma.consentDocument.findFirst({
       where: { docType: dto.docType, locale: dto.locale, docVersion: dto.docVersion, deletedAt: null },
       select: { id: true },
@@ -181,20 +320,40 @@ export class ContentService {
         HttpStatus.CONFLICT,
       );
     }
-    return this.prisma.consentDocument.create({
-      data: {
-        id: uuidv7(),
+    try {
+      const created = await this.prisma.consentDocument.create({
+        data: {
+          id: uuidv7(),
+          docType: dto.docType,
+          docVersion: dto.docVersion,
+          locale: dto.locale,
+          title: dto.title,
+          contentRef: dto.contentRef,
+          contentSha256: dto.contentSha256 ?? null,
+          effectiveDate: new Date(dto.effectiveDate),
+          isMaterialChange: dto.isMaterialChange ?? false,
+          status: 'draft',
+        },
+      });
+      await this.writeAudit(adminId, 'admin:content:consent:create', 'consent_document', created.id, {
         docType: dto.docType,
-        docVersion: dto.docVersion,
         locale: dto.locale,
-        title: dto.title,
-        contentRef: dto.contentRef,
-        contentSha256: dto.contentSha256 ?? null,
-        effectiveDate: new Date(dto.effectiveDate),
-        isMaterialChange: dto.isMaterialChange ?? false,
-        status: 'draft',
-      },
-    });
+        docVersion: dto.docVersion,
+      });
+      return created;
+    } catch (err) {
+      if (
+        err instanceof Prisma.PrismaClientKnownRequestError &&
+        err.code === 'P2002'
+      ) {
+        throw new BusinessException(
+          BusinessCode.Conflict,
+          `consent version already exists: ${dto.docType}/${dto.locale}/${dto.docVersion}`,
+          HttpStatus.CONFLICT,
+        );
+      }
+      throw err;
+    }
   }
 
   /**
@@ -221,34 +380,53 @@ export class ContentService {
         HttpStatus.CONFLICT,
       );
     }
-    return this.prisma.$transaction(async (tx) => {
-      if (dto.status === 'effective' && existing.status !== 'effective') {
-        await tx.consentDocument.updateMany({
-          where: {
-            docType: existing.docType,
-            locale: existing.locale,
-            status: 'effective',
-            deletedAt: null,
-            id: { not: id },
-          },
-          data: { status: 'superseded' },
-        });
+    try {
+      const updated = await this.prisma.$transaction(async (tx) => {
+        if (dto.status === 'effective' && existing.status !== 'effective') {
+          await tx.consentDocument.updateMany({
+            where: {
+              docType: existing.docType,
+              locale: existing.locale,
+              status: 'effective',
+              deletedAt: null,
+              id: { not: id },
+            },
+            data: { status: 'superseded' },
+          });
+        }
+        const data: Prisma.ConsentDocumentUpdateInput = {};
+        if (dto.title !== undefined) data.title = dto.title;
+        if (dto.contentRef !== undefined) data.contentRef = dto.contentRef;
+        if (dto.contentSha256 !== undefined) data.contentSha256 = dto.contentSha256;
+        if (dto.effectiveDate !== undefined) data.effectiveDate = new Date(dto.effectiveDate);
+        if (dto.isMaterialChange !== undefined) data.isMaterialChange = dto.isMaterialChange;
+        if (dto.status !== undefined) {
+          data.status = dto.status;
+          if (dto.status === 'effective') data.publisher = { connect: { id: adminId } };
+        }
+        return tx.consentDocument.update({ where: { id }, data });
+      });
+      await this.writeAudit(adminId, 'admin:content:consent:update', 'consent_document', id, {
+        status: dto.status,
+        docVersion: existing.docVersion,
+      });
+      return updated;
+    } catch (err) {
+      if (
+        err instanceof Prisma.PrismaClientKnownRequestError &&
+        err.code === 'P2002'
+      ) {
+        throw new BusinessException(
+          BusinessCode.Conflict,
+          'consent version conflict',
+          HttpStatus.CONFLICT,
+        );
       }
-      const data: Prisma.ConsentDocumentUpdateInput = {};
-      if (dto.title !== undefined) data.title = dto.title;
-      if (dto.contentRef !== undefined) data.contentRef = dto.contentRef;
-      if (dto.contentSha256 !== undefined) data.contentSha256 = dto.contentSha256;
-      if (dto.effectiveDate !== undefined) data.effectiveDate = new Date(dto.effectiveDate);
-      if (dto.isMaterialChange !== undefined) data.isMaterialChange = dto.isMaterialChange;
-      if (dto.status !== undefined) {
-        data.status = dto.status;
-        if (dto.status === 'effective') data.publisher = { connect: { id: adminId } };
-      }
-      return tx.consentDocument.update({ where: { id }, data });
-    });
+      throw err;
+    }
   }
 
-  async deleteConsent(id: string): Promise<{ deleted: true }> {
+  async deleteConsent(id: string, adminId: string): Promise<{ deleted: true }> {
     const existing = await this.prisma.consentDocument.findFirst({
       where: { id, deletedAt: null },
       select: { id: true, status: true },
@@ -264,6 +442,7 @@ export class ContentService {
       );
     }
     await this.prisma.consentDocument.update({ where: { id }, data: { deletedAt: new Date() } });
+    await this.writeAudit(adminId, 'admin:content:consent:delete', 'consent_document', id);
     return { deleted: true };
   }
 }

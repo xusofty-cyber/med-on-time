@@ -5,7 +5,7 @@ import { useApp } from '../../lib/store';
 import { useSessionGuard } from '../../lib/hooks';
 import { monthOf, pct, shiftMonth, todayInTz } from '../../lib/time';
 import type { AdherenceCalendarDay, AdherenceSummary } from '../../lib/types';
-import { Btn, Card, EmptyState, ErrorLine, Loading, SegTabs, StatCard } from '../../components/ui';
+import { Btn, Card, EmptyState, ErrorLine, Loading, PageShell, SegTabs, StatCard } from '../../components/ui';
 import { MemberBar } from '../../components/MemberBar';
 
 function rate(a: number, b: number): number | null {
@@ -55,25 +55,47 @@ export default function Adherence() {
   const [range, setRange] = useState<'week' | 'month'>('week');
   const [summary, setSummary] = useState<AdherenceSummary | null>(null);
   const [calendar, setCalendar] = useState<AdherenceCalendarDay[] | null>(null);
-  const [month, setMonth] = useState(() => monthOf(todayInTz('Asia/Shanghai')));
+  const [month, setMonth] = useState(() => monthOf(todayInTz(member?.timezone ?? 'Asia/Shanghai')));
   const [error, setError] = useState<unknown>(null);
 
   useEffect(() => {
     if (!memberId) return;
+    let alive = true;
     setSummary(null);
     adherenceApi
       .summary(memberId, range)
-      .then(setSummary)
-      .catch(setError);
+      .then((res) => {
+        if (alive) {
+          setSummary(res);
+          setError(null);
+        }
+      })
+      .catch((e) => {
+        if (alive) setError(e);
+      });
+    return () => {
+      alive = false;
+    };
   }, [memberId, range]);
 
   useEffect(() => {
     if (!memberId) return;
+    let alive = true;
     setCalendar(null);
     adherenceApi
       .calendar(memberId, month)
-      .then(setCalendar)
-      .catch(setError);
+      .then((res) => {
+        if (alive) {
+          setCalendar(res);
+          setError(null);
+        }
+      })
+      .catch((e) => {
+        if (alive) setError(e);
+      });
+    return () => {
+      alive = false;
+    };
   }, [memberId, month]);
 
   const cells = useMemo(() => buildMonthCells(month, calendar ?? []), [month, calendar]);
@@ -85,17 +107,17 @@ export default function Adherence() {
 
   if (!memberId) {
     return (
-      <View className='pg'>
+      <PageShell>
         <MemberBar />
         <Card>
           <EmptyState text='请先添加成员。' />
         </Card>
-      </View>
+      </PageShell>
     );
   }
 
   return (
-    <View className='pg'>
+    <PageShell>
       <MemberBar />
       <Text className='tx-title'>{member?.displayName ?? ''} · 依从统计</Text>
       <ErrorLine error={error} />
@@ -212,7 +234,7 @@ export default function Adherence() {
           <Legend cls='cal-heat-none' label='无安排' />
         </View>
       </Card>
-    </View>
+    </PageShell>
   );
 }
 

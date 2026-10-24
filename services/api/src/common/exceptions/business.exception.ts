@@ -25,6 +25,7 @@ export const BusinessCode = {
   Conflict: 40900, // 乐观锁版本冲突（DB §2.2：version 不符返回 409）
   MemberAccessDenied: 40301, // 成员数据隔离拦截
   ReservedEnumValue: 40001, // 提交了预留枚举值（附录 B 纪律：拒绝并记审计）
+  InternalError: 50000, // 服务端内部/配置错误
 } as const;
 
 /**

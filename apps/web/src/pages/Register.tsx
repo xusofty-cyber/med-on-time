@@ -36,13 +36,17 @@ export default function Register() {
               phone: emailPhone || undefined,
             })
           : await authApi.register({ phone, password, nickname: nickname || undefined });
+      actions.resetSession();
       tokenStore.set(result.accessToken, result.refreshToken);
-      if (result.account) actions.setAccount(result.account);
-      else {
+      if (result.account) {
+        actions.setAccount(result.account);
+      } else {
         try {
           actions.setAccount(await authApi.me());
-        } catch {
-          /* me 失败时由 App 守卫兜底回登录页 */
+        } catch (err) {
+          tokenStore.clear();
+          actions.resetSession();
+          throw err;
         }
       }
       // 注册即自动建有本人成员，立即装载（与 Login 同口径，避免初次进入显示「还没有成员」）

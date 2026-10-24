@@ -52,8 +52,9 @@ export function DrugPicker({
             {value.brandName ? `（${value.brandName}）` : ''}
           </p>
           <p className="text-sm text-neutral-600">
-            {value.specification} · {DOSAGE_FORM_LABELS[value.dosageForm] ?? value.dosageForm}
-            {value.manufacturer ? ` · ${value.manufacturer}` : ''}
+            {[value.specification, DOSAGE_FORM_LABELS[value.dosageForm] ?? value.dosageForm, value.manufacturer]
+              .filter(Boolean)
+              .join(' · ')}
           </p>
         </div>
         <Button variant="ghost" onClick={() => onChange(null)}>

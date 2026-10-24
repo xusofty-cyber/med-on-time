@@ -51,6 +51,7 @@ import com.medontime.app.data.model.PlanType
 import com.medontime.app.data.model.CreatePlanRequest
 import com.medontime.app.data.model.UpdatePlanRequest
 import com.medontime.app.data.repository.PlanRepository
+import com.medontime.app.reminder.ReminderScheduler
 import com.medontime.app.ui.components.CareButton
 import com.medontime.app.ui.components.CareTextButton
 import com.medontime.app.ui.components.LoadingBox
@@ -114,7 +115,10 @@ data class PlanEditUiState(
     val history: List<PlanHistoryDto> = emptyList(),
 )
 
-class PlanEditViewModel(private val repo: PlanRepository) : ViewModel() {
+class PlanEditViewModel(
+    private val repo: PlanRepository,
+    private val scheduler: ReminderScheduler,
+) : ViewModel() {
     private val _state = MutableStateFlow(PlanEditUiState())
     val state: StateFlow<PlanEditUiState> = _state.asStateFlow()
     private var nextKey = 100L
@@ -248,6 +252,7 @@ class PlanEditViewModel(private val repo: PlanRepository) : ViewModel() {
                 } else {
                     repo.updatePlan(planId, s.toUpdateRequest())
                 }
+                runCatching { scheduler.syncTimeline() }
                 _state.update { it.copy(saving = false, saved = true) }
             } catch (e: ApiException) {
                 _state.update { it.copy(saving = false, error = e.message) }
@@ -395,7 +400,9 @@ class PlanEditViewModel(private val repo: PlanRepository) : ViewModel() {
 @Composable
 fun PlanEditScreen(memberId: String, planId: String?, onSaved: () -> Unit, onOpenDrug: (String) -> Unit) {
     val container = LocalAppContainer.current
-    val vm: PlanEditViewModel = viewModel(factory = viewModelFactory { PlanEditViewModel(container.planRepository) })
+    val vm: PlanEditViewModel = viewModel(
+        factory = viewModelFactory { PlanEditViewModel(container.planRepository, container.reminderScheduler) },
+    )
     val state by vm.state.collectAsState()
     var drugPickerFor by remember { mutableStateOf<Long?>(null) }
 

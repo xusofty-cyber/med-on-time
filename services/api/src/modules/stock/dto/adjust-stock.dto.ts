@@ -6,7 +6,9 @@ import {
   IsOptional,
   IsString,
   IsUUID,
+  Max,
   MaxLength,
+  Min,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
@@ -29,6 +31,8 @@ export class AdjustStockDto {
   @ApiProperty({ description: '带符号变动量（以 stockUnit / 药品单位计）' })
   @Type(() => Number)
   @IsNumber()
+  @Min(-1000000)
+  @Max(1000000)
   changeAmount!: number;
 
   @ApiPropertyOptional({

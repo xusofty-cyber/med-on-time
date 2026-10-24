@@ -6,7 +6,7 @@ import { toastError, toastOk } from '../../lib/api';
 import { actions, useApp } from '../../lib/store';
 import { useSessionGuard } from '../../lib/hooks';
 import { ACCOUNT_STATUS_LABELS, RELATIONSHIP_LABELS } from '../../lib/dict';
-import { Badge, Card, Loading } from '../../components/ui';
+import { Badge, Card, Loading, PageShell } from '../../components/ui';
 
 /**
  * 我的（tab）：账号概览、成员切换与管理入口、关怀模式开关（成员级）、
@@ -19,11 +19,12 @@ export default function Me() {
   const care = useApp((s) => s.careSettings);
   const unread = useApp((s) => s.unreadCount);
   const current = members.find((m) => m.id === currentMemberId) ?? null;
+  const canConfig = !!current && (!current.accessLevel || current.accessLevel === 'owner' || current.accessLevel === 'L3');
 
   const refreshUnread = useCallback(async () => {
     try {
       const page = await notificationApi.list(1);
-      actions.setUnreadCount(page.items.filter((n) => !n.isRead).length);
+      actions.setUnreadCount(page.unreadTotal ?? page.items.filter((n) => !n.isRead).length);
     } catch {
       /* 未读数拉取失败不打扰用户 */
     }
@@ -44,7 +45,7 @@ export default function Me() {
   };
 
   const toggleCare = async (on: boolean) => {
-    if (!currentMemberId || !care) return;
+    if (!currentMemberId || !care || !canConfig) return;
     try {
       const saved = await memberApi.putCareSettings(currentMemberId, { ...care, careMode: on });
       actions.setCareSettings(saved);
@@ -57,7 +58,7 @@ export default function Me() {
   if (!account) return <Loading text='正在前往登录…' />;
 
   return (
-    <View className='pg'>
+    <PageShell>
       <Card>
         <View className='row-between'>
           <View className='col' style={{ gap: '6rpx' }}>
@@ -123,7 +124,7 @@ export default function Me() {
           </View>
           <Switch
             checked={!!care?.careMode}
-            disabled={!care || !currentMemberId}
+            disabled={!care || !currentMemberId || !canConfig}
             color='#0B6B4F'
             onChange={(e) => void toggleCare(e.detail.value)}
           />
@@ -162,7 +163,7 @@ export default function Me() {
       <Text className='tx-sm tx-sub' style={{ textAlign: 'center' }}>
         药准时 MedOnTime · 提醒按成员本地时区生成，照护代操作全程双记录。
       </Text>
-    </View>
+    </PageShell>
   );
 }
 

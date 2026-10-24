@@ -7,10 +7,18 @@ export interface Route {
   query: URLSearchParams;
 }
 
+function safeDecode(seg: string): string {
+  try {
+    return decodeURIComponent(seg);
+  } catch {
+    return seg;
+  }
+}
+
 function parse(): Route {
   const raw = window.location.hash.replace(/^#/, '') || '/';
   const [pathPart, queryPart] = raw.split('?');
-  const segments = (pathPart ?? '/').split('/').filter(Boolean).map(decodeURIComponent);
+  const segments = (pathPart ?? '/').split('/').filter(Boolean).map(safeDecode);
   return { name: segments[0] ?? 'today', segments, query: new URLSearchParams(queryPart ?? '') };
 }
 

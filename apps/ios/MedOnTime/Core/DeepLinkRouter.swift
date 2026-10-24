@@ -23,7 +23,14 @@ final class DeepLinkRouter: ObservableObject {
     @Published private(set) var pendingReminderId: String?
     @Published private(set) var pendingAction: ReminderActionKind = .open
 
-    func handleNotification(instanceId: String, action: ReminderActionKind) {
+    func handleNotification(instanceId: String, memberId: String? = nil, action: ReminderActionKind) {
+        if let memberId, let session = AppEnvironment.shared.session as AuthSession?, session.currentMember?.id != memberId {
+            if let target = session.members.first(where: { $0.id == memberId }) {
+                Task {
+                    await session.selectMember(target)
+                }
+            }
+        }
         pendingReminderId = instanceId
         pendingAction = action
         selectedTab = .today

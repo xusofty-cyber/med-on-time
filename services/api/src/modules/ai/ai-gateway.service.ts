@@ -1,5 +1,6 @@
 import { HttpStatus, Injectable, Logger } from '@nestjs/common';
 import { BusinessException } from '../../common/exceptions/business.exception';
+import { assertSafeAiBaseUrl } from '../../common/utils/ssrf.util';
 import { AiBusinessCode } from './ai.service';
 import {
   AiProviderConfigService,
@@ -71,6 +72,7 @@ export class AiGatewayService {
       timeoutMs?: number;
     },
   ): Promise<string> {
+    assertSafeAiBaseUrl(provider.baseUrl);
     const url = `${provider.baseUrl.replace(/\/+$/, '')}/chat/completions`;
     const controller = new AbortController();
     const timer = setTimeout(

@@ -7,7 +7,7 @@ import { actions, useApp } from '../../lib/store';
 import { useSessionGuard } from '../../lib/hooks';
 import { GENDER_LABELS, RELATIONSHIP_LABELS } from '../../lib/dict';
 import { CYCLE_PRESETS, STRONG_ALERT_LABELS, type CareSettings, type CyclePresetKey, type Member, type StrongAlertMode } from '../../lib/types';
-import { Badge, Btn, Card, DatePick, EmptyState, ErrorLine, Field, Loading, Pick, Sheet, SwitchRow, TxtInput } from '../../components/ui';
+import { Badge, Btn, Card, DatePick, EmptyState, ErrorLine, Field, Loading, PageShell, Pick, Sheet, SwitchRow, TxtInput } from '../../components/ui';
 
 const MAX_MEMBERS = 10;
 const DEFAULT_CARE: CareSettings = {
@@ -55,7 +55,7 @@ export default function Members() {
   };
 
   return (
-    <View className='pg'>
+    <PageShell>
       <View className='row-between'>
         <Text className='tx-title'>成员管理</Text>
         <Btn disabled={ownCount >= MAX_MEMBERS} onClick={() => setEditing('new')}>
@@ -99,9 +99,11 @@ export default function Members() {
                     切换为当前
                   </Btn>
                 )}
-                <Btn variant='ghost' onClick={() => setCareTarget(m)}>
-                  关怀与提醒设置
-                </Btn>
+                {(!m.accessLevel || m.accessLevel === 'owner' || m.accessLevel === 'L3') && (
+                  <Btn variant='ghost' onClick={() => setCareTarget(m)}>
+                    关怀与提醒设置
+                  </Btn>
+                )}
                 {(!m.accessLevel || m.accessLevel === 'owner') && (
                   <>
                     <Btn variant='ghost' onClick={() => setEditing(m)}>
@@ -139,7 +141,7 @@ export default function Members() {
           }}
         />
       )}
-    </View>
+    </PageShell>
   );
 }
 
@@ -258,6 +260,7 @@ function CareSettingsSheet({
   onClose: () => void;
   onSaved?: () => void;
 }) {
+  const canConfig = !member.accessLevel || member.accessLevel === 'owner' || member.accessLevel === 'L3';
   const [settings, setSettings] = useState<CareSettings>(DEFAULT_CARE);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<unknown>(null);
@@ -357,7 +360,7 @@ function CareSettingsSheet({
               </Btn>
             </View>
             <View className='grow'>
-              <Btn block disabled={busy} onClick={submit}>
+              <Btn block disabled={busy || !canConfig} onClick={submit}>
                 {busy ? '保存中…' : '保存设置'}
               </Btn>
             </View>
