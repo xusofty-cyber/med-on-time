@@ -55,7 +55,9 @@ jobs:
           cache: pnpm
       - name: 安装依赖
         run: pnpm install --frozen-lockfile
-      - name: 构建 Web 产物（桌面端内嵌）
+      - name: 构建共享包（Web 依赖其 dist）
+          run: pnpm --filter @med-on-time/shared build
+        - name: 构建 Web 产物（桌面端内嵌）
         run: pnpm --filter @med-on-time/web build
       - name: 构建桌面主进程
         run: pnpm --filter @med-on-time/desktop build
