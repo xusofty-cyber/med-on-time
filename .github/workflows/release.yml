@@ -7,7 +7,7 @@
 #
 # 产物口径（均为未签名验证包，正式分发签名在发版机/商店流程完成）：
 #   - 桌面（Electron）：Windows NSIS 安装包 / macOS DMG / Linux AppImage（原生 runner 各自构建，含 apps/web 产物）
-#   - Android：assembleRelease 未签名 APK（applicationId com.medontime.app，Gradle 8.7 + JDK 17）
+#   - Android：assembleRelease 正式签名 APK（applicationId com.medontime.app，Gradle 8.7 + JDK 17；签名 secrets 就绪时生效）
 #   - iOS：XcodeGen 生成工程后 xcodebuild 无签名构建的 .app（zip）；上架签名/IPA 打包需证书 secrets，另行接入
 #   - 小程序：Taro build:weapp 的 dist 目录（导入微信开发者工具上传；miniprogram-ci 自动上传可后续以 secrets 接入）
 name: Release - 各端打包
@@ -102,12 +102,23 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.7'
-      - name: 构建 Release APK（未签名）
+  - name: 解码签名 keystore
+    env:
+      ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+  run: |
+    echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/medontime-release.jks"
+    echo "ANDROID_KEYSTORE_FILE=$RUNNER_TEMP/medontime-release.jks" >> "$GITHUB_ENV"
+      - name: 构建 Release APK（正式签名）
         working-directory: apps/android
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: gradle :app:assembleRelease --no-daemon
       - name: 上传产物
         uses: actions/upload-artifact@v4
         with:
+        
           name: android-apk
           path: apps/android/app/build/outputs/apk/release/*.apk
           if-no-files-found: error
@@ -187,6 +198,6 @@ jobs:
           body: |
             药准时 MedOnTime 各端安装包（CI 自动打包，未签名验证包）。
             - 桌面：Windows 安装包（.exe）/ macOS（.dmg）/ Linux（.AppImage）
-            - 安卓：未签名 APK（正式分发需签名）
+            - 安卓：正式签名 APK（可直接安装与覆盖升级）
             - iOS：无签名 .app 压缩包（仅验证构建；上架需证书签名）
             - 小程序：dist 目录在构建产物（Artifacts）中，需导入微信开发者工具上传
