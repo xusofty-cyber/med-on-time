@@ -153,3 +153,9 @@
 - 桌面：medontime:// 协议层把 /api/* 转发 https://mot.ulife.vip（修扫码二维码与密码登录「请求失败（HTTP 200)」同根问题）；Menu.setApplicationMenu(null) 去默认菜单栏；version 0.2.1。
 - 安卓：正式签名接入——keystore 由云曦生成（用户保管原件与密码），4 个 Actions secrets 就绪；build.gradle.kts env 驱动 signingConfigs.release + 工作流解码步；versionCode 2 / versionName 0.2.1。
 - 验收口径：五批 agy 修复（21 项）均经云曦独立重跑构建（api/web/desktop/小程序）+ diff 范围审计 + 关键逻辑抽查；工作流改动经原文逐字节 diff + YAML 解析复验（7232cb0 缩进事故 → 51c3b5b 修正）。
+
+## 追记（2026-10-24 午间 · F5 文档一致性修复批次，本地会话状态合并）
+
+- 来源：服务器工作区快照（2026-10-25 对齐前）的本地版 SESSION_STATE.md；对齐时本地工作区为脏状态，快进前已用快照兜底，本文远程版（微信绑定扫码确认 10-24 晚 + 部署追记）保留为正文，本节仅补记本地版独有的任务记录，避免覆盖。
+- 本地版记录：F5 文档一致性修复批次，R4-docs.md 21 条逐条复核结清（18 FIXED，3 DEFERRED），FIXLOG-docs.md 已落盘，全仓 Markdown 文档与定版实现及裁定自洽；F1–F4 批次已全部完成。
+- 核对：F5 完成口径（18 修 + 3 延后，延后项 #13/#15/#18）在本文后续追记中已有记录，无内容丢失。
