@@ -101,7 +101,7 @@ jobs:
       - name: 安装 Gradle 8.7（仓库只有 wrapper properties、未提交 gradlew）
         uses: gradle/actions/setup-gradle@v4
         with:
-              gradle-version: '8.7'
+          gradle-version: '8.7'
       - name: 解码签名 keystore
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
