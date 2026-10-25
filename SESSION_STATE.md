@@ -186,3 +186,9 @@
   - 仅开发期出现的 localhost（vite.config /api 代理、桌面 dev 脚本、安卓 network_security_config 明文白名单）不影响生产包，未动。
 - 修复：安卓 DEFAULT_API_BASE_URL → https://mot.ulife.vip/；iOS Info.plist APIBaseURL 与 AppConfig.swift Release 回退 → https://mot.ulife.vip/api，plist 注释同步更新。安卓设置页提示文案读 BuildConfig 动态生成，无需改。
 - 待办：代码审查 → 提交 → 推送 → 提 PR（develop）；与 release.yml 修复 PR 一并合并后，删远程 v0.3.0 tag 重推，让重发的 v0.3.0 安装包自带正确默认地址。
+
+## 2026-10-25 v0.3.0 发布失败修复（fix/release-miniprogram-zip，未提交）
+- 背景：v0.3.0 tag 已推，CI 6 个构建任务全成功，“汇总发布 Release”失败、Release 无产物。日志查明：softprops/action-gh-release 按文件名扁平化上传附件，小程序 dist 各子目录大量同名文件（index.js/index.json/index.wxml）互相覆盖/竞态，最终 GitHub API 报 already_exists（ReleaseAsset name）致命错误。v0.2.1 同一步也失败过，但 21 个产物最终齐全；本次无任何构建产物进 Release。
+- 修复（.github/workflows/release.yml）：小程序任务在构建后把 dist 打成单个 MedOnTime-miniprogram-dist.zip 再上传（zip 内保留目录结构，散件同名无害）；发布说明与头部注释同步更新。本地验证：YAML 解析通过；用本地 dist 实测 zip 步骤（66 文件、135K，index.js 在 zip 内 26 处同名共存无问题）。
+- 待办：代码审查 → 提交 → 推送 → 提 PR（develop）；用户合并后删远程 v0.3.0 tag 重推，重新触发 CI 发布。
+
