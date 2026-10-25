@@ -176,3 +176,13 @@
 - 验证：脚本已在服务器实测通过（退出 0：清单 2062 行、恢复 0 报错、159 表一致、414=414、容器已删）。演练教训已写入脚本注释与文档：docker exec 读 stdin 用 cat 管道或 docker cp（重定向在 ssh 下两次喂空报 too short）；medontime 账号无建库权限须用一次性容器；缺角色时 159 条 OWNER TO 报错仅改属主、不影响数据。
 - 审查（2026-10-25）：0 Critical/High、1 Medium（M1：pg_restore 报错时 set -e 使诊断分支不可达）、7 Low。已全部修复：M1 用 set +e 捕获退出码；L1 容器名加 $$；L2 /tmp 固定文件改 mktemp -d（trap 一并清理）；L3 openssl 依赖改 /dev/urandom；L4 docker run 加 --rm；L5 相对路径以调用方 cwd 为基准（文档示例同步改）；L6 成功信息改为显式 cleanup 后打印。L7（stderr 任一行即判失败）保留保守策略。修复后重测：默认与显式传参两遍均退出 0；另用 1.1M 截断 dump 验失败路径：打印“恢复失败（退出码 1，1 行报错）”+ 诊断、退出 1、容器已删。
 - 待办：提交 → 推送 → 提 PR（develop）。
+
+## 2026-10-25 生产默认 API 地址修复（fix/prod-api-base-url，未提交）
+- 背景：用户反馈安卓真机邮箱验证码登录报“网络不可用”。根因：安卓默认 API 地址为 http://10.0.2.2:3000/（仅模拟器可用），真机请求根本发不出去；服务端日志证实请求未到达，SMTP 已配好。用户要求排查其他平台同类问题。
+- 排查结论（全端默认 API 地址）：
+  - 安卓：http://10.0.2.2:3000/ —— 真机不可用（本次上报的 bug）。
+  - iOS：Info.plist APIBaseURL 与 Release 回退均为 https://api.medontime.example.com/api（占位域名，不存在），Release 包真机同样不可用；plist 注释写明“上线前替换为生产域名”，从未替换。
+  - 小程序：https://mot.ulife.vip/api —— 正常；Web/Admin：相对 /api 同源 —— 正常；桌面：/api 转发至 https://mot.ulife.vip —— 正常。
+  - 仅开发期出现的 localhost（vite.config /api 代理、桌面 dev 脚本、安卓 network_security_config 明文白名单）不影响生产包，未动。
+- 修复：安卓 DEFAULT_API_BASE_URL → https://mot.ulife.vip/；iOS Info.plist APIBaseURL 与 AppConfig.swift Release 回退 → https://mot.ulife.vip/api，plist 注释同步更新。安卓设置页提示文案读 BuildConfig 动态生成，无需改。
+- 待办：代码审查 → 提交 → 推送 → 提 PR（develop）；与 release.yml 修复 PR 一并合并后，删远程 v0.3.0 tag 重推，让重发的 v0.3.0 安装包自带正确默认地址。

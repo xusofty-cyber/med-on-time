@@ -16,9 +16,9 @@ android {
         versionCode = 2
         versionName = "0.2.1"
 
-        // API 基地址默认值：模拟器访问宿主机用 10.0.2.2；真机/局域网在 App「设置」里改，
+        // API 基地址默认值：生产地址；模拟器联调本机后端时在 App「设置」里改，
         // 运行时以 DataStore 中保存的地址为准（见 ApiProvider / AppSettings）。
-        buildConfigField("String", "DEFAULT_API_BASE_URL", "\"http://10.0.2.2:3000/\"")
+        buildConfigField("String", "DEFAULT_API_BASE_URL", "\"https://mot.ulife.vip/\"")
         vectorDrawables { useSupportLibrary = true }
     }
 
