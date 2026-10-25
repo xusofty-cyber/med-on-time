@@ -18,7 +18,8 @@ struct AccountService {
     }
 
     func sessions() async throws -> [UserSessionDTO] {
-        try await api.get("account/sessions")
+        let paged: PagedDTO<UserSessionDTO> = try await api.get("account/sessions")
+        return paged.items
     }
 
     func revokeSession(id: String) async throws -> OkResult {

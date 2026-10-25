@@ -173,6 +173,13 @@ data class MemberDto(
     val sortOrder: Int = 0,
 )
 
+/** GET /members 的分组返回（契约 2026-10-23 定版）：own 自有成员 + authorized 被授权照护的成员。 */
+@Serializable
+data class MembersGroupedDto(
+    val own: List<MemberDto> = emptyList(),
+    val authorized: List<MemberDto> = emptyList(),
+)
+
 @Serializable
 data class CreateMemberRequest(
     val displayName: String,
@@ -241,6 +248,13 @@ data class CreateAuthorizationRequest(
     val level: CaregiverLevel,
     val permissions: Map<String, Boolean>? = null,
     val expiresAt: String? = null,
+)
+
+/** GET /authorizations 的分组返回（契约 2026-10-23 定版）：granted 我授权出去的 + received 授权给我的。 */
+@Serializable
+data class AuthorizationsGroupedDto(
+    val granted: List<AuthorizationDto> = emptyList(),
+    val received: List<AuthorizationDto> = emptyList(),
 )
 
 @Serializable

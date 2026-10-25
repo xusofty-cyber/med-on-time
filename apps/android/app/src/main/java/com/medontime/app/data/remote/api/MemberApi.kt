@@ -2,10 +2,12 @@ package com.medontime.app.data.remote.api
 
 import com.medontime.app.data.model.ApiResponse
 import com.medontime.app.data.model.AuthorizationDto
+import com.medontime.app.data.model.AuthorizationsGroupedDto
 import com.medontime.app.data.model.CareSettingsDto
 import com.medontime.app.data.model.CreateAuthorizationRequest
 import com.medontime.app.data.model.CreateMemberRequest
 import com.medontime.app.data.model.MemberDto
+import com.medontime.app.data.model.MembersGroupedDto
 import com.medontime.app.data.model.RevokeAuthorizationRequest
 import com.medontime.app.data.model.UpdateCareSettingsRequest
 import com.medontime.app.data.model.UpdateMemberRequest
@@ -25,7 +27,7 @@ interface MemberApi {
     suspend fun create(@Body body: CreateMemberRequest): ApiResponse<MemberDto>
 
     @GET("api/members")
-    suspend fun list(): ApiResponse<List<MemberDto>>
+    suspend fun list(): ApiResponse<MembersGroupedDto>
 
     @GET("api/members/{memberId}")
     suspend fun get(@Path("memberId") memberId: String): ApiResponse<MemberDto>
@@ -56,7 +58,7 @@ interface AuthorizationApi {
 
     /** view: granted = 我授权出去的；received = 授权给我的；缺省两者都返。 */
     @GET("api/authorizations")
-    suspend fun list(@Query("view") view: String? = null): ApiResponse<List<AuthorizationDto>>
+    suspend fun list(@Query("view") view: String? = null): ApiResponse<AuthorizationsGroupedDto>
 
     @POST("api/authorizations/{id}/accept")
     suspend fun accept(@Path("id") id: String): ApiResponse<AuthorizationDto>

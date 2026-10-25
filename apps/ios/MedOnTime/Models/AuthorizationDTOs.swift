@@ -16,6 +16,20 @@ struct AuthorizationDTO: Decodable, Identifiable {
     let invitedAt: Date
     let acceptedAt: Date?
     let expiresAt: Date?
+
+    /// 后端 toView 下发的是 `memberDisplayName` / `grantedByNickname`（非 memberName / grantorNickname）。
+    enum CodingKeys: String, CodingKey {
+        case id, memberId, caregiverAccountId, grantedByAccountId, level, status, invitedAt, acceptedAt, expiresAt
+        case memberName = "memberDisplayName"
+        case caregiverNickname, caregiverPhoneMasked
+        case grantorNickname = "grantedByNickname"
+    }
+}
+
+/// GET /authorizations 的分组返回（契约 2026-10-23 定版）：granted 我授权出去的 + received 授权给我的。
+struct AuthorizationsGroupedDTO: Decodable {
+    let granted: [AuthorizationDTO]
+    let received: [AuthorizationDTO]
 }
 
 /// 发起授权：以照护人手机号定位账号。

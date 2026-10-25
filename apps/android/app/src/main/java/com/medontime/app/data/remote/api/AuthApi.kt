@@ -9,6 +9,7 @@ import com.medontime.app.data.model.LoginByCodeRequest
 import com.medontime.app.data.model.LoginByEmailCodeRequest
 import com.medontime.app.data.model.LoginRequest
 import com.medontime.app.data.model.LogoutRequest
+import com.medontime.app.data.model.PageData
 import com.medontime.app.data.model.RefreshRequest
 import com.medontime.app.data.model.RegisterByEmailRequest
 import com.medontime.app.data.model.RegisterRequest
@@ -89,7 +90,7 @@ interface AccountApi {
     suspend fun withdrawCancel(): ApiResponse<JsonElement>
 
     @GET("api/account/sessions")
-    suspend fun sessions(): ApiResponse<List<SessionDto>>
+    suspend fun sessions(): ApiResponse<PageData<SessionDto>>
 
     @DELETE("api/account/sessions/{id}")
     suspend fun deleteSession(@Path("id") id: String): ApiResponse<JsonElement>

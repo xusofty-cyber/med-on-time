@@ -145,7 +145,7 @@ class AuthRepository(
         apiCallUnit { account().withdrawCancel() }
     }
 
-    suspend fun sessions(): List<SessionDto> = apiCall { account().sessions() }
+    suspend fun sessions(): List<SessionDto> = apiCall { account().sessions() }.items
 
     suspend fun deleteSession(id: String) {
         apiCallUnit { account().deleteSession(id) }

@@ -23,7 +23,8 @@ class MemberRepository(
     private suspend fun members(): MemberApi = apiProvider.get(MemberApi::class.java)
     private suspend fun authz(): AuthorizationApi = apiProvider.get(AuthorizationApi::class.java)
 
-    suspend fun listMembers(): List<MemberDto> = apiCall { members().list() }
+    suspend fun listMembers(): List<MemberDto> =
+        apiCall { members().list() }.let { it.own + it.authorized }
 
     suspend fun createMember(request: CreateMemberRequest): MemberDto =
         apiCall { members().create(request) }
@@ -52,7 +53,7 @@ class MemberRepository(
     }
 
     suspend fun listAuthorizations(view: String? = null): List<AuthorizationDto> =
-        apiCall { authz().list(view) }
+        apiCall { authz().list(view) }.let { it.granted + it.received }
 
     suspend fun createAuthorization(request: CreateAuthorizationRequest): AuthorizationDto =
         apiCall { authz().create(request) }

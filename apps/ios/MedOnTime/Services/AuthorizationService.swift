@@ -6,7 +6,8 @@ struct AuthorizationService {
 
     /// 我授权的 + 授权我的，合并一页返回（UI 按 grantedBy / caregiver 区分）。
     func list() async throws -> [AuthorizationDTO] {
-        try await api.get("authorizations")
+        let grouped: AuthorizationsGroupedDTO = try await api.get("authorizations")
+        return grouped.granted + grouped.received
     }
 
     func create(_ request: CreateAuthorizationRequest) async throws -> AuthorizationDTO {
