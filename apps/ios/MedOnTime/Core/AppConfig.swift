@@ -11,7 +11,7 @@ enum AppConfig {
         #if DEBUG
         return URL(string: "http://localhost:3000/api")!
         #else
-        return URL(string: "https://api.medontime.example.com/api")!
+        return URL(string: "https://mot.ulife.vip/api")!
         #endif
     }
 }

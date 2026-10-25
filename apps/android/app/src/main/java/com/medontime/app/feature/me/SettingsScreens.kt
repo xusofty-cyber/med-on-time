@@ -211,7 +211,7 @@ fun SettingsScreen() {
             modifier = Modifier.fillMaxWidth(),
         )
         Text(
-            "默认 ${BuildConfig.DEFAULT_API_BASE_URL}（模拟器访问本机后端）；真机请改为服务器地址或局域网地址。",
+            "默认 ${BuildConfig.DEFAULT_API_BASE_URL}（生产地址）；模拟器联调本机后端时可改。",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
