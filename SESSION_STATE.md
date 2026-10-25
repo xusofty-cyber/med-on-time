@@ -169,3 +169,10 @@
 - 构建/测试：后端 7 套件 54 测试全过；Web/Admin/小程序构建与 typecheck 全过；产物静态复核通过（双环、44px、#5B6660、显示密码 aria-label、controlOutlineWidth 均已编入）。安卓/iOS 未编译未真机验证；6 档视口、130% 缩放、对比度实测、灰度走查未做；关键操作对比度 7:1 未达成（按 AA 4.5:1 定案，0: 6.5:1、A/B: 5.93:1）。
 - 预览清理已完成：服务器临时 nginx 子路径位置已删、/home/ubuntu/preview 已删、/home/ubuntu 权限恢复 750，生产站 200 正常；Admin main.tsx 临时 basename 补丁已还原。/tmp 脚本（ssh-proxy.sh、deploy-preview.sh 等）在运行时重启后丢失，已重建并移至 workspace 持久保存：~/workspace/ssh-proxy.sh、~/workspace/medontime-review/deploy-preview.sh、cleanup-preview.sh。
 - 待办：代码审查结论 → 提交 → 推送 → 提 PR（develop）；部署待 PR 合并后按正常 update 流程走。
+
+## 2026-10-25 备份恢复演练脚本入 git（chore/backup-drill，未提交）
+- 背景：2026-10-25 10:53 恢复演练首次跑通（备份 medontime-20261025-103239.dump，159 表一致、行数 0 差异、总行数 414=414），用户要求备份相关进 git 管理。范围：演练脚本 + 文档；备份 dump 文件不进 git（.gitignore 已有 deploy/backups/，且 dump 含生产用户数据）；本机 SSH 包装脚本（~/workspace/medontime-review/server-*.sh）留本地，不进仓库。
+- 新增：deploy/scripts/restore-drill.sh（通用演练脚本，服务器上跑；默认最新备份、可传参指定；校验 PGDMP 魔数 + pg_restore -l 清单 → 一次性 postgres:16-alpine 容器 → 预建 medontime 角色 → docker cp 传 dump 恢复 → 逐表核对表清单与行数 → 删容器；生产库只读）；docs/DEPLOY.md「备份与恢复」下补「恢复演练」一节。
+- 验证：脚本已在服务器实测通过（退出 0：清单 2062 行、恢复 0 报错、159 表一致、414=414、容器已删）。演练教训已写入脚本注释与文档：docker exec 读 stdin 用 cat 管道或 docker cp（重定向在 ssh 下两次喂空报 too short）；medontime 账号无建库权限须用一次性容器；缺角色时 159 条 OWNER TO 报错仅改属主、不影响数据。
+- 审查（2026-10-25）：0 Critical/High、1 Medium（M1：pg_restore 报错时 set -e 使诊断分支不可达）、7 Low。已全部修复：M1 用 set +e 捕获退出码；L1 容器名加 $$；L2 /tmp 固定文件改 mktemp -d（trap 一并清理）；L3 openssl 依赖改 /dev/urandom；L4 docker run 加 --rm；L5 相对路径以调用方 cwd 为基准（文档示例同步改）；L6 成功信息改为显式 cleanup 后打印。L7（stderr 任一行即判失败）保留保守策略。修复后重测：默认与显式传参两遍均退出 0；另用 1.1M 截断 dump 验失败路径：打印“恢复失败（退出码 1，1 行报错）”+ 诊断、退出 1、容器已删。
+- 待办：提交 → 推送 → 提 PR（develop）。
