@@ -12,6 +12,7 @@ import {
   Tag,
   Timeline,
   message,
+  theme as antdTheme,
 } from 'antd';
 import { useState } from 'react';
 import { getPlanHistory, listPlans } from '../../api/admin';
@@ -31,6 +32,8 @@ export default function PlansPage() {
   const [historyPlan, setHistoryPlan] = useState<PlanItemRow | null>(null);
   const [history, setHistory] = useState<PlanHistoryItem[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
+  /* 阶段 2：色值一律读 AntD token。 */
+  const { token } = antdTheme.useToken();
 
   const openHistory = async (plan: PlanItemRow) => {
     setHistoryPlan(plan);
@@ -140,7 +143,7 @@ export default function PlansPage() {
             </Button>
           </Form.Item>
           <Form.Item>
-            <span style={{ color: '#8c8c8c' }}>
+            <span style={{ color: token.colorTextSecondary }}>
               成员数据隔离：仅返回该成员的计划，变更史含代操作双记录（操作人 + 操作类型）。
             </span>
           </Form.Item>
@@ -188,7 +191,7 @@ export default function PlansPage() {
                           {op.text}
                           {h.operatorLevel ? ` · ${h.operatorLevel}` : ''}
                         </Tag>
-                        <span style={{ color: '#8c8c8c' }}>{fmtDateTime(h.createdAt)}</span>
+                        <span style={{ color: token.colorTextSecondary }}>{fmtDateTime(h.createdAt)}</span>
                       </div>
                       <div style={{ marginTop: 4 }}>
                         <Space size={6} wrap>
@@ -197,7 +200,7 @@ export default function PlansPage() {
                           <Tag color="green">{h.newValue ?? '（空）'}</Tag>
                         </Space>
                       </div>
-                      <div style={{ color: '#8c8c8c', fontSize: 12, marginTop: 2 }}>
+                      <div style={{ color: token.colorTextSecondary, fontSize: 12, marginTop: 2 }}>
                         操作人：{h.operatorName ?? h.operatorAccountId ?? '系统'}
                         {h.planItemId ? ` · 明细 ${shortId(h.planItemId)}` : ''}
                       </div>
@@ -208,7 +211,7 @@ export default function PlansPage() {
             />
           )}
         </Spin>
-        <p style={{ color: '#8c8c8c' }}>
+        <p style={{ color: token.colorTextSecondary }}>
           说明：变更史为字段级双记录（old_value → new_value），与计划变更日志在同一次变更事务内双写；
           客服裁决产生的变更以「客服裁决」类型出现在此处。
         </p>

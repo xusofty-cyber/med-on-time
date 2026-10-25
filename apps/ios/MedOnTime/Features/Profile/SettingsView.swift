@@ -78,6 +78,7 @@ struct SettingsView: View {
     @StateObject private var viewModel = SettingsViewModel()
     @EnvironmentObject private var session: AuthSession
     @EnvironmentObject private var env: AppEnvironment
+    @EnvironmentObject private var themeStore: ThemeStore
     @State private var showCancelConfirm = false
     @State private var cancelReason = ""
     @State private var cancelApplied = false
@@ -86,6 +87,7 @@ struct SettingsView: View {
     var body: some View {
         Form {
             profileSection
+            themeSection
             sessionsSection
             prefsSection
             wechatSection
@@ -138,6 +140,37 @@ struct SettingsView: View {
             Button("保存资料") {
                 Task { await viewModel.saveProfile() }
             }
+        }
+    }
+
+    /// 界面主题：只列主题 0（现行绿白）与主题 A（暖阳关怀）；主题 B 仅 Admin / PC Web 可用，移动端不提供。
+    private var themeSection: some View {
+        Section {
+            ForEach(AppTheme.allCases, id: \.self) { option in
+                Button {
+                    themeStore.setTheme(option)
+                } label: {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(option.label)
+                                .foregroundStyle(.primary)
+                            Text(option.description)
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        if themeStore.theme == option {
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundStyle(Theme.primary)
+                        }
+                    }
+                }
+                .buttonStyle(.plain)
+            }
+        } header: {
+            Text("界面主题")
+        } footer: {
+            Text("主题 B（临床极简）仅 Admin 与 PC Web 可用，移动端不提供。切换后立即生效，保存在本机。")
         }
     }
 

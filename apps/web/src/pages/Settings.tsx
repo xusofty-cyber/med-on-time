@@ -5,6 +5,7 @@ import { Badge, Button, Card, ErrorText, Field, Modal, Select, Spinner, TextInpu
 import { ACCOUNT_STATUS_LABELS } from '../lib/dict';
 import { fmtDateTime, isValidTimeZone } from '../lib/time';
 import { qrToDataUrl } from '../lib/qr';
+import { applyThemeId, getStoredThemeId, THEMES, type ThemeId } from '../lib/theme';
 import type { UserSession } from '../lib/types';
 
 const COMMON_TIMEZONE_OPTIONS: { value: string; label: string }[] = [
@@ -37,6 +38,12 @@ export default function Settings() {
   const [cancelReason, setCancelReason] = useState('');
   const [bindOpen, setBindOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  /* 界面主题（阶段 2）：三套切换，localStorage 持久化，切换即时生效。 */
+  const [themeId, setThemeId] = useState<ThemeId>(() => getStoredThemeId());
+  const changeTheme = (id: ThemeId) => {
+    applyThemeId(id);
+    setThemeId(id);
+  };
 
   const timezoneOptions = useMemo(() => {
     const trimmed = timezone.trim();
@@ -158,6 +165,36 @@ export default function Settings() {
             </div>
           </form>
         )}
+      </Card>
+
+      <Card title="界面主题">
+        <fieldset>
+          <legend className="sr-only">界面主题</legend>
+          <div className="flex flex-col gap-3" role="radiogroup" aria-label="界面主题">
+            {THEMES.map((t) => (
+              <label
+                key={t.id}
+                className={`flex cursor-pointer items-start gap-3 rounded-xl border px-4 py-3 ${
+                  themeId === t.id ? 'border-medgreen bg-medgreen-light' : 'border-neutral-200 hover:border-medgreen'
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="medontime-theme"
+                  value={t.id}
+                  checked={themeId === t.id}
+                  onChange={() => changeTheme(t.id)}
+                  className="mt-1 h-5 w-5 shrink-0 accent-[var(--color-brand-primary)]"
+                />
+                <span>
+                  <span className="block font-medium">{t.label}</span>
+                  <span className="block text-sm text-neutral-500">{t.description}</span>
+                </span>
+              </label>
+            ))}
+          </div>
+          <p className="mt-3 text-sm text-neutral-500">主题选择保存在本机浏览器中，切换后立即生效；默认主题为现行绿白。</p>
+        </fieldset>
       </Card>
 
       <Card title="账号绑定">

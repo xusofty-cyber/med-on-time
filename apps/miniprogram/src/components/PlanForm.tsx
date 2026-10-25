@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import { Switch, Text, View } from '@tarojs/components';
 import { planApi } from '../lib/endpoints';
 import { toastOk } from '../lib/api';
-import { currentMember } from '../lib/store';
+import { currentMember, useApp } from '../lib/store';
+import { themeSwitchColor } from '../lib/theme';
 import { todayInTz } from '../lib/time';
 import { COURSE_LABELS, FREQUENCY_LABELS, MEAL_LABELS, WEEKDAY_LABELS } from '../lib/dict';
 import {
@@ -81,6 +82,7 @@ export function PlanForm({
   const [strongAlert, setStrongAlert] = useState<'member' | StrongAlertMode>('member');
   const [error, setError] = useState<unknown>(null);
   const [busy, setBusy] = useState(false);
+  const themeId = useApp((s) => s.themeId);
 
   useEffect(() => {
     if (plan) {
@@ -232,7 +234,7 @@ export function PlanForm({
       </Field>
 
       {planType === 'prn' && (
-        <View className='col' style={{ gap: '24rpx', background: '#FFFBEB', borderRadius: '20rpx', padding: '24rpx' }}>
+        <View className='col' style={{ gap: '24rpx', background: 'var(--color-status-warning-background)', borderRadius: '20rpx', padding: '24rpx' }}>
           <Field label='最短间隔（分钟）' hint='两次按需服药之间至少间隔'>
             <TxtInput value={prnMinInterval} onChange={setPrnMinInterval} type='number' />
           </Field>
@@ -244,7 +246,7 @@ export function PlanForm({
 
       <View className='col' style={{ gap: '20rpx' }}>
         <View className='row-between'>
-          <Text className='tx-h' style={{ color: '#084C38' }}>
+          <Text className='tx-h' style={{ color: 'var(--color-brand-strong)' }}>
             药品明细
           </Text>
           <Btn variant='soft' onClick={() => setItems((l) => [...l, emptyItem()])}>
@@ -255,7 +257,7 @@ export function PlanForm({
           <View
             key={item.key}
             className='col'
-            style={{ gap: '20rpx', border: '1rpx solid #E3E8E5', borderRadius: '20rpx', padding: '24rpx' }}
+            style={{ gap: '20rpx', border: '1rpx solid var(--color-border-subtle)', borderRadius: '20rpx', padding: '24rpx' }}
           >
             <View className='row-between'>
               <Text className='tx-md tx-strong'>药品 {idx + 1}</Text>
@@ -403,7 +405,7 @@ export function PlanForm({
       {planType !== 'prn' && (
         <View className='col' style={{ gap: '16rpx' }}>
           <View className='row-between'>
-            <Text className='tx-h' style={{ color: '#084C38' }}>
+            <Text className='tx-h' style={{ color: 'var(--color-brand-strong)' }}>
               剂量阶段（可选）
             </Text>
             <Btn
@@ -428,7 +430,7 @@ export function PlanForm({
             <View
               key={i}
               className='col'
-              style={{ gap: '16rpx', background: '#F6F8F7', borderRadius: '20rpx', padding: '20rpx' }}
+              style={{ gap: '16rpx', background: 'var(--color-background-page)', borderRadius: '20rpx', padding: '20rpx' }}
             >
               <Field label={`第 ${i + 1} 阶段 · 持续天数`}>
                 <TxtInput
@@ -464,7 +466,7 @@ export function PlanForm({
                 <Text className='tx-md'>末阶段停药</Text>
                 <Switch
                   checked={!!ph.isFinalStop}
-                  color='#0B6B4F'
+                  color={themeSwitchColor(themeId)}
                   onChange={(e) =>
                     setPhases((p) => p.map((x, xi) => (xi === i ? { ...x, isFinalStop: e.detail.value } : x)))
                   }

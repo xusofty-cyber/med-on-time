@@ -1,10 +1,60 @@
-/* 药准时小程序全局样式：医嘱绿 #0B6B4F；尺寸用 rpx（设计稿 750，2rpx ≈ 1px）。 */
+/* 设计 Token（事实源：design-system/medontime/tokens.json）。
+ * WXSS 变量定义于 page 选择器；类名已语义化，只换值不改类名。
+ * 主题 0 默认值即归并定稿值：页面底 #F4F8F6、正文 #101511、次要 #5B6660、
+ * 主绿 #0B6B4F、深绿 #084C38、浅绿 #E6F4EF、红两级 #DC2626/#B91C1C。
+ * 主题 A（暖阳关怀，推断级）覆盖见下方 .theme-a 块，由 app.tsx 按 lib/theme.ts 的
+ * 已存主题在根节点挂类切换；主题 B 不进移动端。
+ * 卡片圆角/内边距保留小程序实测值（24rpx/28rpx），与 Web 的 16px/20px 冲突未裁决，见 tokens.json。 */
+/* 药准时小程序全局样式：尺寸用 rpx（设计稿 750，2rpx ≈ 1px）。颜色见顶部 WXSS 变量（事实源 tokens.json）。 */
 page {
-  font-family:
-    -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei',
-    sans-serif;
-  color: #1a1a1a;
-  background: #f6f8f7;
+  --color-background-page: #F4F8F6;
+  --color-background-surface: #FFFFFF;
+  --color-background-soft: #E6F4EF;
+  --color-background-muted: #EEF1EF;
+  --color-text-primary: #101511;
+  --color-text-secondary: #5B6660;
+  --color-text-strong: #374151;
+  --color-text-placeholder: #5B6660;
+  --color-brand-primary: #0B6B4F;
+  --color-brand-primary-action: #0B6B4F;
+  --color-brand-primary-action-hover: #084C38;
+  --color-brand-secondary-action: #0B6B4F;
+  --color-brand-strong: #084C38;
+  --color-border-subtle: #E3E8E5;
+  --color-border-strong: #D3DAD6;
+  --color-focus-ring: #0B6B4F;
+  --color-status-danger: #DC2626;
+  --color-status-danger-text: #B91C1C;
+  --color-status-danger-tint: #FEE2E2;
+  --color-status-danger-tint-text: #B91C1C;
+  --color-status-success-action: #0B6B4F;
+  --color-status-success-tint: #E6F4EF;
+  --color-status-success-tint-text: #0B6B4F;
+  --color-status-warning: #F59E0B;
+  --color-status-warning-text: #92400E;
+  --color-status-warning-text-deep: #78350F;
+  --color-status-warning-tint: #FEF3C7;
+  --color-status-warning-background: #FFFBEB;
+  --color-status-info-tint: #DBEAFE;
+  --color-status-info-text: #1D4ED8;
+  --color-care-text: #0D1F18;
+  --color-care-text-secondary: #33463E;
+  --color-chart-heat-full: #0B6B4F;
+  --color-chart-heat-good: #7FB8A4;
+  --color-chart-heat-mid: #FDE68A;
+  --color-chart-heat-bad: #FECACA;
+  --color-chart-heat-none: #F1F4F2;
+  --color-chart-heat-empty: #FAFBFA;
+  --color-chart-status-pending: #D1D5DB;
+  --font-family-sans: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  --radius-sm: 16rpx;
+  --radius-button: 20rpx;
+  --radius-card: 24rpx;
+  --radius-sheet: 28rpx;
+  --radius-pill: 999rpx;
+  font-family: var(--font-family-sans);
+  color: var(--color-text-primary);
+  background: var(--color-background-page);
 }
 
 /* ---------- 布局 ---------- */
@@ -42,16 +92,16 @@ page {
 .tx-title {
   font-size: 44rpx;
   font-weight: 700;
-  color: #084c38;
+  color: var(--color-brand-strong);
 }
 .tx-h {
   font-size: 36rpx;
   font-weight: 600;
-  color: #1a1a1a;
+  color: var(--color-text-primary);
 }
 .tx-md {
   font-size: 32rpx;
-  color: #1a1a1a;
+  color: var(--color-text-primary);
 }
 .tx-sm {
   font-size: 28rpx;
@@ -60,13 +110,13 @@ page {
   font-size: 24rpx;
 }
 .tx-sub {
-  color: #5b6660;
+  color: var(--color-text-secondary);
 }
 .tx-green {
-  color: #0b6b4f;
+  color: var(--color-brand-primary);
 }
 .tx-danger {
-  color: #dc2626;
+  color: var(--color-status-danger);
 }
 .tx-strong {
   font-weight: 600;
@@ -74,15 +124,15 @@ page {
 
 /* ---------- 卡片 ---------- */
 .card {
-  background: #ffffff;
-  border: 1rpx solid #e3e8e5;
-  border-radius: 24rpx;
+  background: var(--color-background-surface);
+  border: 1rpx solid var(--color-border-subtle);
+  border-radius: var(--radius-card);
   padding: 28rpx;
 }
 .card-title {
   font-size: 34rpx;
   font-weight: 600;
-  color: #084c38;
+  color: var(--color-brand-strong);
   margin-bottom: 16rpx;
   display: block;
 }
@@ -95,7 +145,7 @@ page {
   gap: 8rpx;
   min-height: 88rpx;
   padding: 0 28rpx;
-  border-radius: 20rpx;
+  border-radius: var(--radius-button);
   font-size: 32rpx;
   font-weight: 500;
   box-sizing: border-box;
@@ -104,21 +154,25 @@ page {
   opacity: 0.85;
 }
 .btn-primary {
-  background: #0b6b4f;
-  color: #ffffff;
+  background: var(--color-brand-primary-action);
+  color: var(--color-background-surface);
+}
+.btn-success {
+  background: var(--color-status-success-action);
+  color: var(--color-background-surface);
 }
 .btn-soft {
-  background: #e7f4ee;
-  color: #084c38;
+  background: var(--color-background-soft);
+  color: var(--color-brand-strong);
 }
 .btn-ghost {
-  background: #ffffff;
-  border: 1rpx solid #d3dad6;
-  color: #374151;
+  background: var(--color-background-surface);
+  border: 1rpx solid var(--color-border-strong);
+  color: var(--color-text-strong);
 }
 .btn-danger {
-  background: #dc2626;
-  color: #ffffff;
+  background: var(--color-status-danger);
+  color: var(--color-background-surface);
 }
 .btn-disabled {
   opacity: 0.5;
@@ -131,16 +185,16 @@ page {
 .input {
   min-height: 88rpx;
   width: 100%;
-  background: #ffffff;
-  border: 1rpx solid #d3dad6;
-  border-radius: 20rpx;
+  background: var(--color-background-surface);
+  border: 1rpx solid var(--color-border-strong);
+  border-radius: var(--radius-button);
   padding: 0 24rpx;
   font-size: 32rpx;
-  color: #1a1a1a;
+  color: var(--color-text-primary);
   box-sizing: border-box;
 }
 .input-ph {
-  color: #9aa5a0;
+  color: var(--color-text-placeholder);
 }
 .field {
   display: flex;
@@ -149,12 +203,12 @@ page {
 .field-label {
   font-size: 28rpx;
   font-weight: 500;
-  color: #374151;
+  color: var(--color-text-strong);
   margin-bottom: 12rpx;
 }
 .field-hint {
   font-size: 24rpx;
-  color: #5b6660;
+  color: var(--color-text-secondary);
   margin-top: 8rpx;
 }
 .pick-row {
@@ -163,7 +217,7 @@ page {
   justify-content: space-between;
 }
 .pick-arrow {
-  color: #9aa5a0;
+  color: var(--color-text-placeholder);
   font-size: 36rpx;
 }
 
@@ -171,31 +225,91 @@ page {
 .badge {
   display: inline-flex;
   align-items: center;
-  border-radius: 999rpx;
+  border-radius: var(--radius-pill);
   padding: 4rpx 16rpx;
   font-size: 24rpx;
   font-weight: 500;
   line-height: 1.5;
 }
 .badge-green {
-  background: #e7f4ee;
-  color: #0b6b4f;
+  background: var(--color-status-success-tint);
+  color: var(--color-status-success-tint-text);
 }
 .badge-amber {
-  background: #fef3c7;
-  color: #92400e;
+  background: var(--color-status-warning-tint);
+  color: var(--color-status-warning-text);
 }
 .badge-red {
-  background: #fee2e2;
-  color: #b91c1c;
+  background: var(--color-status-danger-tint);
+  color: var(--color-status-danger-tint-text);
 }
 .badge-gray {
-  background: #eef1ef;
-  color: #5b6660;
+  background: var(--color-background-muted);
+  color: var(--color-text-secondary);
 }
 .badge-blue {
-  background: #dbeafe;
-  color: #1d4ed8;
+  background: var(--color-status-info-tint);
+  color: var(--color-status-info-text);
+}
+.badge-icon {
+  margin-right: 6rpx;
+}
+
+/* 应用根容器（app.tsx）：盖住整页，主题 A 时用暖白底覆盖 page 的默认底色
+ * （page 元素本身挂不上类，变量继承不到它；主题 0 下本底色与 page 一致，无视觉变化）。 */
+.app-root {
+  min-height: 100vh;
+  background: var(--color-background-page);
+}
+
+/*
+ * 主题 A — 暖阳关怀（推断级，来源 tokens.json + MASTER-A.md）：
+ * 变量覆盖挂在根节点 .theme-a 上，子孙继承；只换值不改类名。
+ * brand-primary 取 #0369A1（非 #0284C7）：.tx-green 等小字链接共用该变量，
+ * #0284C7 白字仅 4.10:1，禁作小字（D2），故品牌蓝只用于焦点环等大字/装饰。
+ * 热力色不归并：.cal-heat-* 仍走 --color-chart-*（主题 0 值），主题 A 下不变。
+ * soft 底（.btn-soft）取浅暖底 #FDF1E3；成功徽标另走 success-tint 组（D10）。
+ */
+.theme-a {
+  --color-background-page: #FFF9F2;
+  --color-background-surface: #FFFFFF;
+  --color-background-soft: #FDF1E3;
+  --color-background-muted: #FDF1E3;
+  --color-text-primary: #0F172A;
+  --color-text-secondary: #475569;
+  --color-text-strong: #0F172A;
+  --color-text-placeholder: #64748B;
+  --color-brand-primary: #0369A1;
+  --color-brand-primary-action: #0369A1;
+  --color-brand-primary-action-hover: #075985;
+  --color-brand-secondary-action: #0E7490;
+  --color-brand-strong: #075985;
+  --color-border-subtle: #E8DCC8;
+  --color-border-strong: #64748B;
+  --color-focus-ring: #0284C7;
+  --color-status-success-action: #047857;
+  --color-status-success-tint: #D1FAE5;
+  --color-status-success-tint-text: #065F46;
+  --color-status-danger-tint-text: #991B1B;
+}
+.theme-a .pg {
+  gap: 64rpx;
+}
+.theme-a .tx-md {
+  font-size: 34rpx;
+  line-height: 1.6;
+}
+.theme-a .card {
+  padding: 48rpx;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
+}
+.theme-a .btn {
+  min-height: 96rpx;
+  font-size: 34rpx;
+  border-radius: 24rpx;
+}
+.theme-a .input {
+  border-radius: 24rpx;
 }
 
 /* ---------- 成员切换 chips ---------- */
@@ -204,23 +318,23 @@ page {
   align-items: center;
   gap: 8rpx;
   padding: 14rpx 26rpx;
-  border-radius: 999rpx;
-  background: #ffffff;
-  border: 1rpx solid #d3dad6;
+  border-radius: var(--radius-pill);
+  background: var(--color-background-surface);
+  border: 1rpx solid var(--color-border-strong);
   font-size: 30rpx;
   white-space: nowrap;
 }
 .chip-on {
-  background: #0b6b4f;
-  border-color: #0b6b4f;
-  color: #ffffff;
+  background: var(--color-brand-primary);
+  border-color: var(--color-brand-primary);
+  color: var(--color-background-surface);
 }
 
 /* ---------- 到点横幅 ---------- */
 .due-banner {
-  border: 3rpx solid #f59e0b;
-  background: #fffbeb;
-  border-radius: 24rpx;
+  border: 3rpx solid var(--color-status-warning);
+  background: var(--color-status-warning-background);
+  border-radius: var(--radius-card);
   padding: 24rpx 28rpx;
 }
 
@@ -235,7 +349,7 @@ page {
 .tl-line {
   width: 2rpx;
   flex: 1;
-  background: #e3e8e5;
+  background: var(--color-border-subtle);
   margin-top: 6rpx;
 }
 
@@ -245,7 +359,7 @@ page {
   align-items: center;
   justify-content: space-between;
   padding: 26rpx 4rpx;
-  border-bottom: 1rpx solid #eef1ef;
+  border-bottom: 1rpx solid var(--color-background-muted);
 }
 .menu-row-last {
   border-bottom: none;
@@ -261,10 +375,10 @@ page {
   align-items: flex-end;
 }
 .sheet-panel {
-  background: #ffffff;
+  background: var(--color-background-surface);
   width: 100%;
   max-height: 86vh;
-  border-radius: 28rpx 28rpx 0 0;
+  border-radius: var(--radius-sheet) var(--radius-sheet) 0 0;
   padding: 32rpx 28rpx 48rpx;
   box-sizing: border-box;
   overflow-y: auto;
@@ -272,7 +386,7 @@ page {
 .sheet-title {
   font-size: 36rpx;
   font-weight: 600;
-  color: #084c38;
+  color: var(--color-brand-strong);
   margin-bottom: 24rpx;
   display: block;
 }
@@ -280,53 +394,53 @@ page {
 /* ---------- 月历 ---------- */
 .cal-cell {
   min-height: 108rpx;
-  border-radius: 16rpx;
+  border-radius: var(--radius-sm);
   padding: 8rpx;
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
 }
 .cal-heat-full {
-  background: #0b6b4f;
-  color: #ffffff;
+  background: var(--color-chart-heat-full);
+  color: var(--color-background-surface);
 }
 .cal-heat-good {
-  background: #7fb8a4;
+  background: var(--color-chart-heat-good);
 }
 .cal-heat-mid {
-  background: #fde68a;
+  background: var(--color-chart-heat-mid);
 }
 .cal-heat-bad {
-  background: #fecaca;
+  background: var(--color-chart-heat-bad);
 }
 .cal-heat-none {
-  background: #f1f4f2;
+  background: var(--color-chart-heat-none);
 }
 
 /* ---------- 通用状态 ---------- */
 .empty {
   padding: 40rpx 8rpx;
   text-align: center;
-  color: #5b6660;
+  color: var(--color-text-secondary);
   font-size: 30rpx;
   line-height: 1.6;
 }
 .error-line {
-  color: #b91c1c;
+  color: var(--color-status-danger-text);
   font-size: 28rpx;
   line-height: 1.5;
 }
 .loading {
   padding: 48rpx 0;
   text-align: center;
-  color: #5b6660;
+  color: var(--color-text-secondary);
   font-size: 30rpx;
 }
 .dot-red {
   width: 16rpx;
   height: 16rpx;
   border-radius: 50%;
-  background: #dc2626;
+  background: var(--color-status-danger);
   display: inline-block;
 }
 
@@ -336,7 +450,7 @@ page {
  * 触控目标 ≥112rpx（≈56px）。设置来自成员级 care-settings（PUT 保存）。
  */
 .care-on {
-  color: #0d1f18;
+  color: var(--color-care-text);
 }
 .care-on .tx-title {
   font-size: 56rpx;
@@ -354,7 +468,7 @@ page {
   font-size: 34rpx;
 }
 .care-on .tx-sub {
-  color: #33463e;
+  color: var(--color-care-text-secondary);
 }
 .care-on .btn,
 .care-on .input {
@@ -362,7 +476,7 @@ page {
   font-size: 40rpx;
 }
 .care-on .btn-primary {
-  background: #084c38; /* 深绿对白 ≈ 9:1，满足关怀模式对比度 */
+  background: var(--color-brand-strong); /* 深绿对白 ≈ 9:1，满足关怀模式对比度 */
 }
 .care-on .field-label {
   font-size: 36rpx;

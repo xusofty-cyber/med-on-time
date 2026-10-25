@@ -18,6 +18,7 @@ import {
   Tag,
   Upload,
   message,
+  theme as antdTheme,
   type TableColumnsType,
   type UploadProps,
 } from 'antd';
@@ -58,6 +59,8 @@ function previewHtml(source: string): string {
 
 /** 公众号文章：后台写稿 → 同步到公众号草稿箱；发布仍在公众号侧人工点（接口无权限） */
 export default function OaArticlesTab() {
+  /* 2026-10-25 修复：硬编码色值 #999/#eee 改读主题 token（跟随三套主题）。 */
+  const { token } = antdTheme.useToken();
   const [rows, setRows] = useState<OaArticleItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [editing, setEditing] = useState<OaArticleItem | 'new' | null>(null);
@@ -300,7 +303,7 @@ export default function OaArticlesTab() {
                 <Image src={editingRow.coverUrl} width={120} />
               </div>
             )}
-            {editing === 'new' && <div style={{ marginTop: 8, color: '#999' }}>先点「保存」创建文章，再回编辑上传封面。</div>}
+            {editing === 'new' && <div style={{ marginTop: 8, color: token.colorTextSecondary }}>先点「保存」创建文章，再回编辑上传封面。</div>}
           </Form.Item>
           <Form.Item
             name="contentSource"
@@ -312,8 +315,8 @@ export default function OaArticlesTab() {
           <Form.Item label="预览（近似公众号排版）">
             <div
               style={{
-                border: '1px solid #eee',
-                borderRadius: 8,
+                border: `1px solid ${token.colorBorderSecondary}`,
+                borderRadius: token.borderRadius,
                 padding: '12px 16px',
                 maxHeight: 260,
                 overflow: 'auto',

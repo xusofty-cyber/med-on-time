@@ -3,6 +3,7 @@ import { Component, type CSSProperties, type PropsWithChildren, type ReactNode }
 import Taro from '@tarojs/taro';
 import { Input, Picker, ScrollView, Switch, Text, View } from '@tarojs/components';
 import { careModeOn, currentMember, useApp } from '../lib/store';
+import { themeSwitchColor } from '../lib/theme';
 import { todayInTz } from '../lib/time';
 
 class PageErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
@@ -71,7 +72,7 @@ export function Btn({
   onClick,
   children,
 }: {
-  variant?: 'primary' | 'soft' | 'ghost' | 'danger';
+  variant?: 'primary' | 'soft' | 'ghost' | 'danger' | 'success';
   disabled?: boolean;
   block?: boolean;
   onClick?: () => void;
@@ -99,13 +100,17 @@ export function Card({ title, children }: { title?: string } & PropsWithChildren
 
 export function Badge({
   tone = 'gray',
+  icon,
   children,
 }: {
   tone?: 'green' | 'amber' | 'red' | 'gray' | 'blue';
+  /** 状态图标（颜色 + 图标 + 文字三重表达）：仅状态徽标传，如已服用 ✓ / 漏服 ! / 已稍后 ◷。 */
+  icon?: string;
   children: ReactNode;
 }) {
   return (
     <View className={`badge badge-${tone}`}>
+      {icon && <Text className='badge-icon'>{icon}</Text>}
       <Text>{children}</Text>
     </View>
   );
@@ -240,13 +245,14 @@ export function SwitchRow({
   checked: boolean;
   onChange: (v: boolean) => void;
 }) {
+  const themeId = useApp((s) => s.themeId);
   return (
     <View className='row-between' style={{ padding: '10rpx 0' }}>
       <View className='col grow' style={{ gap: '4rpx', marginRight: '16rpx' }}>
         <Text className='tx-md'>{label}</Text>
         {desc && <Text className='tx-sm tx-sub'>{desc}</Text>}
       </View>
-      <Switch checked={checked} color='#0B6B4F' onChange={(e) => onChange(e.detail.value)} />
+      <Switch checked={checked} color={themeSwitchColor(themeId)} onChange={(e) => onChange(e.detail.value)} />
     </View>
   );
 }
@@ -338,7 +344,7 @@ export function StatCard({
     <View
       className='col'
       style={{
-        background: highlight ? '#e7f4ee' : '#f6f8f7',
+        background: highlight ? 'var(--color-background-soft)' : 'var(--color-background-page)',
         borderRadius: '16rpx',
         padding: '20rpx',
         gap: '6rpx',
@@ -347,7 +353,7 @@ export function StatCard({
       <Text className='tx-sm tx-sub'>{label}</Text>
       <Text
         className='tx-h'
-        style={{ color: warn ? '#b91c1c' : highlight ? '#0b6b4f' : '#1a1a1a' }}
+        style={{ color: warn ? 'var(--color-status-danger-text)' : highlight ? 'var(--color-brand-primary)' : 'var(--color-text-primary)' }}
       >
         {value}
       </Text>

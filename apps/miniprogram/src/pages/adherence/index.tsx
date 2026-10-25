@@ -215,7 +215,7 @@ export default function Adherence() {
                       )}
                     </View>
                   ) : (
-                    <View key={`empty-${ci}`} className='cal-cell grow' style={{ background: '#FAFBFA' }} />
+                    <View key={`empty-${ci}`} className='cal-cell grow' style={{ background: 'var(--color-chart-heat-empty)' }} />
                   ),
                 )}
                 {week.length < 7 &&

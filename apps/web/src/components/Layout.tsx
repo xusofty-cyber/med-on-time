@@ -57,19 +57,19 @@ export default function Layout({ routeName, children }: { routeName: string; chi
   };
 
   return (
-    <div className="min-h-screen bg-[#f4f8f6]">
+    <div className="min-h-screen bg-[var(--color-background-page)]">
       <header className="sticky top-0 z-30 border-b border-neutral-200 bg-white/95 backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center gap-3 px-4 py-2.5">
           <button className="text-xl font-bold text-medgreen" onClick={() => navigate('/')}>
             药准时
           </button>
-          <div className="ml-2 flex items-center gap-2">
+          <div className="ml-2 flex min-w-0 items-center gap-2">
             <label className="sr-only" htmlFor="member-switch">
               当前成员
             </label>
             <select
               id="member-switch"
-              className="input max-w-[220px]"
+              className="input min-w-0 max-w-[220px]"
               value={currentMemberId ?? ''}
               onChange={(e) => actions.setCurrentMember(e.target.value)}
             >

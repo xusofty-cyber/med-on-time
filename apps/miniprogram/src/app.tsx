@@ -65,6 +65,7 @@ function App({ children }: PropsWithChildren) {
   const careSettings = useApp((s) => s.careSettings);
   const careLocal = careSettings?.careMode;
   const careOn = careLocal ?? careModeOn();
+  const themeId = useApp((s) => s.themeId);
 
   useLaunch(() => {
     setSessionExpiredHandler(() => {
@@ -75,8 +76,13 @@ function App({ children }: PropsWithChildren) {
     void bootstrap();
   });
 
+  /* 根节点同时挂主题类与关怀类：.theme-a（主题 A 变量覆盖）与 .care-on（字号/触控放大）
+   * 是两个独立维度，可叠加；.care-on 的规则在 app.scss 中后写，冲突时关怀值优先。 */
+  const rootClass = ['app-root', themeId === 'a' ? 'theme-a' : '', careOn ? 'care-on' : '']
+    .filter(Boolean)
+    .join(' ');
   return (
-    <View className={careOn ? 'care-on' : undefined}>
+    <View className={rootClass}>
       <ErrorBoundary>{children}</ErrorBoundary>
     </View>
   );

@@ -288,7 +288,7 @@ export function CareSettingsEditor({
             </span>
             <input
               type="checkbox"
-              className="h-6 w-6 accent-[#0B6B4F]"
+              className="h-6 w-6 accent-[var(--color-brand-primary)]"
               checked={settings.careMode}
               onChange={(e) => setSettings((s) => ({ ...s, careMode: e.target.checked }))}
             />
@@ -310,7 +310,7 @@ export function CareSettingsEditor({
             </span>
             <input
               type="checkbox"
-              className="h-6 w-6 accent-[#0B6B4F]"
+              className="h-6 w-6 accent-[var(--color-brand-primary)]"
               checked={settings.lockScreenShowDrugDetail}
               onChange={(e) => setSettings((s) => ({ ...s, lockScreenShowDrugDetail: e.target.checked }))}
             />
@@ -328,7 +328,7 @@ export function CareSettingsEditor({
                   onClick={() => setSettings((s) => ({ ...s, strongAlertMode: mode }))}
                   className={`rounded-lg border px-2 py-2 text-sm ${
                     settings.strongAlertMode === mode
-                      ? 'border-[#0B6B4F] bg-[#E6F4EA] font-medium text-[#0B6B4F]'
+                      ? 'border-[var(--color-brand-primary)] bg-[var(--color-background-soft)] font-medium text-[var(--color-brand-primary)]'
                       : 'border-neutral-300 text-neutral-600'
                   }`}
                 >

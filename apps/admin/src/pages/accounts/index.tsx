@@ -7,7 +7,7 @@ import {
   type ActionType,
   type ProColumns,
 } from '@ant-design/pro-components';
-import { Button, Descriptions, Drawer, List, Popconfirm, Space, Tag, message } from 'antd';
+import { Button, Descriptions, Drawer, List, Popconfirm, Space, Tag, message, theme as antdTheme } from 'antd';
 import { useRef, useState } from 'react';
 import {
   freezeAccount,
@@ -32,6 +32,8 @@ export default function AccountsPage() {
   const [detail, setDetail] = useState<AccountDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [freezeTarget, setFreezeTarget] = useState<AccountItem | null>(null);
+  /* 阶段 2：色值一律读 AntD token。 */
+  const { token } = antdTheme.useToken();
 
   const openDetail = async (id: string) => {
     setDetailLoading(true);
@@ -194,7 +196,7 @@ export default function AccountsPage() {
                 <List.Item>
                   <span>
                     {m.displayName}
-                    <span style={{ color: '#8c8c8c', marginLeft: 8 }}>{relationshipText(m.relationship)}</span>
+                    <span style={{ color: token.colorTextSecondary, marginLeft: 8 }}>{relationshipText(m.relationship)}</span>
                   </span>
                   <Tag color={memberStatusMeta(m.status).color}>{memberStatusMeta(m.status).text}</Tag>
                 </List.Item>
@@ -222,7 +224,7 @@ export default function AccountsPage() {
           return true;
         }}
       >
-        <p style={{ color: '#8c8c8c' }}>
+        <p style={{ color: token.colorTextSecondary }}>
           冻结后该账号将无法登录与接收提醒，旗下成员计划同步暂停投递。冻结原因将写入审计日志。
         </p>
         <ProFormTextArea name="reason" label="冻结原因" fieldProps={{ rows: 3, maxLength: 200 }} />

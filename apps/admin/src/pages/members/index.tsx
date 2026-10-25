@@ -1,6 +1,6 @@
 import { EyeOutlined } from '@ant-design/icons';
 import { PageContainer, ProTable, type ProColumns } from '@ant-design/pro-components';
-import { Button, Descriptions, Drawer, List, Tag } from 'antd';
+import { Button, Descriptions, Drawer, List, Tag, theme as antdTheme } from 'antd';
 import { useState } from 'react';
 import { listMembers } from '../../api/admin';
 import type { MemberItem } from '../../api/types';
@@ -18,6 +18,8 @@ import { fmtDate, fmtDateTime, shortId } from '../../utils/format';
 /** 成员管理：列表 + 所属账号 + 授权关系（照护人）展示 */
 export default function MembersPage() {
   const [detail, setDetail] = useState<MemberItem | null>(null);
+  /* 阶段 2：色值一律读 AntD token。 */
+  const { token } = antdTheme.useToken();
 
   const activeAuthCount = (record: MemberItem) =>
     (record.authorizations ?? []).filter((a) => a.status === 'active').length;
@@ -53,7 +55,7 @@ export default function MembersPage() {
         r.account ? (
           <span>
             {r.account.nickname}
-            <span style={{ color: '#8c8c8c', marginLeft: 6 }}>{r.account.phoneMasked ?? ''}</span>
+            <span style={{ color: token.colorTextSecondary, marginLeft: 6 }}>{r.account.phoneMasked ?? ''}</span>
           </span>
         ) : (
           shortId(r.accountId)
@@ -76,7 +78,7 @@ export default function MembersPage() {
       width: 130,
       render: (_, r) => {
         const total = r.authorizations?.length ?? 0;
-        if (total === 0) return <span style={{ color: '#8c8c8c' }}>无照护人</span>;
+        if (total === 0) return <span style={{ color: token.colorTextSecondary }}>无照护人</span>;
         return (
           <span>
             生效 <Tag color="green">{activeAuthCount(r)}</Tag> / 共 {total}
@@ -172,7 +174,7 @@ export default function MembersPage() {
                 </List.Item>
               )}
             />
-            <p style={{ color: '#8c8c8c', marginTop: 12 }}>
+            <p style={{ color: token.colorTextSecondary, marginTop: 12 }}>
               数据隔离红线：照护人仅可见被授权成员的数据，看不到同户其他成员。
             </p>
           </>

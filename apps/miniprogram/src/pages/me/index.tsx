@@ -4,6 +4,7 @@ import { Switch, Text, View } from '@tarojs/components';
 import { accountApi, authApi, memberApi, notificationApi } from '../../lib/endpoints';
 import { toastError, toastOk } from '../../lib/api';
 import { actions, useApp } from '../../lib/store';
+import { themeSwitchColor } from '../../lib/theme';
 import { useSessionGuard } from '../../lib/hooks';
 import { ACCOUNT_STATUS_LABELS, RELATIONSHIP_LABELS } from '../../lib/dict';
 import { Badge, Card, Loading, PageShell } from '../../components/ui';
@@ -18,6 +19,7 @@ export default function Me() {
   const currentMemberId = useApp((s) => s.currentMemberId);
   const care = useApp((s) => s.careSettings);
   const unread = useApp((s) => s.unreadCount);
+  const themeId = useApp((s) => s.themeId);
   const current = members.find((m) => m.id === currentMemberId) ?? null;
   const canConfig = !!current && (!current.accessLevel || current.accessLevel === 'owner' || current.accessLevel === 'L3');
 
@@ -70,7 +72,7 @@ export default function Me() {
           </Badge>
         </View>
         {account.status === 'cancelling' && (
-          <Text className='tx-sm' style={{ color: '#92400E', display: 'block', marginTop: '10rpx' }}>
+          <Text className='tx-sm' style={{ color: 'var(--color-status-warning-text)', display: 'block', marginTop: '10rpx' }}>
             账号处于注销冷静期（30 天），冷静期内如需撤销请联系客服或在设置页查看说明。
           </Text>
         )}
@@ -86,7 +88,7 @@ export default function Me() {
                 key={m.id}
                 className='row-between'
                 style={{
-                  background: m.id === currentMemberId ? '#E7F4EE' : '#F6F8F7',
+                  background: m.id === currentMemberId ? 'var(--color-background-soft)' : 'var(--color-background-page)',
                   borderRadius: '16rpx',
                   padding: '18rpx 20rpx',
                 }}
@@ -125,7 +127,7 @@ export default function Me() {
           <Switch
             checked={!!care?.careMode}
             disabled={!care || !currentMemberId || !canConfig}
-            color='#0B6B4F'
+            color={themeSwitchColor(themeId)}
             onChange={(e) => void toggleCare(e.detail.value)}
           />
         </View>
@@ -190,13 +192,13 @@ function MenuRow({
         {badge && (
           <View
             style={{
-              background: '#DC2626',
-              color: '#fff',
+              background: 'var(--color-status-danger)',
+              color: 'var(--color-background-surface)',
               borderRadius: '999rpx',
               padding: '2rpx 14rpx',
             }}
           >
-            <Text style={{ fontSize: '24rpx', color: '#fff' }}>{badge}</Text>
+            <Text style={{ fontSize: '24rpx', color: 'var(--color-background-surface)' }}>{badge}</Text>
           </View>
         )}
         <Text className='pick-arrow'>›</Text>

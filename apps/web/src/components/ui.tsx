@@ -6,7 +6,7 @@ import { actions, useApp } from '../lib/store';
 export function Button(props: {
   children: ReactNode;
   onClick?: () => void;
-  variant?: 'primary' | 'ghost' | 'danger' | 'soft';
+  variant?: 'primary' | 'ghost' | 'danger' | 'soft' | 'success';
   type?: 'button' | 'submit';
   disabled?: boolean;
   className?: string;
@@ -19,7 +19,9 @@ export function Button(props: {
         ? 'btn btn-danger'
         : v === 'soft'
           ? 'btn btn-soft'
-          : 'btn btn-ghost';
+          : v === 'success'
+            ? 'btn btn-success'
+            : 'btn btn-ghost';
   return (
     <button
       type={props.type ?? 'button'}
@@ -91,13 +93,13 @@ export function Card(props: { children: ReactNode; className?: string; title?: s
 export function Badge(props: { children: ReactNode; tone?: 'green' | 'amber' | 'red' | 'gray' | 'blue' }) {
   const tone = props.tone ?? 'gray';
   const cls = {
-    green: 'bg-medgreen-light text-medgreen-dark',
-    amber: 'bg-amber-100 text-amber-800',
-    red: 'bg-red-100 text-red-800',
-    gray: 'bg-neutral-100 text-neutral-600',
-    blue: 'bg-sky-100 text-sky-800',
+    green: 'badge badge-success',
+    amber: 'badge badge-warning',
+    red: 'badge badge-danger',
+    gray: 'badge badge-neutral',
+    blue: 'badge badge-info',
   }[tone];
-  return <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-sm font-medium ${cls}`}>{props.children}</span>;
+  return <span className={cls}>{props.children}</span>;
 }
 
 export function Spinner({ text }: { text?: string }) {

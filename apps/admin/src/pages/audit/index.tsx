@@ -1,6 +1,6 @@
 import { EyeOutlined } from '@ant-design/icons';
 import { PageContainer, ProTable, type ProColumns } from '@ant-design/pro-components';
-import { Button, Descriptions, Drawer, Tag } from 'antd';
+import { Button, Descriptions, Drawer, Tag, theme as antdTheme } from 'antd';
 import dayjs from 'dayjs';
 import { useState } from 'react';
 import { listAuditLogs } from '../../api/admin';
@@ -16,6 +16,8 @@ import { fmtDateTimeFull, prettyJson, shortId } from '../../utils/format';
 /** 审计日志（audit_log 分区表）：时间 / 操作者 / 对象过滤查询，只读 */
 export default function AuditPage() {
   const [detail, setDetail] = useState<AuditLogItem | null>(null);
+  /* 阶段 2：色值一律读 AntD token。 */
+  const { token } = antdTheme.useToken();
 
   const columns: ProColumns<AuditLogItem>[] = [
     {
@@ -163,8 +165,8 @@ export default function AuditPage() {
             <h4 style={{ margin: '20px 0 8px' }}>明细 detail（敏感值已脱敏）</h4>
             <pre
               style={{
-                background: '#fafafa',
-                border: '1px solid #f0f0f0',
+                background: token.colorFillAlter,
+                border: `1px solid ${token.colorBorderSecondary}`,
                 borderRadius: 6,
                 padding: 12,
                 whiteSpace: 'pre-wrap',

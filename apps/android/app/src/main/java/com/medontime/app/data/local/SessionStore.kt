@@ -34,6 +34,8 @@ class SessionStore(private val context: Context) {
         val CARE_MODE = booleanPreferencesKey("care_mode")
         val LOCK_SCREEN_SHOW_DRUG = booleanPreferencesKey("lock_screen_show_drug")
         val SCHEDULED_INSTANCE_IDS = stringSetPreferencesKey("scheduled_instance_ids")
+        /** 界面主题 id：'0' 现行绿白（默认）/ 'a' 暖阳关怀；主题 B 不进移动端。 */
+        val THEME_ID = stringPreferencesKey("theme_id")
     }
 
     val accessTokenFlow: Flow<String?> = context.dataStore.data.map { it[Keys.ACCESS_TOKEN] }
@@ -43,6 +45,7 @@ class SessionStore(private val context: Context) {
         context.dataStore.data.map { it[Keys.LOCK_SCREEN_SHOW_DRUG] ?: false }
     val baseUrlFlow: Flow<String> =
         context.dataStore.data.map { it[Keys.BASE_URL] ?: BuildConfig.DEFAULT_API_BASE_URL }
+    val themeIdFlow: Flow<String> = context.dataStore.data.map { it[Keys.THEME_ID] ?: "0" }
 
     val isLoggedInFlow: Flow<Boolean> = context.dataStore.data.map { !it[Keys.ACCESS_TOKEN].isNullOrBlank() }
 
@@ -81,6 +84,10 @@ class SessionStore(private val context: Context) {
     suspend fun setBaseUrl(url: String) {
         val normalized = if (url.endsWith("/")) url else "$url/"
         context.dataStore.edit { it[Keys.BASE_URL] = normalized }
+    }
+
+    suspend fun setThemeId(themeId: String) {
+        context.dataStore.edit { it[Keys.THEME_ID] = themeId }
     }
 
     /** 同步服务端 care-settings 到本地缓存（供本地通知与主题冷启动使用）。 */

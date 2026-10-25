@@ -12,17 +12,33 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Cancel
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Error
+import androidx.compose.material.icons.filled.HourglassEmpty
+import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
+import com.medontime.app.ui.theme.AppTheme
+import com.medontime.app.ui.theme.LocalAppTheme
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -238,15 +254,53 @@ private fun DoseCard(
         ReminderInstanceStatus.Missed -> MaterialTheme.colorScheme.errorContainer
         else -> MaterialTheme.colorScheme.surface
     }
+    // 状态三重表达（颜色 + 图标 + 文字）：卡片底色与文字之外，状态旁再配一个图标。
+    val statusIcon: ImageVector
+    val statusIconTint: Color
+    when (instance.status) {
+        ReminderInstanceStatus.Taken -> {
+            statusIcon = Icons.Filled.CheckCircle
+            statusIconTint = MaterialTheme.colorScheme.primary
+        }
+        ReminderInstanceStatus.Missed -> {
+            statusIcon = Icons.Filled.Error
+            statusIconTint = MaterialTheme.colorScheme.error
+        }
+        ReminderInstanceStatus.Snoozed -> {
+            statusIcon = Icons.Filled.Schedule
+            statusIconTint = MaterialTheme.colorScheme.secondary
+        }
+        ReminderInstanceStatus.Skipped -> {
+            statusIcon = Icons.Filled.Cancel
+            statusIconTint = MaterialTheme.colorScheme.onSurfaceVariant
+        }
+        else -> {
+            statusIcon = Icons.Filled.HourglassEmpty
+            statusIconTint = MaterialTheme.colorScheme.onSurfaceVariant
+        }
+    }
+    // 主题 A 今日提醒大卡片：内边距 24dp + 柔和阴影；主题 0 保持 16dp / 2dp 不变。
+    val appTheme = LocalAppTheme.current
+    val cardPadding = if (appTheme == AppTheme.Warm) 24.dp else 16.dp
+    val cardElevation = if (appTheme == AppTheme.Warm) 4.dp else 2.dp
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = containerColor),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = cardElevation),
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
+        Column(modifier = Modifier.padding(cardPadding)) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text(displayTime(instance.localTime), style = MaterialTheme.typography.headlineSmall)
-                Text(statusText, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = statusIcon,
+                        contentDescription = null,
+                        tint = statusIconTint,
+                        modifier = Modifier.size(18.dp),
+                    )
+                    Spacer(Modifier.width(4.dp))
+                    Text(statusText, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+                }
             }
             Spacer(Modifier.height(4.dp))
             Text(instance.drugNameSnapshot, style = MaterialTheme.typography.titleLarge)
@@ -268,10 +322,11 @@ private fun DoseCard(
                         onClick = onCheckin,
                         enabled = !acting,
                         modifier = Modifier.weight(1f),
+                        icon = Icons.Filled.Check,
                     )
                     if (instance.actionable) {
-                        CareTextButton(text = "稍后", onClick = onSnooze, modifier = Modifier.weight(0.6f))
-                        CareTextButton(text = "跳过", onClick = onSkip, modifier = Modifier.weight(0.6f))
+                        CareTextButton(text = "稍后", onClick = onSnooze, modifier = Modifier.weight(0.6f), icon = Icons.Filled.Schedule)
+                        CareTextButton(text = "跳过", onClick = onSkip, modifier = Modifier.weight(0.6f), icon = Icons.Filled.Close)
                     }
                 }
             }

@@ -1,3 +1,8 @@
+/* 设计 Token（事实源：design-system/medontime/tokens.json）。
+ * 本文件引入 tokens.css 的 :root 变量（主题 0 归并定稿值）与
+ * [data-theme="a"/"b"] 预览覆盖；组件类一律读 var(--color-*)，不再写死色值。 */
+@import '../../../design-system/medontime/tokens.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -11,7 +16,7 @@ html[data-care-mode='on'] {
 }
 
 html[data-care-mode='on'] body {
-  color: #0d1f18;
+  color: var(--color-care-text);
 }
 
 html[data-care-mode='on'] .btn,
@@ -23,23 +28,75 @@ html[data-care-mode='on'] .btn-icon {
 }
 
 html[data-care-mode='on'] .btn-primary {
-  background-color: #084c38; /* 深绿对白 ≈ 9:1，满足关怀模式对比度 */
+  background-color: var(--color-brand-strong); /* 深绿对白 ≈ 9:1，满足关怀模式对比度 */
 }
 
 html[data-care-mode='on'] .text-neutral-500,
 html[data-care-mode='on'] .text-neutral-600 {
-  color: #33463e;
+  color: var(--color-care-text-secondary);
+}
+
+/* 主题字号/行高基线：html 的 rem 基准跟随主题（主题 A 17px、行高 1.6；
+ * 主题 0/B 16px、行高 1.5）。关怀模式 html[data-care-mode='on'] 的
+ * font-size: 20px 以更高特异性胜出，不受主题影响。 */
+html {
+  font-size: var(--font-size-body);
+  line-height: var(--font-line-height-body);
 }
 
 @layer components {
   .btn {
-    @apply inline-flex min-h-[44px] items-center justify-center gap-2 rounded-xl px-4 py-2 text-base font-medium transition disabled:cursor-not-allowed disabled:opacity-50;
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2 text-base font-medium transition disabled:cursor-not-allowed disabled:opacity-50;
+    /* 触摸目标跟随主题：主题 0/B 44px，主题 A 48px（--touch-target-min）。 */
+    min-height: var(--touch-target-min);
+    border-radius: var(--radius-button);
   }
   .btn-primary {
     @apply bg-medgreen text-white hover:bg-medgreen-dark;
   }
+  /* 最小状态集（阶段 1）：主按钮 focus-visible 环复用已实测的 .input focus 环值
+   *（medgreen 30%）；用于按钮是本次新增应用，证据等级为推断，见 tokens.json
+   * component.button.primary.focus-visible.ring。disabled 沿用 .btn 的
+   * disabled:opacity-50（已实测），此处不再重复定义。
+   * 阶段 2：环色读变量 --component-button-primary-focus-visible-ring，
+   * 主题 A/B 为 #0284C7（MASTER-A/B §6）。
+   * 2026-10-25 修复：浏览器验证实测环约 2px 且在深绿按钮上对比弱，
+   * 改为双环——2px 面色间隙 + 3px 彩环，彩环宽度 3px 满足 3–4px 要求，
+   * 间隙色取 --color-background-surface（白卡面），深色按钮上可辨。 */
+  .btn-primary:focus-visible {
+    outline: none;
+    box-shadow:
+      0 0 0 2px var(--color-background-surface),
+      0 0 0 5px var(--component-button-primary-focus-visible-ring);
+  }
+  /* 已服按钮（阶段 2 新增 variant）：主题 0 与主按钮同值 #0B6B4F；
+   * 主题 A/B 按 MASTER-A/B §5 取已服按钮底 #047857，hover #065F46（推断，
+   * 草案未定义 hover 值，取同组更深一级）。 */
+  .btn-success {
+    @apply text-white;
+    background-color: var(--component-button-success-background);
+  }
+  .btn-success:hover {
+    background-color: var(--component-button-success-hover-background);
+  }
+  .btn-success:focus-visible {
+    outline: none;
+    /* 2026-10-25 修复：与主按钮同为深色底，双环 2px 间隙 + 3px 彩环。 */
+    box-shadow:
+      0 0 0 2px var(--color-background-surface),
+      0 0 0 5px var(--component-button-primary-focus-visible-ring);
+  }
+  /* 2026-10-25 审查补：其余 variant 原先只有浏览器默认描边（约 2px），
+   * 与主按钮/已服按钮的 3px 环不一致；补单环 3px（浅色底上可辨）。 */
+  .btn-danger:focus-visible,
+  .btn-soft:focus-visible,
+  .btn-ghost:focus-visible,
+  .btn-icon:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px var(--component-button-primary-focus-visible-ring);
+  }
   .btn-soft {
-    @apply bg-medgreen-light text-medgreen-dark hover:bg-[#d3ecdf];
+    @apply bg-medgreen-light text-medgreen-dark hover:bg-[var(--color-brand-soft-hover)];
   }
   .btn-ghost {
     @apply border border-neutral-300 bg-white text-neutral-700 hover:border-medgreen hover:text-medgreen-dark;
@@ -48,22 +105,103 @@ html[data-care-mode='on'] .text-neutral-600 {
     @apply bg-red-600 text-white hover:bg-red-700;
   }
   .btn-icon {
-    @apply inline-flex h-10 w-10 items-center justify-center rounded-full text-2xl leading-none text-neutral-500 hover:bg-neutral-100;
+    @apply inline-flex items-center justify-center rounded-full text-2xl leading-none text-neutral-500 hover:bg-neutral-100;
+    /* 触摸目标下限 44px（原 40px 不足，阶段 2 补齐）；主题 A 下由文末覆盖规则提至 48px。 */
+    height: 44px;
+    width: 44px;
   }
+  /* 输入框（阶段 2）：边框/圆角/focus 环一律读变量。主题 0 取值与改前一致
+   *（边框 #D3DAD6、圆角 12px、focus 边框 #0B6B4F、环 medgreen 30%）；
+   * 主题 A/B 边框 #64748B、focus 边框/环 #0284C7，B 圆角 0。 */
   .input {
-    @apply min-h-[44px] w-full rounded-xl border border-neutral-300 bg-white px-3 py-2 text-base text-neutral-900 outline-none focus:border-medgreen focus:ring-2 focus:ring-medgreen/30;
+    @apply w-full bg-white px-3 py-2 text-base text-neutral-900 outline-none;
+    min-height: var(--touch-target-min);
+    border: 1px solid var(--color-border-strong);
+    border-radius: var(--radius-input);
+  }
+  .input:focus {
+    border-color: var(--component-input-focus-border);
+    /* 2026-10-25 修复：浏览器验证实测环约 2px，略细于要求的 3–4px，改为 3px。 */
+    box-shadow: 0 0 0 3px var(--component-input-focus-ring);
+    outline: none;
+  }
+  .input::placeholder {
+    color: var(--color-text-placeholder);
+  }
+  /* 最小状态集（阶段 1）：focus-visible 显式复用已实测的 focus 边框/环值；
+   * disabled 不透明度借用已实测的 .btn disabled:opacity-50，证据等级为推断，
+   * 见 tokens.json component.input.focus-visible.* / input.disabled.opacity。
+   * 阶段 2：边框/环读变量（主题 A/B 为 #0284C7）。 */
+  .input:focus-visible {
+    border-color: var(--component-input-focus-visible-border);
+    /* 2026-10-25 修复：同 .input:focus，环 2px 改为 3px。 */
+    box-shadow: 0 0 0 3px var(--component-input-focus-visible-ring);
+    outline: none;
+  }
+  .input:disabled {
+    @apply cursor-not-allowed opacity-50;
   }
   .field-label {
     @apply mb-1.5 block text-sm font-medium text-neutral-700;
   }
+  /* 卡片（阶段 2）：内边距/圆角/阴影/边框读变量。主题 0 取值与改前一致
+   *（20px / 16px / shadow-sm / #E3E8E5）；主题 A 24px / 16px / 单层柔和阴影 /
+   * 暖边框 #E8DCC8；主题 B 16px / 直角 / 无阴影 / #CBD5E1。 */
   .card {
-    @apply rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm;
+    @apply border bg-white;
+    border-color: var(--color-border-subtle);
+    border-radius: var(--radius-card);
+    padding: var(--spacing-card-padding);
+    box-shadow: var(--shadow-card);
+  }
+  /* 状态徽标（阶段 2）：色值读 --component-badge-* 变量，主题 0 取值与改前
+   * 基本一致（success 字由 #084C38 改为 token 值 #0B6B4F；danger 字由 #991B1B
+   * 改为 token 值 #B91C1C；neutral 底/字改为 #EEF1EF/#5B6660；info 改为
+   * #DBEAFE/#1D4ED8）；主题 A/B 按 D10 状态组取 tint + 深字。 */
+  .badge {
+    @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-sm font-medium;
+  }
+  .badge-success {
+    background-color: var(--component-badge-success-background);
+    color: var(--component-badge-success-text);
+  }
+  .badge-warning {
+    background-color: var(--component-badge-warning-background);
+    color: var(--component-badge-warning-text);
+  }
+  .badge-danger {
+    background-color: var(--component-badge-danger-background);
+    color: var(--component-badge-danger-text);
+  }
+  .badge-neutral {
+    background-color: var(--component-badge-neutral-background);
+    color: var(--component-badge-neutral-text);
+  }
+  .badge-info {
+    background-color: var(--component-badge-info-background);
+    color: var(--component-badge-info-text);
+  }
+  /* 今日提醒时间线状态圆点（阶段 2）：语义色读变量。主题 0 取值与改前一致
+   *（漏服由 red-500 #EF4444 归并为 #DC2626，见 tokens.json chart.status.missed）；
+   * 主题 A/B 已服取 success #059669、漏服 #DC2626、到点 #F59E0B。 */
+  .dot-taken {
+    background-color: var(--color-status-success);
+  }
+  .dot-missed {
+    background-color: var(--color-status-danger);
+  }
+  .dot-due {
+    background-color: var(--color-status-warning);
+  }
+  .dot-pending {
+    background-color: var(--chart-status-pending);
   }
   .card-title {
     @apply mb-4 text-lg font-semibold text-medgreen-dark;
   }
   .nav-link {
-    @apply flex min-h-[44px] items-center gap-2 rounded-xl px-3 py-2 text-base text-neutral-700 hover:bg-medgreen-light;
+    @apply flex items-center gap-2 rounded-xl px-3 py-2 text-base text-neutral-700 hover:bg-medgreen-light;
+    min-height: var(--touch-target-min);
   }
   .nav-link-active {
     @apply bg-medgreen-light font-semibold text-medgreen-dark;
@@ -92,4 +230,58 @@ html[data-care-mode='on'] .text-neutral-600 {
   .timeline-dot {
     @apply mt-1.5 h-3.5 w-3.5 shrink-0 rounded-full border-2 border-white shadow;
   }
+}
+
+/* ================= 主题覆盖规则（阶段 2，未分层，优先于 Tailwind 工具层） ================= */
+
+/* 主题 A 疏朗间距：页面根容器区块间距取 --spacing-section（32px）。
+ * 各页根节点均为 main 的直接子级 .flex-col（见各页根 div），弹窗内表单不受影响。 */
+[data-theme="a"] main > .flex-col {
+  gap: var(--spacing-section);
+}
+
+/* 主题 A 今日提醒三按钮放大：触摸目标 56px、大字号、大内边距（与关怀模式下限对齐）。 */
+[data-theme="a"] .today-actions .btn {
+  min-height: 56px;
+  font-size: 1.125rem;
+  padding-left: 1.25rem;
+  padding-right: 1.25rem;
+}
+
+/* 主题 A 图标按钮触摸目标提至 48px。 */
+[data-theme="a"] .btn-icon {
+  height: 48px;
+  width: 48px;
+}
+
+/* 主题 B 圆角全部 0（徽标/时间线圆点等 rounded-full 胶囊除外，草案未定其圆角，见缺口）。 */
+[data-theme="b"] .rounded,
+[data-theme="b"] .rounded-lg,
+[data-theme="b"] .rounded-xl,
+[data-theme="b"] .rounded-2xl,
+[data-theme="b"] .rounded-t-2xl,
+[data-theme="b"] .sm\:rounded-2xl {
+  border-radius: 0;
+}
+
+/* 主题 B 阴影全部 none（卡片/输入等组件类已由 --shadow-card 等变量控制，此处覆盖
+ * 直接写 shadow-* 工具类的元素：时间线圆点、弹窗、Toast）。 */
+[data-theme="b"] .shadow-sm,
+[data-theme="b"] .shadow,
+[data-theme="b"] .shadow-md,
+[data-theme="b"] .shadow-lg,
+[data-theme="b"] .shadow-xl {
+  box-shadow: none;
+}
+
+/* 主题 B 无阴影后，弹窗与 Toast 靠 1px 边框与背景分层。 */
+[data-theme="b"] .modal-panel,
+[data-theme="b"] .toast {
+  border: 1px solid var(--color-border-subtle);
+}
+
+/* 主题 B 数据视图：数字等宽对齐（依从统计数值与热力日历）。 */
+[data-theme="b"] .stat-value,
+[data-theme="b"] .heat-grid {
+  font-variant-numeric: tabular-nums;
 }

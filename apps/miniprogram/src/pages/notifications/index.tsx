@@ -135,7 +135,7 @@ export default function Notifications() {
                 onClick={() => void openItem(n)}
                 style={{
                   padding: '20rpx 4rpx',
-                  borderBottom: i < items.length - 1 ? '1rpx solid #EEF1EF' : 'none',
+                  borderBottom: i < items.length - 1 ? '1rpx solid var(--color-background-muted)' : 'none',
                 }}
               >
                 <View className='row' style={{ gap: '10rpx' }}>

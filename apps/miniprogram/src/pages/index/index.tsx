@@ -22,11 +22,19 @@ function statusTone(status: string): 'green' | 'amber' | 'red' | 'gray' | 'blue'
   return 'gray';
 }
 
+/** 状态图标（颜色 + 图标 + 文字三重表达）：✓ 已服用 / ! 已漏服 / ◷ 已稍后；待提醒无图标，时间线圆点 + 徽标颜色 + 文字已是三重。 */
+function statusIcon(status: string): string | undefined {
+  if (status === 'taken') return '✓';
+  if (status === 'missed') return '!';
+  if (status === 'snoozed') return '◷';
+  return undefined;
+}
+
 function dotColor(status: string, isDue: boolean): string {
-  if (status === 'taken') return '#0B6B4F';
-  if (status === 'missed') return '#EF4444';
-  if (isDue) return '#F59E0B';
-  return '#D1D5DB';
+  if (status === 'taken') return 'var(--color-brand-primary)';
+  if (status === 'missed') return 'var(--color-status-danger)';
+  if (isDue) return 'var(--color-status-warning)';
+  return 'var(--color-chart-status-pending)';
 }
 
 /**
@@ -142,12 +150,12 @@ export default function Index() {
 
       {due.length > 0 && (
         <View className='due-banner'>
-          <Text className='tx-h' style={{ color: '#92400E' }}>
+          <Text className='tx-h' style={{ color: 'var(--color-status-warning-text)' }}>
             ⏰ 到吃药的时间了
           </Text>
           <View className='col' style={{ gap: '6rpx', marginTop: '10rpx' }}>
             {due.map((i) => (
-              <Text key={i.id} className='tx-md' style={{ color: '#78350F' }}>
+              <Text key={i.id} className='tx-md' style={{ color: 'var(--color-status-warning-text-deep)' }}>
                 {wallTime(i.localTime)} · {i.drugNameSnapshot} {i.doseAmount}
                 {i.doseUnit}
                 {care?.lockScreenShowDrugDetail && i.storageLocation ? ` · 存放于 ${i.storageLocation}` : ''}
@@ -188,7 +196,7 @@ export default function Index() {
                           {item.drugNameSnapshot} {item.doseAmount}
                           {item.doseUnit}
                         </Text>
-                        <Badge tone={statusTone(item.status)}>
+                        <Badge tone={statusTone(item.status)} icon={statusIcon(item.status)}>
                           {INSTANCE_STATUS_LABELS[item.status] ?? item.status}
                         </Badge>
                         {item.mealRelation && item.mealRelation !== 'none' && (
@@ -206,6 +214,7 @@ export default function Index() {
                         <View className='row' style={{ gap: '12rpx', marginTop: '18rpx' }}>
                           <View className='grow'>
                             <Btn
+                              variant='success'
                               block
                               disabled={busyId === item.id}
                               onClick={() => void act(item.id, () => reminderApi.checkin(item.id), '已打卡，服药记录完成')}
@@ -220,11 +229,11 @@ export default function Index() {
                               disabled={busyId === item.id}
                               onClick={() => void act(item.id, () => reminderApi.snooze(item.id), '已稍后提醒（按周期顺延）')}
                             >
-                              稍后提醒
+                              ◷ 稍后提醒
                             </Btn>
                           </View>
                           <Btn variant='ghost' disabled={busyId === item.id} onClick={() => setSkipTarget(item)}>
-                            跳过
+                            ✕ 跳过
                           </Btn>
                         </View>
                       )}

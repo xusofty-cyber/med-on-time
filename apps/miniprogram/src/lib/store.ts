@@ -4,6 +4,7 @@ import Taro from '@tarojs/taro';
 import type { Account, CareSettings, Member } from './types';
 import { ApiError, tokenStore } from './api';
 import { authApi, memberApi } from './endpoints';
+import { applyThemeChrome, getStoredThemeId, THEME_STORAGE_KEY, type MiniThemeId } from './theme';
 
 interface AppState {
   booted: boolean;
@@ -12,6 +13,8 @@ interface AppState {
   currentMemberId: string | null;
   careSettings: CareSettings | null;
   unreadCount: number;
+  /** 界面主题 id：'0' 现行绿白（默认）/ 'a' 暖阳关怀；主题 B 不进移动端。 */
+  themeId: MiniThemeId;
 }
 
 const MEMBER_KEY = 'mot.currentMemberId';
@@ -47,6 +50,7 @@ let state: AppState = {
   currentMemberId: storageGet(MEMBER_KEY),
   careSettings: null,
   unreadCount: 0,
+  themeId: getStoredThemeId(),
 };
 
 const listeners = new Set<() => void>();
@@ -112,6 +116,12 @@ export const actions = {
   setUnreadCount(n: number) {
     setState({ unreadCount: n });
   },
+  /** 切换界面主题：持久化 + 宿主 chrome 跟随；根节点 .theme-a 类由 app.tsx 按 themeId 挂载。 */
+  setThemeId(themeId: MiniThemeId) {
+    storageSet(THEME_STORAGE_KEY, themeId);
+    setState({ themeId });
+    applyThemeChrome(themeId);
+  },
   resetSession() {
     bootPromise = null;
     storageRemove(MEMBER_KEY);
@@ -143,6 +153,8 @@ export function bootstrap(): Promise<void> {
         }
       }
       setState({ booted: true });
+      /* 启动即按已存主题刷宿主 chrome（导航栏/TabBar），页面样式由 app.tsx 的 .theme-a 类驱动。 */
+      applyThemeChrome(state.themeId);
     })();
   }
   return bootPromise;

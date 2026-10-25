@@ -1,21 +1,24 @@
-import { ConfigProvider } from 'antd';
-import zhCN from 'antd/locale/zh_CN';
 import dayjs from 'dayjs';
 import 'dayjs/locale/zh-cn';
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import App from './App';
+import { AdminThemeProvider, applyThemeId, getStoredThemeId } from './theme';
+import './theme.css';
 
 dayjs.locale('zh-cn');
 
-/** 主题色：医嘱绿 #0B6B4F（UI 设计规范 V1.0 定版） */
+/* 启动时先应用已存主题（localStorage medontime-theme，默认主题 0），避免闪烁。 */
+applyThemeId(getStoredThemeId());
+
+/** 主题色由 AdminThemeProvider 按当前主题下发（见 apps/admin/src/theme.tsx）。 */
 ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
   <React.StrictMode>
-    <ConfigProvider locale={zhCN} theme={{ token: { colorPrimary: '#0B6B4F' } }}>
+    <AdminThemeProvider>
       <BrowserRouter>
         <App />
       </BrowserRouter>
-    </ConfigProvider>
+    </AdminThemeProvider>
   </React.StrictMode>,
 );

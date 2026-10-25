@@ -129,7 +129,7 @@ export default function Plans() {
               )}
               <View className='col' style={{ gap: '10rpx', marginTop: '16rpx' }}>
                 {(plan.items ?? []).map((item) => (
-                  <View key={item.id} style={{ background: '#F6F8F7', borderRadius: '16rpx', padding: '14rpx 18rpx' }}>
+                  <View key={item.id} style={{ background: 'var(--color-background-page)', borderRadius: '16rpx', padding: '14rpx 18rpx' }}>
                     <Text className='tx-md'>
                       <Text className='tx-strong'>{item.drugNameSnapshot}</Text>
                       <Text className='tx-sub'>
@@ -190,7 +190,7 @@ function HistorySheet({ plan, onClose }: { plan: Plan; onClose: () => void }) {
       ) : (
         <View className='col' style={{ gap: '16rpx' }}>
           {entries.map((e) => (
-            <View key={e.id} style={{ background: '#F6F8F7', borderRadius: '16rpx', padding: '18rpx 20rpx' }}>
+            <View key={e.id} style={{ background: 'var(--color-background-page)', borderRadius: '16rpx', padding: '18rpx 20rpx' }}>
               <Text className='tx-md tx-strong'>
                 {e.changedField}
                 <Text className='tx-sm tx-sub'>

@@ -94,10 +94,10 @@ export function DrugPicker({
     return (
       <View
         className='row-between'
-        style={{ background: '#E7F4EE', borderRadius: '20rpx', padding: '18rpx 20rpx' }}
+        style={{ background: 'var(--color-background-soft)', borderRadius: '20rpx', padding: '18rpx 20rpx' }}
       >
         <View className='col grow' style={{ gap: '4rpx' }}>
-          <Text className='tx-md tx-strong' style={{ color: '#084C38' }}>
+          <Text className='tx-md tx-strong' style={{ color: 'var(--color-brand-strong)' }}>
             {value.genericName}
             {value.brandName ? `（${value.brandName}）` : ''}
           </Text>
@@ -121,18 +121,18 @@ export function DrugPicker({
           {photoBusy ? '识别中…' : '📷 拍照录入（拍药盒自动填药名）'}
         </Btn>
       </View>
-      {photoHint ? <Text className='tx-sm' style={{ color: '#0B6B4F' }}>{photoHint}</Text> : null}
+      {photoHint ? <Text className='tx-sm' style={{ color: 'var(--color-brand-primary)' }}>{photoHint}</Text> : null}
       {searching && <Text className='tx-sm tx-sub'>搜索中…</Text>}
       {results.length > 0 && (
-        <View className='col' style={{ border: '1rpx solid #E3E8E5', borderRadius: '20rpx', overflow: 'hidden' }}>
+        <View className='col' style={{ border: '1rpx solid var(--color-border-subtle)', borderRadius: '20rpx', overflow: 'hidden' }}>
           {results.map((d, i) => (
             <View
               key={d.id}
               className='row-between'
               style={{
                 padding: '18rpx 20rpx',
-                background: '#fff',
-                borderTop: i > 0 ? '1rpx solid #EEF1EF' : 'none',
+                background: 'var(--color-background-surface)',
+                borderTop: i > 0 ? '1rpx solid var(--color-background-muted)' : 'none',
               }}
               onClick={() => onChange(d)}
             >

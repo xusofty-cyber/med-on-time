@@ -159,3 +159,13 @@
 - 来源：服务器工作区快照（2026-10-25 对齐前）的本地版 SESSION_STATE.md；对齐时本地工作区为脏状态，快进前已用快照兜底，本文远程版（微信绑定扫码确认 10-24 晚 + 部署追记）保留为正文，本节仅补记本地版独有的任务记录，避免覆盖。
 - 本地版记录：F5 文档一致性修复批次，R4-docs.md 21 条逐条复核结清（18 FIXED，3 DEFERRED），FIXLOG-docs.md 已落盘，全仓 Markdown 文档与定版实现及裁定自洽；F1–F4 批次已全部完成。
 - 核对：F5 完成口径（18 修 + 3 延后，延后项 #13/#15/#18）在本文后续追记中已有记录，无内容丢失。
+
+## 追记（2026-10-25 · P2 三套主题换肤 + 验证后两轮修复，分支 fix/p2-ui-themes 待 PR）
+
+- 范围：design-system/medontime/tokens.json（247 Token）+ tokens.css + MASTER-A/B；Web/Admin/小程序/安卓/iOS 五端接入主题切换（data-theme 0/a/b，localStorage 键 medontime-theme，默认 0 现行绿白；A 暖阳关怀蓝主色暖白底、B 临床极简蓝主色冷白底直角无阴影）。分支基线 develop b5ceb81（PR #1 合并后），未提交未推送未部署。
+- 验证后第一轮修复（浏览器验证 2026-10-25 08:48–08:54，生产域名临时子路径预览，验证后已删）：Admin eye 图标 span 改原生 button（可 Tab、aria-label）；Web 焦点环 2px→3px、深色按钮双环；主题 0 占位符 #9AA5A0→#5B6660（白底 5.98:1，小程序同步）；登录页两文字链接补 44px 触控高；OaArticlesTab #999/#eee 改读主题 token；Admin 三套主题加 controlOutlineWidth: 3。
+- 验证结果：Web 5 项通过（加载布局、焦点环目视、主题 B、切回 0、未登录重定向），3 项仅目视未量化（占位符、触控高、主题 A 暖白色值）；Admin 5 项通过（布局、eye 键盘、dashboard 重定向、切回 0），主题 B 初验不通过（登录卡片圆角/阴影未跟随）+ eye 按 Enter 误触表单校验。
+- 验证后第二轮修复：登录卡片圆角/阴影改读 token（borderRadius 12/12/0；loginCardShadow 0 强阴影/A 柔和阴影/B none，见 apps/admin/src/theme.tsx）；eye 按钮加 onKeyPress 拦 Enter 冒泡（根因：ProForm BaseForm 默认 Enter 提交表单）。针对性复核两项均通过；附注：切换后焦点回密码框属 antd 既有行为，紧接着再按 Enter 是密码框内提交（正常行为），非缺陷。
+- 构建/测试：后端 7 套件 54 测试全过；Web/Admin/小程序构建与 typecheck 全过；产物静态复核通过（双环、44px、#5B6660、显示密码 aria-label、controlOutlineWidth 均已编入）。安卓/iOS 未编译未真机验证；6 档视口、130% 缩放、对比度实测、灰度走查未做；关键操作对比度 7:1 未达成（按 AA 4.5:1 定案，0: 6.5:1、A/B: 5.93:1）。
+- 预览清理已完成：服务器临时 nginx 子路径位置已删、/home/ubuntu/preview 已删、/home/ubuntu 权限恢复 750，生产站 200 正常；Admin main.tsx 临时 basename 补丁已还原。/tmp 脚本（ssh-proxy.sh、deploy-preview.sh 等）在运行时重启后丢失，已重建并移至 workspace 持久保存：~/workspace/ssh-proxy.sh、~/workspace/medontime-review/deploy-preview.sh、cleanup-preview.sh。
+- 待办：代码审查结论 → 提交 → 推送 → 提 PR（develop）；部署待 PR 合并后按正常 update 流程走。

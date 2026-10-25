@@ -8,14 +8,16 @@ import { LOGIN_PAGE, useSessionGuard } from '../../lib/hooks';
 import { requestReminderSubscribe } from '../../lib/notify';
 import { ACCOUNT_STATUS_LABELS } from '../../lib/dict';
 import { fmtDateTime } from '../../lib/time';
+import { THEMES, type MiniThemeId } from '../../lib/theme';
 import { APP_VERSION } from '../../config';
 import type { UserSession } from '../../lib/types';
-import { Badge, Btn, Card, EmptyState, ErrorLine, Field, Loading, PageShell, TxtInput } from '../../components/ui';
+import { Badge, Btn, Card, EmptyState, ErrorLine, Field, Loading, PageShell, SegTabs, TxtInput } from '../../components/ui';
 
 /** 设置：账号资料（含手机号微信核验）、微信绑定、消息订阅、登录会话、注销说明与申请、退出登录。与 Web 端 Settings 同口径。 */
 export default function Settings() {
   useSessionGuard();
   const account = useApp((s) => s.account);
+  const themeId = useApp((s) => s.themeId);
   const [nickname, setNickname] = useState('');
   const [timezone, setTimezone] = useState('Asia/Shanghai');
   const [profileError, setProfileError] = useState<unknown>(null);
@@ -199,6 +201,20 @@ export default function Settings() {
         )}
       </Card>
 
+      <Card title='界面主题'>
+        <View className='col' style={{ gap: '16rpx' }}>
+          <SegTabs
+            options={THEMES.map((t) => ({ value: t.id, label: t.label }))}
+            value={themeId}
+            onChange={(v) => actions.setThemeId(v as MiniThemeId)}
+          />
+          <Text className='tx-sm tx-sub' style={{ lineHeight: 1.7 }}>
+            {THEMES.find((t) => t.id === themeId)?.description ?? ''}
+            切换后立即生效，保存在本机。主题 B（临床极简）仅 Admin 与 PC Web 可用，移动端不提供。
+          </Text>
+        </View>
+      </Card>
+
       <Card title='账号绑定与订阅'>
         <View className='menu-row'>
           <View className='col' style={{ gap: '4rpx' }}>
@@ -239,7 +255,7 @@ export default function Settings() {
                 className='row-between'
                 style={{
                   padding: '18rpx 0',
-                  borderBottom: i < sessions.length - 1 ? '1rpx solid #EEF1EF' : 'none',
+                  borderBottom: i < sessions.length - 1 ? '1rpx solid var(--color-background-muted)' : 'none',
                 }}
               >
                 <View className='col' style={{ gap: '4rpx' }}>
@@ -270,7 +286,7 @@ export default function Settings() {
             天冷静期，期间账号可正常登录、可联系客服撤销申请；冷静期届满后，手机号、昵称等可识别个人信息将被物理删除，用药与健康明细仅以不可逆匿名化形式归档，账号不可恢复。若您是照护人，名下由他人授权照护的成员不受影响；您自有成员的计划将停止生成提醒。
           </Text>
           {cancelling ? (
-            <Text className='tx-md' style={{ color: '#92400E' }}>
+            <Text className='tx-md' style={{ color: 'var(--color-status-warning-text)' }}>
               当前状态：注销冷静期中（申请时间 {account?.cancelApplyAt ? fmtDateTime(account.cancelApplyAt) : '—'}
               ）。如需撤销，请联系客服。
             </Text>

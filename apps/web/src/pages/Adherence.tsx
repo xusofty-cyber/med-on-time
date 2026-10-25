@@ -92,7 +92,7 @@ export default function Adherence() {
         {calendar === null ? (
           <Spinner />
         ) : (
-          <div className="grid grid-cols-7 gap-1">
+          <div className="heat-grid grid grid-cols-7 gap-1">
             {cells.map((cell, i) =>
               cell ? (
                 <div
@@ -114,8 +114,8 @@ export default function Adherence() {
           </div>
         )}
         <div className="mt-4 flex flex-wrap gap-3 text-sm text-neutral-600">
-          <Legend className="bg-[#0B6B4F] text-white" label="全部按时" />
-          <Legend className="bg-[#7FB8A4]" label="服药率 ≥80%" />
+          <Legend className="bg-[var(--chart-heat-full)] text-white" label="全部按时" />
+          <Legend className="bg-[var(--chart-heat-good)]" label="服药率 ≥80%" />
           <Legend className="bg-amber-200" label="服药率 50%–80%" />
           <Legend className="bg-red-200" label="服药率 <50% 或有漏服" />
           <Legend className="bg-neutral-100" label="无安排" />
@@ -133,7 +133,7 @@ function StatCard({ label, value, highlight, warn }: { label: string; value: str
   return (
     <div className={`rounded-xl px-4 py-3 ${warn ? 'bg-red-50' : highlight ? 'bg-medgreen-light' : 'bg-neutral-50'}`}>
       <p className="text-sm text-neutral-500">{label}</p>
-      <p className={`mt-1 text-2xl font-bold ${warn ? 'text-red-700' : 'text-medgreen-dark'}`}>{value}</p>
+      <p className={`stat-value mt-1 text-2xl font-bold ${warn ? 'text-red-700' : 'text-medgreen-dark'}`}>{value}</p>
     </div>
   );
 }
@@ -150,9 +150,9 @@ function Legend({ className, label }: { className: string; label: string }) {
 function heatClass(day: AdherenceCalendarDay): string {
   if (day.scheduledCount === 0) return 'bg-neutral-100 text-neutral-400';
   const r = day.adherenceRate ?? rate(day.takenCount, day.scheduledCount) ?? 0;
-  if (day.missedCount === 0 && day.onTimeCount >= day.takenCount && r >= 1) return 'bg-[#0B6B4F] text-white';
+  if (day.missedCount === 0 && day.onTimeCount >= day.takenCount && r >= 1) return 'bg-[var(--chart-heat-full)] text-white';
   if (day.missedCount > 0 && r < 0.5) return 'bg-red-200 text-red-900';
-  if (r >= 0.8) return 'bg-[#7FB8A4] text-[#07382a]';
+  if (r >= 0.8) return 'bg-[var(--chart-heat-good)] text-[var(--color-text-primary)]';
   if (r >= 0.5) return 'bg-amber-200 text-amber-900';
   return 'bg-red-200 text-red-900';
 }

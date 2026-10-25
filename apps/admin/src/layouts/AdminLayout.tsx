@@ -12,9 +12,10 @@ import {
   UserOutlined,
 } from '@ant-design/icons';
 import { ProLayout } from '@ant-design/pro-components';
-import { Dropdown } from 'antd';
+import { Dropdown, Select } from 'antd';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { clearSession, getAdminProfile } from '../services/session';
+import { ADMIN_THEMES, THEMES, useAdminTheme } from '../theme';
 
 const MENU_ROUTES = [
   { path: '/dashboard', name: '仪表盘', icon: <DashboardOutlined /> },
@@ -34,6 +35,7 @@ export default function AdminLayout() {
   const location = useLocation();
   const navigate = useNavigate();
   const profile = getAdminProfile();
+  const { themeId, setThemeId } = useAdminTheme();
 
   const logout = () => {
     clearSession();
@@ -51,7 +53,21 @@ export default function AdminLayout() {
       location={{ pathname: location.pathname }}
       route={{ path: '/', routes: MENU_ROUTES }}
       menuItemRender={(item, dom) => <Link to={item.path ?? '/dashboard'}>{dom}</Link>}
-      token={{ header: { colorBgHeader: '#ffffff' }, sider: { colorBgMenuItemSelected: '#e6f4ef' } }}
+      token={ADMIN_THEMES[themeId].proLayoutToken}
+      /* 主题切换入口（阶段 2）：顶栏选择器，三套主题即时切换、localStorage 持久化。 */
+      actionsRender={() => [
+        <Select
+          key="theme"
+          value={themeId}
+          onChange={setThemeId}
+          style={{ width: 212 }}
+          aria-label="界面主题"
+          options={THEMES.map((t) => ({
+            value: t.id,
+            label: t.id === 'a' ? `${t.label}（${t.description}）` : t.label,
+          }))}
+        />,
+      ]}
       avatarProps={{
         icon: <UserOutlined />,
         size: 'small',
