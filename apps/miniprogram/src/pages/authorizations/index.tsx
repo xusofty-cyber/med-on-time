@@ -149,7 +149,7 @@ function AuthRow({
   children?: ReactNode;
 }) {
   return (
-    <View style={{ background: '#F6F8F7', borderRadius: '16rpx', padding: '18rpx 20rpx' }}>
+    <View style={{ background: 'var(--color-background-page)', borderRadius: '16rpx', padding: '18rpx 20rpx' }}>
       <View className='row-between' style={{ alignItems: 'flex-start' }}>
         <Text className='tx-md tx-strong grow'>{title}</Text>
         <Badge tone={auth.status === 'active' ? 'green' : auth.status === 'pending_accept' ? 'amber' : 'gray'}>

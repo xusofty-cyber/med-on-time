@@ -11,6 +11,7 @@ import {
   Tabs,
   Tag,
   message,
+  theme as antdTheme,
   type TableColumnsType,
 } from 'antd';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -48,6 +49,8 @@ export default function ArticlesTab() {
   const [rows, setRows] = useState<ArticleItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [editing, setEditing] = useState<ArticleGroupRow | 'new' | null>(null);
+  /* 阶段 2：色值一律读 AntD token。 */
+  const { token } = antdTheme.useToken();
   const [saving, setSaving] = useState(false);
   const [form] = Form.useForm<GroupFormValues>();
 
@@ -195,7 +198,7 @@ export default function ArticlesTab() {
       width: 120,
       render: (_: unknown, g: ArticleGroupRow) => {
         const item = g.locales[locale];
-        if (!item) return <span style={{ color: '#bfbfbf' }}>未创建</span>;
+        if (!item) return <span style={{ color: token.colorTextSecondary }}>未创建</span>;
         const m = articleStatusMeta(item.status);
         return <Tag color={m.color}>{m.text}</Tag>;
       },

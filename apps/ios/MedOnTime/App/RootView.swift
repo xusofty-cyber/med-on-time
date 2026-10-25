@@ -3,6 +3,7 @@ import SwiftUI
 /// 根视图：按会话状态分发 登录 / 主 Tab；关怀模式（大字）随当前成员设置全局生效。
 struct RootView: View {
     @EnvironmentObject private var session: AuthSession
+    @StateObject private var themeStore = ThemeStore.shared
 
     var body: some View {
         Group {
@@ -12,13 +13,18 @@ struct RootView: View {
             case .signedOut:
                 LoginView()
             case .signedIn:
+                // 主题切换时重建主 Tab 树：Theme.* 为按当前主题计算的静态值，
+                // 须重建子树才会重新求值。代价是切换瞬间各 Tab 的导航栈回到根页；
+                // 会话引导（.task bootstrap）挂在 Group 层，不受影响。
                 MainTabView()
+                    .id(themeStore.theme.rawValue)
             }
         }
         .task {
             await session.bootstrap()
         }
         .environment(\.careMode, session.careSettings?.careMode ?? false)
+        .environmentObject(themeStore)
         .if(session.careSettings?.careMode == true) { view in
             view.dynamicTypeSize(.accessibility1)
         }

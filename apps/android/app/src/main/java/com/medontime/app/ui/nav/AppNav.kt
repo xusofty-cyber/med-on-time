@@ -52,6 +52,7 @@ import com.medontime.app.feature.plan.DrugDetailScreen
 import com.medontime.app.feature.plan.PlanEditScreen
 import com.medontime.app.feature.plan.PlanListScreen
 import com.medontime.app.feature.today.TodayScreen
+import com.medontime.app.ui.theme.AppTheme
 import com.medontime.app.ui.theme.MedOnTimeTheme
 
 /** 路由定义（五模块：登录/今日/计划/统计/我的，见 API_CONTRACT 前端口径）。 */
@@ -84,8 +85,9 @@ object Routes {
 fun AppRoot(container: AppContainer) {
     val loggedIn by container.sessionStore.isLoggedInFlow.collectAsState(initial = null)
     val careMode by container.sessionStore.careModeFlow.collectAsState(initial = false)
+    val themeId by container.sessionStore.themeIdFlow.collectAsState(initial = "0")
 
-    MedOnTimeTheme(careMode = careMode) {
+    MedOnTimeTheme(theme = AppTheme.fromId(themeId), careMode = careMode) {
         when (loggedIn) {
             null -> Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator()

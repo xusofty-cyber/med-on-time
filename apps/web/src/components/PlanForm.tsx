@@ -408,7 +408,7 @@ export function PlanForm({
               <label className="flex min-h-[44px] items-center gap-2">
                 <input
                   type="checkbox"
-                  className="h-5 w-5 accent-[#0B6B4F]"
+                  className="h-5 w-5 accent-[var(--color-brand-primary)]"
                   checked={!!ph.isFinalStop}
                   onChange={(e) => setPhases((p) => p.map((x, xi) => (xi === i ? { ...x, isFinalStop: e.target.checked } : x)))}
                 />

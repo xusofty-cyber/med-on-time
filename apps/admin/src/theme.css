@@ -1,0 +1,32 @@
+/* Admin 主题覆盖（阶段 2）。AntD 其余样式由 ConfigProvider token 下发，
+ * 此处只补 token 覆盖不到的主题 B 表格密度（MASTER-B §3：单元格 8px × 12px）。
+ * AntD v5 样式经 :where() 注入（特异性为 0），[data-theme] 属性选择器可稳定覆盖。
+ * html[data-theme] 由 apps/admin/src/theme.tsx 的 applyThemeId 写入。 */
+
+/* 主题 B（临床极简）：表格紧凑密度，数字等宽对齐。 */
+[data-theme="b"] .ant-table-cell {
+  padding: 8px 12px !important;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 主题 B：数据视图数字等宽对齐（仪表盘 Statistic 数值）。 */
+[data-theme="b"] .ant-statistic-content-value {
+  font-variant-numeric: tabular-nums;
+}
+
+/* 主题 B：卡片与表格无阴影，靠 1px 边框分层（AntD 默认本就无卡片阴影，此处为兜底）。 */
+[data-theme="b"] .ant-card,
+[data-theme="b"] .ant-table {
+  box-shadow: none;
+}
+
+/* 登录页 eye 密码可见按钮 focus-visible 环（原生 button，AntD token 覆盖不到）：
+ * 3px 描边 + 2px 间隙，与 Web 端 3px 环对齐；主题 0 绿，A/B 蓝。 */
+.pwd-eye-btn:focus-visible {
+  outline: 3px solid #0B6B4F;
+  outline-offset: 2px;
+}
+[data-theme="a"] .pwd-eye-btn:focus-visible,
+[data-theme="b"] .pwd-eye-btn:focus-visible {
+  outline-color: #0369A1;
+}

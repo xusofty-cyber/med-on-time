@@ -20,6 +20,7 @@ import {
   Table,
   Tag,
   message,
+  theme as antdTheme,
 } from 'antd';
 import { useRef, useState } from 'react';
 import { listDisputes, resolveDispute } from '../../api/admin';
@@ -34,6 +35,8 @@ import { fmtDateTime, prettyJson, shortId } from '../../utils/format';
 
 /** 前后值双记录对比：对象走字段级对照表，其他类型走并排 JSON */
 function ValueCompare({ before, after }: { before: unknown; after: unknown }) {
+  /* 阶段 2：色值一律读 AntD token。 */
+  const { token } = antdTheme.useToken();
   const isPlainObject = (v: unknown): v is Record<string, unknown> =>
     typeof v === 'object' && v !== null && !Array.isArray(v);
 
@@ -65,7 +68,7 @@ function ValueCompare({ before, after }: { before: unknown; after: unknown }) {
             title: '变更后值',
             dataIndex: 'after',
             render: (v: unknown) => (
-              <span style={{ whiteSpace: 'pre-wrap', color: '#0B6B4F' }}>{prettyJson(v)}</span>
+              <span style={{ whiteSpace: 'pre-wrap', color: token.colorPrimary }}>{prettyJson(v)}</span>
             ),
           },
         ]}
@@ -91,6 +94,8 @@ function ValueCompare({ before, after }: { before: unknown; after: unknown }) {
 
 /** 客服裁决：纠纷（授权/代操作争议）列表 + 前后值双记录 + 全权裁决提交 */
 export default function DisputesPage() {
+  /* 阶段 2：色值一律读 AntD token。 */
+  const { token } = antdTheme.useToken();
   const actionRef = useRef<ActionType>();
   const [detail, setDetail] = useState<DisputeItem | null>(null);
   const [resolveTarget, setResolveTarget] = useState<DisputeItem | null>(null);
@@ -235,7 +240,7 @@ export default function DisputesPage() {
             {detail.finalValue !== undefined && detail.finalValue !== null && (
               <>
                 <h4 style={{ margin: '20px 0 8px' }}>裁定值</h4>
-                <pre style={{ whiteSpace: 'pre-wrap', background: '#f6ffed', padding: 12 }}>
+                <pre style={{ whiteSpace: 'pre-wrap', background: token.colorSuccessBg, padding: 12 }}>
                   {prettyJson(detail.finalValue)}
                 </pre>
               </>

@@ -199,7 +199,7 @@ export default function Login() {
               />
               {codeChannel === 'phone' ? (
                 <>
-                  <Text className='tx-sm' style={{ color: '#c0392b' }}>
+                  <Text className='tx-sm' style={{ color: 'var(--color-status-danger-text)' }}>
                     短信通道暂未开通，请使用邮箱验证码
                   </Text>
                   <Field label='手机号'>
@@ -330,7 +330,7 @@ function ResetPasswordForm({ onDone }: { onDone: () => void }) {
     }
   };
   return (
-    <View className='col' style={{ gap: '20rpx', borderTop: '1rpx solid #eef1ef', paddingTop: '24rpx' }}>
+    <View className='col' style={{ gap: '20rpx', borderTop: '1rpx solid var(--color-background-muted)', paddingTop: '24rpx' }}>
       <Text className='tx-h'>重置密码</Text>
       <SegTabs
         options={[
@@ -342,7 +342,7 @@ function ResetPasswordForm({ onDone }: { onDone: () => void }) {
       />
       {channel === 'phone' ? (
         <>
-          <Text className='tx-sm' style={{ color: '#c0392b' }}>
+          <Text className='tx-sm' style={{ color: 'var(--color-status-danger-text)' }}>
             短信通道暂未开通，请使用邮箱验证码
           </Text>
           <Field label='手机号'>

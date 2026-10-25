@@ -93,7 +93,7 @@ export default function Register() {
           />
           {channel === 'phone' ? (
             <>
-              <Text className='tx-sm' style={{ color: '#c0392b' }}>
+              <Text className='tx-sm' style={{ color: 'var(--color-status-danger-text)' }}>
                 短信通道暂未开通，请使用邮箱验证码
               </Text>
               <Field label='手机号'>

@@ -160,7 +160,13 @@ export default function Today() {
 
       {due.length > 0 && (
         <div className="rounded-2xl border-2 border-amber-400 bg-amber-50 p-4" role="alert">
-          <p className="text-lg font-semibold text-amber-800">⏰ 到吃药的时间了</p>
+          <p className="flex items-center gap-2 text-lg font-semibold text-amber-800">
+            <svg className="h-6 w-6 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="9" />
+              <path d="M12 7v5l3 2" />
+            </svg>
+            到吃药的时间了
+          </p>
           <ul className="mt-2 flex flex-col gap-1">
             {due.map((i) => (
               <li key={i.id} className="text-amber-900">
@@ -189,12 +195,12 @@ export default function Today() {
                     <span
                       className={`timeline-dot ${
                         item.status === 'taken'
-                          ? 'bg-medgreen'
+                          ? 'dot-taken'
                           : item.status === 'missed'
-                            ? 'bg-red-500'
+                            ? 'dot-missed'
                             : isDue
-                              ? 'bg-amber-500'
-                              : 'bg-neutral-300'
+                              ? 'dot-due'
+                              : 'dot-pending'
                       }`}
                     />
                     {idx < items.length - 1 && <span className="w-px flex-1 bg-neutral-200" />}
@@ -221,21 +227,35 @@ export default function Today() {
                       )}
                     </div>
                     {!done && canOperate && (
-                      <div className="mt-3 flex flex-wrap gap-2">
+                      /* 状态三重表达（颜色 + 图标 + 文字）：三按钮各配内联 SVG 图标，
+                       * 不再只靠颜色区分已服/稍后/跳过。主题 A 下本行按钮放大（见 index.css）。 */
+                      <div className="today-actions mt-3 flex flex-wrap gap-2">
                         <Button
+                          variant="success"
                           disabled={busyId === item.id}
                           onClick={() => act(item.id, () => reminderApi.checkin(item.id), '已打卡，服药记录完成')}
                         >
-                          ✓ 已服用
+                          <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                            <path d="M20 6 9 17l-5-5" />
+                          </svg>
+                          已服用
                         </Button>
                         <Button
                           variant="soft"
                           disabled={busyId === item.id}
                           onClick={() => act(item.id, () => reminderApi.snooze(item.id), '已稍后提醒（按提醒周期顺延）')}
                         >
+                          <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                            <circle cx="12" cy="12" r="9" />
+                            <path d="M12 7v5l3 2" />
+                          </svg>
                           稍后提醒
                         </Button>
                         <Button variant="ghost" disabled={busyId === item.id} onClick={() => setSkipTarget(item)}>
+                          <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                            <circle cx="12" cy="12" r="9" />
+                            <path d="m5.5 5.5 13 13" />
+                          </svg>
                           跳过
                         </Button>
                       </div>

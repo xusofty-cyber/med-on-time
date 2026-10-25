@@ -155,7 +155,8 @@ export default function Login() {
         </form>
         )}
         <div className="mt-5 flex items-center justify-between text-base">
-          <button className="text-medgreen-dark underline" onClick={() => navigate('/register')}>
+          {/* 2026-10-25 修复：浏览器验证估算行内链接点击区仅约 20px 高，补 44px 最小触控高度。 */}
+          <button className="inline-flex min-h-[44px] items-center px-2 text-medgreen-dark underline" onClick={() => navigate('/register')}>
             注册新账号
           </button>
           <ResetPasswordLink />
@@ -255,7 +256,7 @@ function ResetPasswordLink() {
 
   if (!open) {
     return (
-      <button className="text-neutral-600 underline" onClick={() => setOpen(true)}>
+      <button className="inline-flex min-h-[44px] items-center px-2 text-neutral-600 underline" onClick={() => setOpen(true)}>
         忘记密码
       </button>
     );

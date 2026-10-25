@@ -9,7 +9,7 @@ import {
   type ActionType,
   type ProColumns,
 } from '@ant-design/pro-components';
-import { Button, Popconfirm, Space, Tag, message } from 'antd';
+import { Button, Popconfirm, Space, Tag, message, theme as antdTheme } from 'antd';
 import dayjs from 'dayjs';
 import { useRef, useState } from 'react';
 import {
@@ -39,6 +39,8 @@ const LOCALE_OPTIONS = [
 export default function ConsentsTab() {
   const actionRef = useRef<ActionType>();
   const [editing, setEditing] = useState<ConsentItem | 'new' | null>(null);
+  /* 阶段 2：色值一律读 AntD token。 */
+  const { token } = antdTheme.useToken();
 
   const columns: ProColumns<ConsentItem>[] = [
     {
@@ -77,7 +79,7 @@ export default function ConsentsTab() {
       hideInSearch: true,
       width: 90,
       render: (_, r) =>
-        r.isMaterialChange ? <Tag color="red">需重新确认</Tag> : <span style={{ color: '#8c8c8c' }}>否</span>,
+        r.isMaterialChange ? <Tag color="red">需重新确认</Tag> : <span style={{ color: token.colorTextSecondary }}>否</span>,
     },
     {
       title: '状态',

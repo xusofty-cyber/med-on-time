@@ -13,10 +13,12 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -26,8 +28,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -46,6 +50,7 @@ import com.medontime.app.ui.components.CareButton
 import com.medontime.app.ui.components.CareTextButton
 import com.medontime.app.ui.components.SectionTitle
 import com.medontime.app.ui.components.viewModelFactory
+import com.medontime.app.ui.theme.AppTheme
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -69,6 +74,11 @@ class SettingsViewModel(
     private val _state = MutableStateFlow(SettingsUiState())
     val state: StateFlow<SettingsUiState> = _state.asStateFlow()
     val baseUrlFlow: kotlinx.coroutines.flow.Flow<String> = store.baseUrlFlow
+    val themeIdFlow: kotlinx.coroutines.flow.Flow<String> = store.themeIdFlow
+
+    fun setThemeId(themeId: String) {
+        viewModelScope.launch { store.setThemeId(themeId) }
+    }
 
     fun load() {
         viewModelScope.launch {
@@ -162,6 +172,7 @@ fun SettingsScreen() {
     )
     val state by vm.state.collectAsState()
     val baseUrl by vm.baseUrlFlow.collectAsState(initial = "")
+    val themeId by vm.themeIdFlow.collectAsState(initial = "0")
     var nickname by remember { mutableStateOf("") }
     var baseUrlInput by remember { mutableStateOf("") }
     var showCancel by remember { mutableStateOf(false) }
@@ -205,6 +216,36 @@ fun SettingsScreen() {
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         CareTextButton(text = "保存服务器地址", onClick = { vm.saveBaseUrl(baseUrlInput.trim()) })
+
+        SectionTitle("界面主题")
+        AppTheme.values().forEach { option ->
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .selectable(
+                        selected = themeId == option.id,
+                        onClick = { vm.setThemeId(option.id) },
+                        role = Role.RadioButton,
+                    )
+                    .padding(vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                RadioButton(selected = themeId == option.id, onClick = null)
+                Column(modifier = Modifier.padding(start = 12.dp)) {
+                    Text(option.label, style = MaterialTheme.typography.bodyLarge)
+                    Text(
+                        option.description,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        }
+        Text(
+            "主题 B（临床极简）仅 Admin 与 PC Web 可用，移动端不提供。切换后立即生效，保存在本机。",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
 
         SectionTitle("提醒权限")
         val alarmManager = remember { context.getSystemService(AlarmManager::class.java) }

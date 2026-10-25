@@ -97,6 +97,11 @@ struct TodayView: View {
                 }
             }
         }
+        // 主题 A：列表底改为暖白（主题 0 沿用系统分组底，不动）。
+        .if(Theme.current == .warm) { view in
+            view.scrollContentBackground(.hidden)
+                .background(Theme.background)
+        }
     }
 
     private var skipAlertBinding: Binding<Bool> {
@@ -130,14 +135,14 @@ struct ReminderRowView: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .firstTextBaseline, spacing: 10) {
                 Text(instance.localTimeText)
-                    .font(careMode ? .title2.bold() : .headline)
+                    .font(Theme.titleFont(care: careMode))
                     .foregroundStyle(Theme.primary)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(instance.drugNameSnapshot)
-                        .font(careMode ? .title3.bold() : .headline)
+                        .font(Theme.drugNameFont(care: careMode))
                     Text(detailText)
-                        .font(careMode ? .body : .subheadline)
-                        .foregroundStyle(.secondary)
+                        .font(Theme.bodyFont(care: careMode))
+                        .foregroundStyle(Theme.textSecondary)
                 }
                 Spacer()
                 statusChip
@@ -155,23 +160,42 @@ struct ReminderRowView: View {
             }
 
             if instance.status.isActionable {
+                // 状态三重表达（颜色 + 图标 + 文字）：三按钮各配 SF Symbol，不再只靠颜色区分。
                 HStack(spacing: 10) {
-                    Button("已服用") { onTake() }
-                        .buttonStyle(.borderedProminent)
-                        .tint(Theme.primary)
-                    Button("稍后") { onSnooze() }
-                        .buttonStyle(.bordered)
-                    Button("跳过") { onSkip() }
-                        .buttonStyle(.bordered)
-                        .foregroundStyle(Theme.danger)
+                    Button { onTake() } label: {
+                        Label("已服用", systemImage: "checkmark")
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(Theme.successAction)
+                    Button { onSnooze() } label: {
+                        Label("稍后", systemImage: "clock")
+                    }
+                    .buttonStyle(.bordered)
+                    Button { onSkip() } label: {
+                        Label("跳过", systemImage: "xmark")
+                    }
+                    .buttonStyle(.bordered)
+                    .foregroundStyle(Theme.danger)
                     if isActing {
                         ProgressView()
                     }
                 }
-                .careTouchTarget(careMode)
+                .themeTouchTarget(careMode)
             }
         }
-        .padding(.vertical, 4)
+        // 主题 A 今日提醒大卡片：白底卡片 + 24pt 内边距 + 12pt 圆角 + 柔和阴影，
+        // 行底透出暖白页底；主题 0 保持原有 4pt 纵向间距，不动。
+        .if(Theme.current == .warm) { view in
+            view
+                .padding(Theme.cardPadding)
+                .background(Theme.surface)
+                .clipShape(RoundedRectangle(cornerRadius: Theme.cornerRadius))
+                .shadow(color: Theme.cardShadowColor, radius: 12, x: 0, y: 4)
+                .listRowBackground(Theme.background)
+        }
+        .if(Theme.current == .standard) { view in
+            view.padding(.vertical, 4)
+        }
     }
 
     private var detailText: String {
@@ -182,14 +206,25 @@ struct ReminderRowView: View {
         return parts.joined(separator: " · ")
     }
 
+    /// 状态三重表达（颜色 + 图标 + 文字）：徽标同时给 tint 底、SF Symbol 与文字。
     private var statusChip: some View {
-        Text(instance.status.label)
+        Label(instance.status.label, systemImage: statusIcon)
             .font(.caption.bold())
             .padding(.horizontal, 8)
             .padding(.vertical, 4)
             .background(chipColor.opacity(0.15))
             .foregroundStyle(chipColor)
             .clipShape(Capsule())
+    }
+
+    private var statusIcon: String {
+        switch instance.status {
+        case .taken: return "checkmark.circle.fill"
+        case .missed: return "xmark.circle.fill"
+        case .snoozed: return "clock.fill"
+        case .skipped: return "minus.circle.fill"
+        default: return "circle"
+        }
     }
 
     private var chipColor: Color {

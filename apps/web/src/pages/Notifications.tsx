@@ -177,7 +177,7 @@ function PrefRow({
       </span>
       <input
         type="checkbox"
-        className="h-6 w-6 accent-[#0B6B4F]"
+        className="h-6 w-6 accent-[var(--color-brand-primary)]"
         checked={checked}
         disabled={disabled}
         onChange={(e) => onChange(e.target.checked)}
