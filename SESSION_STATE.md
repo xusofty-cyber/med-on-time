@@ -176,3 +176,8 @@
 - 验证：脚本已在服务器实测通过（退出 0：清单 2062 行、恢复 0 报错、159 表一致、414=414、容器已删）。演练教训已写入脚本注释与文档：docker exec 读 stdin 用 cat 管道或 docker cp（重定向在 ssh 下两次喂空报 too short）；medontime 账号无建库权限须用一次性容器；缺角色时 159 条 OWNER TO 报错仅改属主、不影响数据。
 - 审查（2026-10-25）：0 Critical/High、1 Medium（M1：pg_restore 报错时 set -e 使诊断分支不可达）、7 Low。已全部修复：M1 用 set +e 捕获退出码；L1 容器名加 $$；L2 /tmp 固定文件改 mktemp -d（trap 一并清理）；L3 openssl 依赖改 /dev/urandom；L4 docker run 加 --rm；L5 相对路径以调用方 cwd 为基准（文档示例同步改）；L6 成功信息改为显式 cleanup 后打印。L7（stderr 任一行即判失败）保留保守策略。修复后重测：默认与显式传参两遍均退出 0；另用 1.1M 截断 dump 验失败路径：打印“恢复失败（退出码 1，1 行报错）”+ 诊断、退出 1、容器已删。
 - 待办：提交 → 推送 → 提 PR（develop）。
+
+## 2026-10-25 v0.3.0 发布失败修复（fix/release-miniprogram-zip，未提交）
+- 背景：v0.3.0 tag 已推，CI 6 个构建任务全成功，“汇总发布 Release”失败、Release 无产物。日志查明：softprops/action-gh-release 按文件名扁平化上传附件，小程序 dist 各子目录大量同名文件（index.js/index.json/index.wxml）互相覆盖/竞态，最终 GitHub API 报 already_exists（ReleaseAsset name）致命错误。v0.2.1 同一步也失败过，但 21 个产物最终齐全；本次无任何构建产物进 Release。
+- 修复（.github/workflows/release.yml）：小程序任务在构建后把 dist 打成单个 MedOnTime-miniprogram-dist.zip 再上传（zip 内保留目录结构，散件同名无害）；发布说明与头部注释同步更新。本地验证：YAML 解析通过；用本地 dist 实测 zip 步骤（66 文件、135K，index.js 在 zip 内 26 处同名共存无问题）。
+- 待办：代码审查 → 提交 → 推送 → 提 PR（develop）；用户合并后删远程 v0.3.0 tag 重推，重新触发 CI 发布。

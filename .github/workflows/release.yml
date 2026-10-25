@@ -9,7 +9,11 @@
 #   - 桌面（Electron）：Windows NSIS 安装包 / macOS DMG / Linux AppImage（原生 runner 各自构建，含 apps/web 产物）
 #   - Android：assembleRelease 正式签名 APK（applicationId com.medontime.app，Gradle 8.7 + JDK 17；签名 secrets 就绪时生效）
 #   - iOS：XcodeGen 生成工程后 xcodebuild 无签名构建的 .app（zip）；上架签名/IPA 打包需证书 secrets，另行接入
-#   - 小程序：Taro build:weapp 的 dist 目录（导入微信开发者工具上传；miniprogram-ci 自动上传可后续以 secrets 接入）
+#   - 小程序：Taro build:weapp 的 dist 目录打成单个 zip（MedOnTime-miniprogram-dist.zip，
+#     解压后导入微信开发者工具上传；miniprogram-ci 自动上传可后续以 secrets 接入）。
+#     注意：dist 内各子目录有大量同名文件（index.js/index.json/index.wxml），
+#     不能散件上传——发布步骤按文件名扁平化上传会撞名导致 already_exists
+#     而失败（2026-10-25 v0.3.0 实测）。
 name: Release - 各端打包
 
 on:
@@ -169,11 +173,14 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - name: 构建微信小程序
         run: pnpm --filter @med-on-time/miniprogram build:weapp
+      - name: 打包 dist 为单个 zip（散件上传会在发布时撞名，见头部说明）
+        working-directory: apps/miniprogram/dist
+        run: zip -r "$GITHUB_WORKSPACE/MedOnTime-miniprogram-dist.zip" .
       - name: 上传产物
         uses: actions/upload-artifact@v4
         with:
           name: miniprogram-dist
-          path: apps/miniprogram/dist
+          path: MedOnTime-miniprogram-dist.zip
           if-no-files-found: error
 
   publish:
@@ -199,4 +206,4 @@ jobs:
             - 桌面：Windows 安装包（.exe）/ macOS（.dmg）/ Linux（.AppImage）
             - 安卓：正式签名 APK（可直接安装与覆盖升级）
             - iOS：无签名 .app 压缩包（仅验证构建；上架需证书签名）
-            - 小程序：dist 目录在构建产物（Artifacts）中，需导入微信开发者工具上传
+            - 小程序：dist 压缩包（MedOnTime-miniprogram-dist.zip），解压后导入微信开发者工具上传
