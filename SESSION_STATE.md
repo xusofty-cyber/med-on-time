@@ -192,3 +192,20 @@
 - 修复（.github/workflows/release.yml）：小程序任务在构建后把 dist 打成单个 MedOnTime-miniprogram-dist.zip 再上传（zip 内保留目录结构，散件同名无害）；发布说明与头部注释同步更新。本地验证：YAML 解析通过；用本地 dist 实测 zip 步骤（66 文件、135K，index.js 在 zip 内 26 处同名共存无问题）。
 - 待办：代码审查 → 提交 → 推送 → 提 PR（develop）；用户合并后删远程 v0.3.0 tag 重推，重新触发 CI 发布。
 
+
+## 2026-10-25 v0.3.0 重推发布（进行中）
+- PR #4（小程序 dist 打 zip）与 PR #5（安卓/iOS 默认 API 地址改为生产域名）均已合并（21:05/21:06，develop 现为 cf35859）。
+- 远程 v0.3.0 tag 已删并在新 HEAD cf35859 重推（新 annotated tag，注明重推原因）；本地与服务器工作区均已快进到 cf35859，tag 已同步。
+- 新 CI 运行 40196220084 于 21:08 启动（head cf35859），in_progress；约 21:30 检查发布结果。
+
+## 2026-10-25 安卓/iOS 分组返回适配（fix/mobile-grouped-responses，未提交）
+- 背景：用户登录安卓后“今日提醒”页报 JSON 解析错误：`$.data` 期望数组却收到对象 `{"own":[...]}`。根因：服务端 2026-10-23 契约定版后 GET /members 返回 `{own, authorized}` 分组对象，Web/小程序已适配归一化，安卓仍按旧口径期望 `List<MemberDto>`；今日页先拉成员列表，第一步即抛错。iOS 同款问题（MemberService 解码 `[MemberDTO]`）。
+- 排查（契约例外口径全量核对）：安卓另有两处同类错配——GET /authorizations 期望 List、服务端返 `{granted, received}`；GET /account/sessions 期望 List、服务端返 `{items, total}`。adherence summary/calendar、reminders today 的 DTO 已与契约一致，无需改。iOS 三处同款（members/authorizations/sessions）。
+- 修复：安卓新增 MembersGroupedDto / AuthorizationsGroupedDto，sessions 改用既有 PageData；仓库层合并 own+authorized、granted+received、取 items。iOS 新增 MembersGroupedDTO / AuthorizationsGroupedDTO / PagedDTO；MemberDTO 加 CodingKeys 把后端 `access` 映射到 accessLevel（此前字段名对不上，isOwn 恒真）；三处服务层同样合并/解包。
+- 待办：代码审查 → 提交 → 推送 → 提 PR（develop）；用户合并后随下个版本发布（需重新打包安卓/iOS，线上 Web/API 不动）。
+
+## 2026-10-25 21:37 分组返回适配审查后修复（fix/mobile-grouped-responses，未提交）
+- 审查结论：0 Critical/High，1 Medium + 3 Low，须再修。M1：iOS MemberDTO 把 `access` 映射进 accessLevel，被授权成员副标题会显示英文 "caregiver" 而非级别（Web 口径为 level）；L2：iOS AuthorizationDTO 的 memberName/grantorNickname 恒为 nil（服务端字段名为 memberDisplayName/grantedByNickname）。
+- 已修复：MemberDTO 改为 extension 内自定义 init(from:)，accessLevel 按 Web 口径派生（owner → owner，否则 level ?? "caregiver"），memberwise 初始化不受影响；AuthorizationDTO 加 CodingKeys 映射两个字段名。
+- 未修（另起跟进，不阻塞）：L1 安卓 MemberDto 缺 accessLevel/authorizationId（成员上限计数与编辑/删除门控对被授权成员不准，服务端隔离兜底）；L3 会话 current 字段服务端从不下发（需服务端补 current: s.id === sid）。
+- 待办：针对 M1/L2 窄复审 → 提交 → 推送 → 提 PR（develop）。

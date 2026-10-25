@@ -31,6 +31,12 @@ struct UserSessionDTO: Decodable, Identifiable {
     let current: Bool?
 }
 
+/// 分页包装 {items, total}（契约 2026-10-23 定版；page/pageSize 缺省时服务端不返回）。
+struct PagedDTO<T: Decodable>: Decodable {
+    let items: [T]
+    let total: Int
+}
+
 /// 微信绑定占位结果（未接真实微信前服务端返回未开通说明）。
 struct WechatBindResultDTO: Decodable {
     let ok: Bool

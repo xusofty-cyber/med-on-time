@@ -6,7 +6,8 @@ struct MemberService {
     let api: APIClient
 
     func list() async throws -> [MemberDTO] {
-        try await api.get("members")
+        let grouped: MembersGroupedDTO = try await api.get("members")
+        return grouped.own + grouped.authorized
     }
 
     func create(_ request: CreateMemberRequest) async throws -> MemberDTO {
