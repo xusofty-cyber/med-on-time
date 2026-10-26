@@ -1,5 +1,6 @@
 package com.medontime.app.feature.me
 
+import android.content.Context
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -10,6 +11,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Button
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
@@ -21,6 +23,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -36,19 +39,24 @@ import com.medontime.app.data.model.UpdateCareSettingsRequest
 import com.medontime.app.data.model.UpdateNotificationPrefsRequest
 import com.medontime.app.data.repository.HealthRepository
 import com.medontime.app.data.repository.MemberRepository
+import com.medontime.app.data.repository.PlanRepository
+import com.medontime.app.reminder.DoseAlerter
 import com.medontime.app.reminder.ReminderScheduler
+import com.medontime.app.reminder.VoiceAnnouncer
 import com.medontime.app.ui.components.EmptyBox
 import com.medontime.app.ui.components.ErrorBox
 import com.medontime.app.ui.components.LoadingBox
 import com.medontime.app.ui.components.SectionTitle
 import com.medontime.app.ui.components.viewModelFactory
 import kotlinx.coroutines.launch
+import kotlin.coroutines.cancellation.CancellationException
 
 class CareViewModel(
     private val memberRepo: MemberRepository,
     private val healthRepo: HealthRepository,
     private val store: SessionStore,
     private val scheduler: ReminderScheduler,
+    private val planRepo: PlanRepository,
 ) : ViewModel() {
     var memberId: String? by mutableStateOf(null)
         private set
@@ -64,10 +72,24 @@ class CareViewModel(
         private set
     var message: String? by mutableStateOf(null)
         private set
+    /** 有计划级强提醒覆盖的计划（计划名，覆盖方式）：覆盖优先于上方成员设置。 */
+    var planOverrides: List<Pair<String, StrongAlertMode>> by mutableStateOf(emptyList())
+        private set
+    /** “试听语音”的最近一次结果文案（成功/失败原因）。 */
+    var voiceTestResult: String? by mutableStateOf(null)
+        private set
+    /** 试听进行中（防连点并行建多个引擎）。 */
+    var voiceTesting: Boolean by mutableStateOf(false)
+        private set
+    /** 上次后台播报失败时留下的原因（无则为空）。 */
+    var lastVoiceError: String? by mutableStateOf(null)
+        private set
 
     fun load() {
         loading = true
         error = null
+        planOverrides = emptyList()
+        lastVoiceError = DoseAlerter.lastVoiceError
         viewModelScope.launch {
             try {
                 val members = memberRepo.listMembers()
@@ -81,6 +103,9 @@ class CareViewModel(
                 memberName = current.displayName
                 care = memberRepo.careSettings(current.id)
                 prefs = healthRepo.notificationPrefs()
+                planOverrides = runCatching { planRepo.listPlans(current.id) }.getOrNull()
+                    ?.mapNotNull { plan -> plan.strongAlertModeOverride?.let { plan.name to it } }
+                    ?: emptyList()
             } catch (e: ApiException) {
                 error = e.message
             } catch (e: Exception) {
@@ -111,6 +136,31 @@ class CareViewModel(
     fun setLockScreen(on: Boolean) = updateCare(UpdateCareSettingsRequest(lockScreenShowDrugDetail = on))
     fun setStrongAlert(mode: StrongAlertMode) = updateCare(UpdateCareSettingsRequest(strongAlertMode = mode))
 
+    /** 前台试听：走与后台播报同一条 TTS 路径，报出真实状态（引擎/中文包/播报结果）。 */
+    fun testVoice(context: Context) {
+        if (voiceTesting) return
+        viewModelScope.launch {
+            voiceTesting = true
+            try {
+                voiceTestResult = "测试中…"
+                val diagnosis = try {
+                    VoiceAnnouncer.testSpeak(context)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    null
+                }
+                voiceTestResult = diagnosis?.describe() ?: "测试失败：未知错误"
+                if (diagnosis?.ok == true) {
+                    DoseAlerter.clearVoiceError()
+                    lastVoiceError = null
+                }
+            } finally {
+                voiceTesting = false
+            }
+        }
+    }
+
     private fun updatePrefs(request: UpdateNotificationPrefsRequest) {
         viewModelScope.launch {
             try {
@@ -131,6 +181,7 @@ class CareViewModel(
 @Composable
 fun CareScreen() {
     val container = LocalAppContainer.current
+    val appContext = LocalContext.current.applicationContext
     val vm: CareViewModel = viewModel(
         factory = viewModelFactory {
             CareViewModel(
@@ -138,6 +189,7 @@ fun CareScreen() {
                 container.healthRepository,
                 container.sessionStore,
                 container.reminderScheduler,
+                container.planRepository,
             )
         },
     )
@@ -211,6 +263,44 @@ fun CareScreen() {
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 4.dp),
                 )
+                if (vm.planOverrides.isNotEmpty()) {
+                    Text(
+                        "当前生效：" + vm.planOverrides.joinToString("；") { (name, mode) ->
+                            "计划「$name」覆盖为${when (mode) {
+                                StrongAlertMode.Alarm -> "闹钟"
+                                StrongAlertMode.Voice -> "语音"
+                                StrongAlertMode.None -> "无"
+                            }}（优先于上方成员设置）"
+                        },
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 4.dp),
+                    )
+                }
+
+                SectionTitle("语音播报测试")
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(
+                        onClick = { vm.testVoice(appContext) },
+                        enabled = !vm.voiceTesting,
+                    ) {
+                        Text("试听语音")
+                    }
+                }
+                vm.voiceTestResult?.let {
+                    Text(
+                        it,
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.padding(top = 4.dp),
+                    )
+                }
+                vm.lastVoiceError?.let {
+                    Text(
+                        "上次后台播报：$it",
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.padding(top = 4.dp),
+                    )
+                }
 
                 SectionTitle("隐私")
                 SwitchRow(

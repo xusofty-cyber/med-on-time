@@ -218,4 +218,10 @@
 ## 2026-10-26 管理端登录 401 文案修复（进行中）
 - 用户报：admin.ulife.vip/login 上密码错也弹三条“登录已过期”。根因：管理端 request.ts 把所有 401 都当会话过期，丢掉后端“用户名或密码不正确”原话；登录页每失败一次弹一条，三条=点了三次。
 - 同类扫查（Web/小程序/Android/iOS/桌面）：均无用户可见同类问题——Web 与小程序保留后端原话、Android 解析错误体原话、iOS 登录走 postPublic 绕过刷新且保留原话；桌面复用 Web。残留小毛病（登录 401 时 Web/小程序/Android 在有残留 refresh token 时会多发一次无用刷新）未修，记为跟进项。
-- 修复（分支 fix/admin-login-401-message）：request.ts 加 authCall 选项，鉴权调用的 401 保留后端原话、不刷新、不清会话、不跳登录；adminLogin 传 authCall: true。类型检查与构建均通过。
+- 修复（分支 fix/admin-login-401-message）：request.ts 加 authCall 选项，鉴权调用的 401 保留后端原话、不刷新、不清会话、不跳登录；adminLogin 传 authCall: true。类型检查与构建均通过。代码审查 0 Critical/High/Medium，可合（仅 2 Low：L1 文件头注释已过期，已顺手改；L2 观察项，不改）。PR #7（https://github.com/xusofty-cyber/med-on-time/pull/7，服务器提交 c27adb4）已于 20:28 合并，develop 现为 f68d1b5。已部署上线：部署前备份 medontime-20261026-202924.dump（1.2M）；update.sh 跑完，三容器已重启（api healthy），mot/admin 均为 200，/api/ops/health 返回 code 0，线上 Admin bundle 含 authCall，修复已生效。部署中云澈侧 SSH 曾断开一次（Broken pipe），但脚本在服务器上跑完了，未受影响。另确认今早 03:30 第一次自动备份已跑出（medontime-20261026-033001.dump），定时备份通了。
+
+## 2026-10-26 安卓强提醒语音/闹钟失效修复（进行中）
+- 用户报：语音从没响过；改闹钟后 21:30 那次也没响铃。查库：21:30 那次（01a17865）服务端正常 reminded；成员设置 21:27:41 刚改成 alarm，但计划覆盖仍为 voice（10-24），计划覆盖优先于成员设置——所以 21:30 那次实际仍走语音，闹钟根本没被测到；语音本身仍未播出。
+- 根因（App 侧）：ExactAlarmReceiver 异步初始化 TTS 后立即返回，进程可能在播出前被系统杀掉；且 90 秒去重先记后播，失败一路把另一路也拦住；TTS 失败全程静默。TTS 引擎已由用户实测排除（系统试听有声）。
+- 修复（分支 fix/android-voice-test-and-harden）：VoiceAnnouncer 改悬挂式 enqueue，判 init/setLanguage/speak 返回值并返回诊断；DoseAlerter 去重只记成功，失败不记且留 lastVoiceError；ExactAlarmReceiver 用 goAsync + 唤醒锁（新增 WAKE_LOCK 权限）保到语音排队完成；设置页加“试听语音”按钮（报真实状态）与计划覆盖生效展示（防再误以为成员设置已生效）。
+- 代码审查：首轮 0 Critical、2 High（H1 setLanguage 判定只认 0、H2 去重不再原子）+ 2 Medium + 8 Low，均已修；窄幅复审 verdict 可合（0 Critical/High/Medium），新发现 2 Low（voice 分支吞取消异常、setLanguage 异常误报）已顺手修掉。用户授权：不再经用户审核，由云澈直接合 PR 并发 v0.3.2。注意：本机无 Android SDK，无法本地编译，靠审查 + Release 构建验证。

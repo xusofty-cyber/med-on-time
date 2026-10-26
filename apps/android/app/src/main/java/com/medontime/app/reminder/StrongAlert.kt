@@ -12,6 +12,8 @@ import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
 import android.speech.tts.TextToSpeech
+import android.speech.tts.UtteranceProgressListener
+import android.util.Log
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -38,10 +40,13 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.medontime.app.MainActivity
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import java.util.Locale
+import kotlin.coroutines.cancellation.CancellationException
+import kotlin.coroutines.resume
 
 /**
  * 强提醒呈现分发（2026-10-24 定版）：弹窗通知（基础层）由 NotificationHelper 恒发；
@@ -49,66 +54,231 @@ import java.util.Locale
  * 隐私口径与通知层一致：lockScreenShowDrugDetail 关闭时，闹钟页与语音都只用通用文案，
  * 不出现药名/剂量。
  */
-object DoseAlerter {
-    /** 双通道（WorkManager + 精确闹钟）同实例会各触发一次：90 秒内同实例强提醒只呈现一次。 */
-    private val recent = mutableMapOf<String, Long>()
 
-    fun presentStrong(context: Context, payload: DosePayload, showDrugDetail: Boolean) {
-        if (payload.strongMode == "none") return
-        val now = System.currentTimeMillis()
-        synchronized(recent) {
-            val last = recent[payload.instanceId] ?: 0L
-            if (now - last < 90_000) return
-            recent[payload.instanceId] = now
-            if (recent.size > 64) recent.clear()
-        }
-        when (payload.strongMode) {
-            "alarm" -> AlarmRingActivity.start(context, payload, showDrugDetail)
-            "voice" -> VoiceAnnouncer.speakDose(context, payload, showDrugDetail)
-            else -> Unit
-        }
+/**
+ * 语音播报诊断结果（设置页“试听语音”与后台播报共用同一判定口径）。
+ *
+ * - initOk：TTS 引擎初始化成功
+ * - languageResult：setLanguage 返回值（LANG_AVAILABLE 等；初始化失败或
+ *   setLanguage 抛异常时为 Int.MIN_VALUE）
+ * - speakResults：每次 speak() 的返回值（SUCCESS / ERROR）
+ * - enginePackage：当前默认 TTS 引擎包名
+ */
+data class VoiceDiagnosis(
+    val initOk: Boolean,
+    val languageResult: Int,
+    val speakResults: List<Int>,
+    val enginePackage: String?,
+) {
+    val ok: Boolean
+        get() = initOk &&
+            // setLanguage 返回 0/1/2 均为成功（LANG_AVAILABLE / LANG_COUNTRY_AVAILABLE /
+            // LANG_COUNTRY_VAR_AVAILABLE），只有负值才是失败；旧代码要求恰好等于 0，
+            // 在返回 1/2 的引擎上会把成功的语音误判为失败。
+            languageResult >= 0 &&
+            speakResults.isNotEmpty() &&
+            speakResults.all { it == TextToSpeech.SUCCESS }
+
+    fun describe(): String = when {
+        !initOk -> "播报失败：语音引擎初始化失败（请检查系统设置 → 文字转语音）"
+        languageResult == TextToSpeech.LANG_MISSING_DATA -> "播报失败：缺少中文语音数据（系统设置 → 文字转语音 → 安装语音数据）"
+        languageResult == TextToSpeech.LANG_NOT_SUPPORTED -> "播报失败：当前语音引擎不支持中文"
+        languageResult == Int.MIN_VALUE -> "播报失败：语音语言设置异常（请检查系统文字转语音设置）"
+        languageResult < 0 -> "播报失败：语音语言设置失败（返回码 $languageResult）"
+        speakResults.isEmpty() -> "播报失败：未能提交播报请求"
+        speakResults.any { it != TextToSpeech.SUCCESS } -> "播报失败：语音引擎拒绝播报（speak 返回 ${speakResults.joinToString()}）"
+        else -> "播报成功：语音引擎正常（${enginePackage ?: "未知引擎"}）"
     }
 }
 
-/** 语音播报：TTS 念出服药提示 3 遍（主线程初始化，引擎异步回调后自动释放）。 */
 object VoiceAnnouncer {
-    fun speakDose(context: Context, payload: DosePayload, showDrugDetail: Boolean) {
-        val text = if (showDrugDetail && payload.drugName.isNotBlank()) {
+    private const val TAG = "VoiceAnnouncer"
+    private const val INIT_TIMEOUT_MS = 8_000L
+
+    private fun buildText(payload: DosePayload, showDrugDetail: Boolean): String =
+        if (showDrugDetail && payload.drugName.isNotBlank()) {
             "该吃药了。现在是${payload.displayTime}，请服用${payload.drugName}，${payload.doseText}。"
         } else {
             "该吃药了，请打开药准时查看本次服药安排。"
         }
-        val appContext = context.applicationContext
-        CoroutineScope(Dispatchers.Main).launch {
-            var tts: TextToSpeech? = null
-            tts = TextToSpeech(appContext) { status ->
-                val engine = tts
-                if (status == TextToSpeech.SUCCESS && engine != null) {
-                    runCatching { engine.language = Locale.CHINESE }
-                    engine.setOnUtteranceProgressListener(
-                        object : android.speech.tts.UtteranceProgressListener() {
-                            override fun onStart(utteranceId: String?) = Unit
-                            override fun onDone(utteranceId: String?) {
-                                if (utteranceId == "dose-2") {
-                                    engine.stop()
-                                    engine.shutdown()
-                                }
-                            }
 
-                            @Deprecated("deprecated in API 21")
-                            override fun onError(utteranceId: String?) {
-                                engine.shutdown()
-                            }
-                        },
-                    )
-                    repeat(3) { index ->
-                        engine.speak(text, TextToSpeech.QUEUE_ADD, null, "dose-$index")
+    /**
+     * 初始化 TTS 并排队播报 [texts]（每条一次 speak 调用），返回诊断。
+     *
+     * 播报是异步的：speak() 返回 SUCCESS 只代表已排队，系统 TTS 服务随后播放；
+     * 本函数不等到播完，只等到“已排队”就返回。最后一条语句播完时 onDone 关闭引擎；
+     * 若 onDone 迟迟不来（引擎异常），实例随进程结束而释放，与旧实现一致。
+     * 调用方可从任何线程调用：内部自行切到 Main（TTS 回调走主线程）。
+     */
+    private suspend fun enqueue(context: Context, texts: List<String>): VoiceDiagnosis {
+        return withContext(Dispatchers.Main) {
+            var engine: TextToSpeech? = null
+            try {
+                val initStatus = withTimeoutOrNull(INIT_TIMEOUT_MS) {
+                    suspendCancellableCoroutine<Int> { cont ->
+                        // 取消时释放已创建的引擎，避免每次取消泄漏一个 TTS 服务绑定。
+                        cont.invokeOnCancellation { runCatching { engine?.shutdown() } }
+                        engine = TextToSpeech(context.applicationContext) { status ->
+                            if (cont.isActive) cont.resume(status)
+                        }
                     }
-                } else {
-                    runCatching { engine?.shutdown() }
+                } ?: TextToSpeech.ERROR
+                val tts = engine
+                if (initStatus != TextToSpeech.SUCCESS || tts == null) {
+                    Log.w(TAG, "TTS init failed: status=$initStatus")
+                    runCatching { tts?.shutdown() }
+                    return@withContext VoiceDiagnosis(false, Int.MIN_VALUE, emptyList(), tts?.defaultEngine)
                 }
+                // setLanguage 抛异常时用独立哨兵值，避免与 LANG_MISSING_DATA（-1）撞车误报。
+                val langResult = runCatching { tts.setLanguage(Locale.CHINESE) }
+                    .getOrDefault(Int.MIN_VALUE)
+                if (langResult < 0) {
+                    Log.w(TAG, "TTS setLanguage failed: result=$langResult")
+                    runCatching { tts.shutdown() }
+                    return@withContext VoiceDiagnosis(true, langResult, emptyList(), tts.defaultEngine)
+                }
+                tts.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
+                    override fun onStart(utteranceId: String?) = Unit
+                    override fun onDone(utteranceId: String?) {
+                        if (utteranceId == "dose-last") runCatching { tts.shutdown() }
+                    }
+
+                    @Deprecated("deprecated in API 21")
+                    override fun onError(utteranceId: String?) {
+                        runCatching { tts.shutdown() }
+                    }
+                })
+                val results = texts.mapIndexed { index, text ->
+                    val utteranceId = if (index == texts.lastIndex) "dose-last" else "dose-$index"
+                    runCatching { tts.speak(text, TextToSpeech.QUEUE_ADD, null, utteranceId) }
+                        .getOrDefault(TextToSpeech.ERROR)
+                }
+                VoiceDiagnosis(true, langResult, results, tts.defaultEngine)
+            } catch (e: CancellationException) {
+                // 协程取消必须重抛（否则外层超时/取消会被吞成普通失败）；取消前释放引擎。
+                runCatching { engine?.shutdown() }
+                throw e
+            } catch (e: Exception) {
+                Log.w(TAG, "TTS enqueue failed", e)
+                VoiceDiagnosis(false, Int.MIN_VALUE, emptyList(), null)
             }
         }
+    }
+
+    /**
+     * 后台播报：把提醒念 3 遍。返回 true 仅代表 TTS 已成功排队（不代表已播完），
+     * 调用方据此决定是否记去重；返回 false 时调用方不得记去重，以便另一通道重试。
+     */
+    suspend fun speakDose(context: Context, payload: DosePayload, showDrugDetail: Boolean): Boolean {
+        val text = buildText(payload, showDrugDetail)
+        val diagnosis = enqueue(context, List(3) { text })
+        if (!diagnosis.ok) Log.w(TAG, "speakDose failed: ${diagnosis.describe()}")
+        return diagnosis.ok
+    }
+
+    /** 前台试听：念一句测试语，返回完整诊断（供设置页展示真实状态）。 */
+    suspend fun testSpeak(context: Context): VoiceDiagnosis {
+        return enqueue(context, listOf("这是药准时语音播报测试。该吃药了，请按时服药。"))
+    }
+}
+
+/**
+ * 强提醒分发（弹窗恒为基础层，此处只处理 alarm / voice 两路）。
+ *
+ * 去重只记成功：语音排队失败时不记，精确闹钟与 WorkManager 两路仍可重试；
+ * 失败原因记在 [lastVoiceError]，供设置页试听排查参考。
+ */
+object DoseAlerter {
+    private const val TAG = "DoseAlerter"
+
+    /** 双通道（WorkManager + 精确闹钟）同实例会各触发一次：90 秒内同实例强提醒只呈现一次。 */
+    private val recent = mutableMapOf<String, Long>()
+    private const val DEDUP_WINDOW_MS = 90_000L
+
+    @Volatile
+    var lastVoiceError: String? = null
+        private set
+
+    /** 前台试听成功后清除后台失败记录（避免旧报错一直挂着）。 */
+    fun clearVoiceError() {
+        lastVoiceError = null
+    }
+
+    /**
+     * 返回 true 表示强提醒已实际发出（闹钟已拉起，或语音已成功排队）。
+     * mode 为 none 或 90 秒内已发出过时返回 false。
+     *
+     * 去重是原子的：检查与占位在同一个 synchronized 块内完成，另一通道不会在
+     * 本通道 TTS 初始化挂起期间同时通过检查；语音失败、闹钟拉起抛异常或方式
+     * 未知时释放占位，以便另一通道重试。
+     */
+    suspend fun presentStrong(context: Context, payload: DosePayload, showDetail: Boolean): Boolean {
+        val mode = payload.strongMode
+        if (mode == "none") return false
+        val now = System.currentTimeMillis()
+        val claimed = synchronized(recent) {
+            val last = recent[payload.instanceId]
+            if (last != null && now - last < DEDUP_WINDOW_MS) {
+                false
+            } else {
+                recent[payload.instanceId] = now
+                true
+            }
+        }
+        if (!claimed) return false
+        return when (mode) {
+            "alarm" -> {
+                // 直接拉起是 best-effort：后台启动可能被系统静默拦截（不抛异常），
+                // 此时通知上的全屏 intent 仍是可靠通道；只有抛异常才算失败。
+                val started = AlarmRingActivity.start(context, payload, showDetail)
+                if (started) {
+                    markPresented(payload.instanceId)
+                    true
+                } else {
+                    releaseClaim(payload.instanceId)
+                    false
+                }
+            }
+            "voice" -> {
+                val ok = try {
+                    VoiceAnnouncer.speakDose(context, payload, showDetail)
+                } catch (e: CancellationException) {
+                    // 取消必须重抛：runCatching 会把它吞成普通失败，导致被取消的
+                    // 提醒任务报成功；占位照常释放。
+                    releaseClaim(payload.instanceId)
+                    throw e
+                } catch (e: Exception) {
+                    false
+                }
+                if (ok) {
+                    lastVoiceError = null
+                    markPresented(payload.instanceId)
+                } else {
+                    Log.w(TAG, "voice present failed for ${payload.instanceId}, claim released")
+                    lastVoiceError = "语音播报失败：请到设置页点“试听语音”查看原因"
+                    releaseClaim(payload.instanceId)
+                }
+                ok
+            }
+            else -> {
+                releaseClaim(payload.instanceId)
+                false
+            }
+        }
+    }
+
+    /** 成功时刻记去重（而非尝试开始时刻）；超 64 条时淘汰最旧的，而非全清。 */
+    private fun markPresented(instanceId: String) {
+        synchronized(recent) {
+            recent[instanceId] = System.currentTimeMillis()
+            if (recent.size > 64) {
+                recent.entries.minByOrNull { it.value }?.let { recent.remove(it.key) }
+            }
+        }
+    }
+
+    private fun releaseClaim(instanceId: String) {
+        synchronized(recent) { recent.remove(instanceId) }
     }
 }
 
@@ -262,10 +432,11 @@ class AlarmRingActivity : ComponentActivity() {
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
             )
 
-        fun start(context: Context, payload: DosePayload, showDrugDetail: Boolean) {
-            runCatching {
+        /** 直接拉起闹钟页；返回 false 仅代表 startActivity 抛了异常（后台静默拦截不抛异常，无法从返回值区分）。 */
+        fun start(context: Context, payload: DosePayload, showDrugDetail: Boolean): Boolean {
+            return runCatching {
                 context.startActivity(buildIntent(context, payload, showDrugDetail))
-            }
+            }.isSuccess
         }
     }
 }

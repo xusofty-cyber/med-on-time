@@ -3,14 +3,19 @@ package com.medontime.app.reminder
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.os.PowerManager
+import android.util.Log
 import com.medontime.app.MedOnTimeApp
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * 精确闹钟到点接收：与 ReminderWorker 同一实例同 id 展示，互相覆盖去重。
- * 接收器内只做通知展示（轻量），锁屏展示开关以 runBlocking 读 DataStore 缓存（毫秒级）。
+ * 通知展示是同步轻量操作；强提醒层走 goAsync + 唤醒锁，等语音排队完成再结束
+ * （否则进程可能在 TTS 初始化完成前被杀，语音永远播不出）。
+ * 锁屏展示开关以 runBlocking 读 DataStore 缓存（毫秒级）。
  */
 class ExactAlarmReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
@@ -29,8 +34,31 @@ class ExactAlarmReceiver : BroadcastReceiver() {
             runBlocking { it.container.sessionStore.lockScreenShowDrugFlow.first() }
         } ?: false
         NotificationHelper.showDoseNotification(context, payload, showDetail)
-        // 强提醒层与 Worker 通道同口径（双通道同实例去重靠同一通知 id + 闹钟页 singleInstance）
-        DoseAlerter.presentStrong(context, payload, showDetail)
+        // 强提醒层与 Worker 通道同口径（双通道同实例去重靠 DoseAlerter 的 90 秒去重）。
+        // 语音播报是异步初始化 TTS：onReceive 直接返回的话，系统随时可能杀掉进程，
+        // 导致语音还没排队就没了——用 goAsync + 唤醒锁把进程保到语音排队完成为止
+        // （只等排队，不等播完；goAsync 窗口约 10 秒，排队通常 1 秒内完成）。
+        val pending = goAsync()
+        val appScope = app?.container?.appScope
+        if (appScope == null) {
+            pending.finish()
+            return
+        }
+        val powerManager = context.getSystemService(PowerManager::class.java)
+        val wakeLock = powerManager?.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "MedOnTime:voice-alert")
+        runCatching { wakeLock?.acquire(10_000L) }
+            .onFailure { Log.w("ExactAlarmReceiver", "wake lock acquire failed", it) }
+        // finish() 只在 Job 完成回调里调一次：即使 appScope 已取消、launch 块体不执行，
+        // 完成回调仍会跑，goAsync 不会漏 finish。
+        appScope.launch {
+            try {
+                withTimeoutOrNull(9_000L) {
+                    DoseAlerter.presentStrong(context, payload, showDetail)
+                }
+            } finally {
+                runCatching { if (wakeLock?.isHeld == true) wakeLock.release() }
+            }
+        }.invokeOnCompletion { pending.finish() }
     }
 
     companion object {

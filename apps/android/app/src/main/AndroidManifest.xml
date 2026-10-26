@@ -11,6 +11,8 @@
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- 强提醒·语音播报：精确闹钟触发后用唤醒锁把进程保到 TTS 排队完成（见 ExactAlarmReceiver） -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
     <!-- 强提醒·闹钟模式：到点全屏弹出闹钟页（锁屏可见、可点亮屏幕） -->
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
 
