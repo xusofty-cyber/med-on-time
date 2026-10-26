@@ -7,7 +7,8 @@ import { clearSession, getAccessToken, getRefreshToken, updateTokens } from './s
  *   本文件调用方传 '/admin/...' 路径。
  * - 响应信封 { code, message, traceId, data }：code=0 成功（后端 BusinessCode.OK），
  *   其余为业务错误，message 直接透出提示；错误体只有 { code, message, traceId }。
- * - token 注入 Authorization: Bearer；HTTP 401 / code=40100 时清会话并跳登录页。
+ * - token 注入 Authorization: Bearer；HTTP 401 / code=40100 时清会话并跳登录页
+ *   （authCall 鉴权调用除外：401 即凭证错误，保留后端原话，不刷新、不清会话、不跳登录）。
  */
 export interface ApiEnvelope<T> {
   code: number;
@@ -44,6 +45,11 @@ export interface RequestOptions {
   body?: unknown;
   /** true 时不弹全局错误提示，由调用方处理（如登录页需要区分提示文案） */
   silent?: boolean;
+  /**
+   * true 时按鉴权调用处理（如登录）：401 表示凭证错误而非会话过期，
+   * 保留后端原话（如“用户名或密码不正确”），不尝试刷新、不清会话、不跳登录页。
+   */
+  authCall?: boolean;
 }
 
 const API_PREFIX = '/api';
@@ -83,7 +89,7 @@ function redirectToLogin(): void {
 }
 
 export async function request<T>(path: string, options: RequestOptions = {}, retry = true): Promise<T> {
-  const { method = 'GET', params, body, silent = false } = options;
+  const { method = 'GET', params, body, silent = false, authCall = false } = options;
 
   const qs = new URLSearchParams();
   if (params) {
@@ -119,6 +125,18 @@ export async function request<T>(path: string, options: RequestOptions = {}, ret
   }
 
   if (response.status === 401 || envelope?.code === 40100) {
+    if (authCall) {
+      /* 鉴权调用（如登录）：401 就是凭证错误，后端 message 已是准确文案
+       * （如“用户名或密码不正确”），直接透出；不要按会话过期处理——
+       * 登录页本来就没有会话可过期，刷新/清会话/跳登录都是错的。
+       * 2026-10-26 修复：此前这里无条件抛“登录已过期”，密码错也显示过期。 */
+      throw new ApiError(
+        envelope?.code ?? 40100,
+        envelope?.message || '登录失败',
+        401,
+        envelope?.traceId,
+      );
+    }
     if (retry && getRefreshToken()) {
       const refreshed = await tryRefreshTokens();
       if (refreshed) {
