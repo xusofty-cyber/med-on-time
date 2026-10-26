@@ -38,6 +38,7 @@ export function adminLogin(username: string, password: string) {
     method: 'POST',
     body: { username, password },
     silent: true,
+    authCall: true,
   });
 }
 

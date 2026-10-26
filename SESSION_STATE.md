@@ -209,3 +209,13 @@
 - 已修复：MemberDTO 改为 extension 内自定义 init(from:)，accessLevel 按 Web 口径派生（owner → owner，否则 level ?? "caregiver"），memberwise 初始化不受影响；AuthorizationDTO 加 CodingKeys 映射两个字段名。
 - 未修（另起跟进，不阻塞）：L1 安卓 MemberDto 缺 accessLevel/authorizationId（成员上限计数与编辑/删除门控对被授权成员不准，服务端隔离兜底）；L3 会话 current 字段服务端从不下发（需服务端补 current: s.id === sid）。
 - 待办：针对 M1/L2 窄复审 → 提交 → 推送 → 提 PR（develop）。
+
+## 2026-10-25 v0.3.1 发布（已完成）
+- PR #6（移动端分组返回适配）已合并（21:48，develop 现为 c051e94）。
+- v0.3.1 tag 已打在 c051e94 并推送（补丁版本：分组口径修复）；本地与服务器工作区均已快进到 c051e94，tag 已同步。
+- CI 运行 40199410798 全部成功，v0.3.1 Release 已发布（6 个附件，干净无散件：app-release.apk 12.6MB、MedOnTime-miniprogram-dist.zip、三端桌面包、iOS 包）。
+
+## 2026-10-26 管理端登录 401 文案修复（进行中）
+- 用户报：admin.ulife.vip/login 上密码错也弹三条“登录已过期”。根因：管理端 request.ts 把所有 401 都当会话过期，丢掉后端“用户名或密码不正确”原话；登录页每失败一次弹一条，三条=点了三次。
+- 同类扫查（Web/小程序/Android/iOS/桌面）：均无用户可见同类问题——Web 与小程序保留后端原话、Android 解析错误体原话、iOS 登录走 postPublic 绕过刷新且保留原话；桌面复用 Web。残留小毛病（登录 401 时 Web/小程序/Android 在有残留 refresh token 时会多发一次无用刷新）未修，记为跟进项。
+- 修复（分支 fix/admin-login-401-message）：request.ts 加 authCall 选项，鉴权调用的 401 保留后端原话、不刷新、不清会话、不跳登录；adminLogin 传 authCall: true。类型检查与构建均通过。
