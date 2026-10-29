@@ -13,6 +13,9 @@ enum ReminderScheduleRefresher {
     static let taskIdentifier = "com.medontime.app.reminder-refresh"
 
     /// 拉取当前成员今明两日时间线并重排本地通知。网络失败时保留既有排程不清零。
+    /// @MainActor：AppEnvironment/AuthSession 均为 MainActor 隔离，非隔离上下文
+    /// 直接访问其属性会编译失败（CI 实测 exit 65 四条同源错误）。
+    @MainActor
     static func refresh() async {
         let env = AppEnvironment.shared
         let session = env.session
