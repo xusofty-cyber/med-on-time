@@ -39,8 +39,9 @@ final class LocalNotificationManager {
         await center.notificationSettings().authorizationStatus
     }
 
-    /// 重排当日提醒：先清掉本 App 已排程的提醒类通知，再按时间线逐条排（仅未完成且时刻未到的实例）。
-    func scheduleTodayReminders(_ instances: [ReminderInstanceDTO], careSettings: CareSettingsDTO?) {
+    /// 重排提醒：先清掉本 App 已排程的提醒类通知，再按时间线逐条排（仅未完成且时刻未到的实例）。
+    /// 传入时间线可含今明两日（C-1 修复口径，见 ReminderScheduleRefresher）。
+    func scheduleUpcomingReminders(_ instances: [ReminderInstanceDTO], careSettings: CareSettingsDTO?) {
         center.getPendingNotificationRequests { [weak self] requests in
             guard let self else { return }
             let ours = requests.map(\.identifier).filter { $0.hasPrefix(Self.identifierPrefix) }

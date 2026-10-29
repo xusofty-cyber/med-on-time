@@ -9,6 +9,8 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
     ) -> Bool {
         UNUserNotificationCenter.current().delegate = LocalNotificationDelegate.shared
         LocalNotificationManager.registerCategories()
+        // 后台刷新任务必须在启动完成前注册（C-1 修复：本地通知排程的系统级续期）。
+        ReminderScheduleRefresher.registerBackgroundTask()
         return true
     }
 }

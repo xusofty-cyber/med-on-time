@@ -51,7 +51,10 @@ final class TodayViewModel: ObservableObject {
             instances = fetched.sorted { $0.scheduledAtUtc < $1.scheduledAtUtc }
             errorMessage = nil
             // 以服务端时间线为准重排本地通知兜底（锁屏药名展示受关怀设置控制）。
-            localNotifications.scheduleTodayReminders(fetched, careSettings: currentSettings)
+            // C-1 修复：排程含今明两日——只排当日时，用户某天不打开 App 当天即零提醒。
+            let tzId = fetched.first?.timezone ?? session.currentMember?.timezone ?? "Asia/Shanghai"
+            let upcoming = (try? await reminderService.todayAndTomorrow(memberId: memberId, memberTimeZoneId: tzId)) ?? fetched
+            localNotifications.scheduleUpcomingReminders(upcoming, careSettings: currentSettings)
         } catch {
             errorMessage = (error as? APIError)?.message ?? "今日提醒加载失败"
         }
