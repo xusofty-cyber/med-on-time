@@ -1,0 +1,41 @@
+# CI 质量门禁（2026-10-30 全项目审查定版）
+# push / PR 到 develop、main 时执行：冻结安装 → 后端构建与测试 →
+# Web/Admin 类型检查 → 桌面 tsc。此前全仓只有打包工作流、无任何门禁。
+name: CI - 质量门禁
+
+on:
+  push:
+    branches: [develop, main]
+  pull_request:
+    branches: [develop, main]
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: pnpm
+      - name: Install (frozen lockfile)
+        run: pnpm install --frozen-lockfile
+      - name: Prisma generate
+        run: pnpm --filter @med-on-time/api exec prisma generate
+      - name: API build
+        run: pnpm --filter @med-on-time/api build
+      - name: API tests (jest)
+        run: pnpm --filter @med-on-time/api test
+      - name: Web typecheck
+        run: pnpm --filter @med-on-time/web typecheck
+      - name: Admin typecheck
+        run: pnpm --filter @med-on-time/admin typecheck
+      - name: Desktop typecheck (tsc)
+        run: pnpm --filter @med-on-time/desktop build
