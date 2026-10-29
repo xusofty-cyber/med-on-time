@@ -13,6 +13,8 @@ import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import com.medontime.app.core.AppContainer
 import com.medontime.app.data.model.ReminderInstanceDto
+import org.json.JSONArray
+import org.json.JSONObject
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -101,6 +103,61 @@ class ReminderScheduler(
             activeInstanceIds.addAll(nextIds)
         }
         runCatching { store.saveScheduledInstanceIds(nextIds) }
+        // 落盘全量载荷：精确闹钟到点后靠它离线接排下一条（见 scheduleNextExactFromStore）
+        runCatching { store.saveScheduledPayloads(encodePayloads(payloads)) }
+    }
+
+    /**
+     * 精确闹钟链式自排（2026-10-30 审查 H-2）：此前只有最近一条实例享有精确闹钟，
+     * 它响完之后再无接排，后续实例只剩 WorkManager（Doze 下可延迟数分钟）。
+     * 现在每条精确闹钟到点后由接收器调本方法，从落盘载荷里取下一条未来实例接排，
+     * 直到今明两日时间线耗尽；全程离线，不依赖到点时的网络。
+     */
+    suspend fun scheduleNextExactFromStore(excludeInstanceId: String) {
+        val stored = runCatching { container.sessionStore.scheduledPayloads() }.getOrNull()
+        val payloads = decodePayloads(stored)
+        val now = System.currentTimeMillis()
+        val next = payloads
+            .filter { it.instanceId != excludeInstanceId && it.triggerAtMillis > now }
+            .minByOrNull { it.triggerAtMillis }
+            ?: return
+        scheduleExactAlarm(next)
+    }
+
+    private fun encodePayloads(payloads: List<DosePayload>): String {
+        val arr = JSONArray()
+        for (p in payloads) {
+            arr.put(
+                JSONObject()
+                    .put("id", p.instanceId)
+                    .put("drug", p.drugName)
+                    .put("amount", p.doseAmount)
+                    .put("unit", p.doseUnit)
+                    .put("time", p.localTime)
+                    .put("at", p.triggerAtMillis)
+                    .put("mode", p.strongMode),
+            )
+        }
+        return arr.toString()
+    }
+
+    private fun decodePayloads(json: String?): List<DosePayload> {
+        if (json.isNullOrBlank()) return emptyList()
+        return runCatching {
+            val arr = JSONArray(json)
+            (0 until arr.length()).map { i ->
+                val o = arr.getJSONObject(i)
+                DosePayload(
+                    instanceId = o.getString("id"),
+                    drugName = o.optString("drug"),
+                    doseAmount = o.optString("amount"),
+                    doseUnit = o.optString("unit"),
+                    localTime = o.optString("time"),
+                    triggerAtMillis = o.optLong("at"),
+                    strongMode = o.optString("mode", "none"),
+                )
+            }
+        }.getOrDefault(emptyList())
     }
 
     private suspend fun resolveCurrentMemberId(): String? {
@@ -188,6 +245,15 @@ class ReminderScheduler(
         cancelExactAlarm(instanceId)
         NotificationHelper.cancel(context, instanceId)
         synchronized(activeInstanceIds) { activeInstanceIds.remove(instanceId) }
+        // 落盘载荷同步剔除：否则该实例虽已撤排，仍会被链式自排当作「下一条」复活
+        runCatching {
+            kotlinx.coroutines.runBlocking {
+                val store = container.sessionStore
+                val kept = decodePayloads(store.scheduledPayloads())
+                    .filter { it.instanceId != instanceId }
+                store.saveScheduledPayloads(if (kept.isEmpty()) null else encodePayloads(kept))
+            }
+        }
     }
 
     /** 退出登录/切换账号/切换成员时清排全部本地提醒（含 WorkManager 与 AlarmManager 精确闹钟）。 */
@@ -204,7 +270,10 @@ class ReminderScheduler(
             NotificationHelper.cancel(context, id)
         }
         runCatching {
-            kotlinx.coroutines.runBlocking { container.sessionStore.saveScheduledInstanceIds(emptySet()) }
+            kotlinx.coroutines.runBlocking {
+                container.sessionStore.saveScheduledInstanceIds(emptySet())
+                container.sessionStore.saveScheduledPayloads(null)
+            }
         }
     }
 

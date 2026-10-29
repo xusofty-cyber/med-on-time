@@ -41,17 +41,24 @@ final class LocalNotificationManager {
 
     /// 重排提醒：先清掉本 App 已排程的提醒类通知，再按时间线逐条排（仅未完成且时刻未到的实例）。
     /// 传入时间线可含今明两日（C-1 修复口径，见 ReminderScheduleRefresher）。
-    func scheduleUpcomingReminders(_ instances: [ReminderInstanceDTO], careSettings: CareSettingsDTO?) {
+    /// 强提醒方式按「计划级覆盖 > 成员关怀设置」解析（审查 H-3，与安卓/服务端同口径）：
+    /// planOverrides 只含设了覆盖的计划，其余回落成员级。
+    func scheduleUpcomingReminders(
+        _ instances: [ReminderInstanceDTO],
+        careSettings: CareSettingsDTO?,
+        planOverrides: [String: StrongAlertMode] = [:]
+    ) {
         center.getPendingNotificationRequests { [weak self] requests in
             guard let self else { return }
             let ours = requests.map(\.identifier).filter { $0.hasPrefix(Self.identifierPrefix) }
             self.center.removePendingNotificationRequests(withIdentifiers: ours)
 
-            let strongMode = careSettings?.strongAlertMode ?? .none
+            let memberMode = careSettings?.strongAlertMode ?? .none
             let showDetail = careSettings?.lockScreenShowDrugDetail ?? false
             let now = Date()
             for instance in instances {
                 guard instance.status.isActionable, instance.scheduledAtUtc > now else { continue }
+                let strongMode = planOverrides[instance.planId] ?? memberMode
                 let content = UNMutableNotificationContent()
                 content.title = "服药提醒"
                 if strongMode == .alarm {

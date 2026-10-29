@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { reminderApi } from '../lib/endpoints';
+import { memberApi, reminderApi } from '../lib/endpoints';
 import { actions, getState, useApp } from '../lib/store';
-import { syncDesktopReminders } from '../lib/desktop';
+import { desktopBridge, syncDesktopReminders } from '../lib/desktop';
 import { Badge, Button, Card, EmptyState, ErrorText, Modal, Spinner } from '../components/ui';
 import { INSTANCE_STATUS_LABELS, MEAL_LABELS } from '../lib/dict';
 import { fmtTime, wallTime } from '../lib/time';
@@ -32,6 +32,27 @@ function desktopPayload(
   };
 }
 
+/**
+ * 全成员合并载荷（DT-H4）：桌面调度此前只同步当前查看的成员，家庭共用一台
+ * 电脑时其他成员的剂量永远不会在桌面响。现在逐成员合并：每条带成员显示名
+ * 与该成员自己的 showDrugDetail（条目级隐私开关），载荷级开关恒为 false
+ * （缺省不展示明细，最保守）。
+ */
+function multiMemberDesktopPayload(
+  parts: { list: ReminderInstance[]; showDrugDetail: boolean; displayName?: string }[],
+) {
+  return {
+    localDate: parts[0]?.list[0]?.localDate ?? '',
+    showDrugDetail: false,
+    items: parts.flatMap((p) =>
+      desktopPayload(p.list, p.showDrugDetail, p.displayName).items.map((i) => ({
+        ...i,
+        showDrugDetail: p.showDrugDetail,
+      })),
+    ),
+  };
+}
+
 function statusTone(status: string): 'green' | 'amber' | 'red' | 'gray' | 'blue' {
   if (status === 'taken') return 'green';
   if (status === 'missed') return 'red';
@@ -54,6 +75,31 @@ export default function Today() {
   const [now, setNow] = useState(() => Date.now());
   const notifiedRef = useRef<Set<string>>(new Set());
 
+  /**
+   * 桌面桥全成员同步（DT-H4）：逐成员拉今日时间线 + 各自的 care-settings 后
+   * 合并同步给 Electron 主进程。仅在桌面桥存在时执行（普通浏览器不发这些请求）；
+   * 单成员拉取失败按空列表处理，不拖垮其他成员。
+   */
+  const syncDesktopAll = useCallback(async () => {
+    if (!desktopBridge()) return;
+    const all = getState().members;
+    if (!all || all.length === 0) return;
+    const parts = await Promise.all(
+      all.map(async (m) => {
+        const [list, careSettings] = await Promise.all([
+          reminderApi.today(m.id).catch(() => [] as ReminderInstance[]),
+          memberApi.getCareSettings(m.id).catch(() => null),
+        ]);
+        return {
+          list,
+          showDrugDetail: careSettings?.lockScreenShowDrugDetail ?? false,
+          displayName: m.displayName,
+        };
+      }),
+    );
+    syncDesktopReminders(multiMemberDesktopPayload(parts));
+  }, []);
+
   const load = useCallback(async () => {
     if (!memberId) return;
     try {
@@ -61,17 +107,12 @@ export default function Today() {
       const sorted = [...data].sort((a, b) => a.scheduledAtUtc.localeCompare(b.scheduledAtUtc));
       setItems(sorted);
       setError(null);
-      // 桌面桥：数据加载后把今日时间线同步给 Electron 主进程做本地通知调度
-      // （无桥环境自动跳过）。showDrugDetail 取当前成员 care-settings（默认 OFF）。
-      const state = getState();
-      const current = state.members.find((m) => m.id === memberId) ?? null;
-      syncDesktopReminders(
-        desktopPayload(sorted, state.careSettings?.lockScreenShowDrugDetail ?? false, current?.displayName),
-      );
+      // 桌面桥：同步全成员今日时间线给主进程做本地通知调度（无桥环境自动跳过）
+      void syncDesktopAll();
     } catch (e) {
       setError(e);
     }
-  }, [memberId]);
+  }, [memberId, syncDesktopAll]);
 
   useEffect(() => {
     setItems(null);
@@ -83,12 +124,12 @@ export default function Today() {
     return () => clearInterval(t);
   }, [load]);
 
-  /* care-settings 晚于今日数据到达（或被修改）时，用最新 lockScreenShowDrugDetail 重同步桌面调度 */
+  /* care-settings 变化（任一成员的详情开关被改）时重同步桌面调度 */
   const careShowDetail = care?.lockScreenShowDrugDetail;
   useEffect(() => {
-    if (!items || items.length === 0 || careShowDetail === undefined) return;
-    syncDesktopReminders(desktopPayload(items, careShowDetail, member?.displayName));
-  }, [careShowDetail, items, member]);
+    if (careShowDetail === undefined) return;
+    void syncDesktopAll();
+  }, [careShowDetail, syncDesktopAll]);
 
   /* 到点本地提示：已到点且未处理的实例进入横幅，并尝试系统通知（需用户授权） */
   const due = useMemo(

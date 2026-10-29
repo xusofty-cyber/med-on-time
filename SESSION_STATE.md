@@ -239,3 +239,16 @@
 - P0-3 iOS 提醒链：ReminderService 新增 todayAndTomorrow（今日 + 按成员时区 byDate 明日）；排程改名 scheduleUpcomingReminders 并在今日页加载时排今明两日；新增 ReminderScheduleRefresher（回前台重排 + BGAppRefreshTask 6h 续期，Info.plist 已登记 fetch 后台模式与任务标识）；CareSettingsView 强提醒说明改如实口径（iOS 无系统强音、语音仅前台）。本机无 Xcode，靠 CI iOS 构建验证；APNs 仍为独立立项（需后端推送通道）。
 - P0-4 质量门禁 CI：新增 .github/workflows/ci.yml（push/PR 到 develop/main：frozen 安装 → prisma generate → api build/test → web/admin typecheck → desktop tsc），内容按本地全绿口径校准；工作流文件经 GitHub 网页端提交（集成通道写 workflows 会 403）。release 发版与 CI 的强制依赖关系未动（需改 release.yml，列后续）。
 - P0-5 update.sh：顺序改为 拉取 → 强制备份（失败即中止）→ 构建 → 一次性容器先行迁移 → 换容器 → 健康检查；新增 --no-pull（回滚到已检出提交用，配套 DEPLOY 回滚口径）。bash -n 通过；未在生产执行过，下次部署首次实跑需留意。
+
+## 2026-10-30 全项目审查第二批修复（结构补强，10 项）
+- 登录防爆破：新增 LoginThrottleService（Redis 状态、15 分钟窗口失败 5 次锁 15 分钟、Redis 故障 fail-open），用户端 login() 接入（账号+IP 双维度，失败双记、成功双清）；管理端原进程内 Map 锁定整体迁到同一服务（scope=admin）；验证码发送加 IP 维度限频（单 IP 1 小时跨目标 20 次）；TokenService 生产守卫：ADMIN_JWT_SECRET 缺失或与 JWT_ACCESS_SECRET 相同直接拒启动。⚠️ 部署前必须先确认服务器 deploy/.env 已配独立 ADMIN_JWT_SECRET，否则新版 api 拒启动。
+- 注销终局：新增 AccountLifecycleService + BullMQ 每日 03:30 扫描（+启动补跑）：冷静期届满账号同事务终局——账号行墓碑化（phone/email 密文与哈希、密码、昵称、头像物理清除）、成员匿名化存档（保留匿名统计维度）、病历/病史/紧急联系人物理删除、计划停止+实例取消+授权双向撤销+微信解绑留痕+设备行删除，事务后吊销会话，audit_log 落 system 记录（只记计数）；withdrawCancel 加到期禁撤销。注销申请的 doc 注释同步改实（原写「由 ops 定时任务执行」此前并无此任务）。
+- 过敏校验：PlanService 建/改计划（改计划仅明细变更时）比对成员过敏档案（drug/drugCategory/allergenCode 三路匹配），响应加 allergyWarnings（不拦截）；Web PlanForm 命中后展示红色强警告面板，须点「我已知晓」才关闭表单。
+- PRN 端点：POST /plans/:planId/prn-intakes（CheckinService.recordPrnIntake）：校验计划 PRN+active、照护 L2+ 双记，间隔（与前后相邻记录双向比对）/单日上限（成员本地日计数）命中先 409，confirmWarning 重提落 warned_confirmed；clientRequestId 幂等；同事务扣库存并写流水（prnIntakeId）。此前 prn_intake_record 无任何写入方，本端点为唯一入口；客户端 UI 接入列后续。
+- 推送诚实状态：app_push 日志桩不再记假 success，改记 suppressed_not_configured + errorCode=PUSH_NOT_CONFIGURED（迁移 v17 扩展 result CHECK）；真实通道（极光/APNs/FCM）接入仍待立项，接前所有 app_push 在投递日志中如实显示「通道未配置」。
+- 扫码确认展示：新增 GET /auth/scan-login/tickets/:id/preview（发起端平台/设备/时间）与 GET /auth/wechat/bind-tickets/:id/preview（目标账号昵称+脱敏手机/邮箱），均需登录态；小程序两确认页改为先拉预览展示、加载失败禁用确认按钮（fail-closed）。
+- 安卓：ExactAlarmReceiver 到点后从 SessionStore 落盘载荷链式接排下一条精确闹钟（sync 时落盘全量载荷，cancelInstance 同步剔除防复活）；VoiceAnnouncer 后台路径总预算 7s（首试 ≤4s、兜底 ≤2s/个），不再多引擎各等 8s 撑爆接收器 9s 窗口；TTS 固定走 USAGE_ALARM 音频通道（媒体音量 0 不再无声）；诊断 enginePackage 改报实际发声引擎。versionCode 4 / 0.3.4。
+- iOS：本地通知排程按「计划覆盖 > 成员设置」解析强提醒方式（AppEnvironment.planStrongAlertOverrides 拉计划列表建表，失败回落成员级），今日页与后台刷新两条排程路径均已接入。
+- 桌面：ReminderScheduler 调度落盘（store.ts 的 PersistedState.reminders），main 启动 whenReady 时 restore() 恢复（重启/被杀后不等渲染层重同步）；Web 同步改全成员合并（Today 页 syncDesktopAll，逐成员拉时间线+各自 care 设置，条目级 showDrugDetail，载荷级恒 false）。
+- DDInter 文档：TECH_RESEARCH_REPORT 正文 5 处上线指令全部改写为 POC-1 否决口径（表格行、免费组合结论、P0/P1 路径、POC-3 方法）。
+- 验证：api build 通过、jest 11 套件 68 用例全过（新增 throttle 4 + lifecycle 3 + PRN 4）；web typecheck、miniprogram typecheck、desktop tsc 通过。安卓/iOS 无本地工具链，靠 CI 构建验证（随本批推送后触发）。

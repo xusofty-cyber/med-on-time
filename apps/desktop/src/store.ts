@@ -5,6 +5,7 @@
 import { app } from 'electron';
 import * as fs from 'fs';
 import * as path from 'path';
+import type { DesktopReminderItem } from './types';
 
 export interface WindowState {
   x?: number;
@@ -14,16 +15,26 @@ export interface WindowState {
   isMaximized: boolean;
 }
 
+/** 已排程提醒的落盘快照（DT-H4）：主进程重启后靠它恢复调度，不依赖渲染层重同步。 */
+export interface PersistedReminders {
+  items: DesktopReminderItem[];
+  fired: string[];
+  showDrugDetail: boolean;
+  savedAt: number;
+}
+
 export interface PersistedState {
   window: WindowState;
   settings: {
     autoLaunch: boolean;
   };
+  reminders: PersistedReminders | null;
 }
 
 const DEFAULTS: PersistedState = {
   window: { width: 1100, height: 760, isMaximized: false },
   settings: { autoLaunch: false },
+  reminders: null,
 };
 
 function storeFile(): string {
@@ -37,6 +48,10 @@ export function loadState(): PersistedState {
     return {
       window: { ...DEFAULTS.window, ...(parsed.window ?? {}) },
       settings: { ...DEFAULTS.settings, ...(parsed.settings ?? {}) },
+      reminders:
+        parsed.reminders && Array.isArray(parsed.reminders.items)
+          ? parsed.reminders
+          : null,
     };
   } catch {
     return structuredClone(DEFAULTS);

@@ -49,4 +49,17 @@ final class AppEnvironment: ObservableObject {
             }
         }
     }
+
+    /// 计划级强提醒覆盖表（审查 H-3）：[planId: mode]，仅含设了覆盖的计划；
+    /// 拉取失败返回空表（排程全体回落成员级），不阻断本地通知排程。
+    func planStrongAlertOverrides(memberId: String) async -> [String: StrongAlertMode] {
+        let plans = (try? await planService.list(memberId: memberId)) ?? []
+        var map: [String: StrongAlertMode] = [:]
+        for plan in plans {
+            if let mode = plan.strongAlertModeOverride {
+                map[plan.id] = mode
+            }
+        }
+        return map
+    }
 }

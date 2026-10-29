@@ -62,7 +62,7 @@ import kotlin.coroutines.resume
  * - languageResult：setLanguage 返回值（LANG_AVAILABLE 等；初始化失败或
  *   setLanguage 抛异常时为 Int.MIN_VALUE）
  * - speakResults：每次 speak() 的返回值（SUCCESS / ERROR）
- * - enginePackage：当前默认 TTS 引擎包名
+ * - enginePackage：实际发声的引擎包名（兜底引擎发声时报兜底引擎，不冒充默认）
  */
 data class VoiceDiagnosis(
     val initOk: Boolean,
@@ -95,6 +95,14 @@ object VoiceAnnouncer {
     private const val TAG = "VoiceAnnouncer"
     private const val INIT_TIMEOUT_MS = 8_000L
 
+    /**
+     * 后台播报总预算（审查 M-1）：闹钟接收器 goAsync/唤醒锁窗口约 9~10 秒，
+     * 多引擎顺序兜底必须共享一个总预算（默认首试 ≤4s、兜底每次 ≤2s），
+     * 不能每个引擎各等 8 秒（最坏 32 秒必被系统杀掉、语音永远排不上队）。
+     */
+    private const val BACKGROUND_BUDGET_MS = 7_000L
+    private const val MIN_ATTEMPT_MS = 800L
+
     private fun buildText(payload: DosePayload, showDrugDetail: Boolean): String =
         if (showDrugDetail && payload.drugName.isNotBlank()) {
             "该吃药了。现在是${payload.displayTime}，请服用${payload.drugName}，${payload.doseText}。"
@@ -110,10 +118,11 @@ object VoiceAnnouncer {
     private suspend fun initEngine(
         context: Context,
         enginePackage: String?,
+        timeoutMs: Long,
         onCreated: (TextToSpeech?) -> Unit,
     ): Pair<Int, TextToSpeech?> {
         var instance: TextToSpeech? = null
-        val status = withTimeoutOrNull(INIT_TIMEOUT_MS) {
+        val status = withTimeoutOrNull(timeoutMs) {
             suspendCancellableCoroutine<Int> { cont ->
                 // 取消时释放已创建的引擎，避免每次取消泄漏一个 TTS 服务绑定。
                 cont.invokeOnCancellation { runCatching { instance?.shutdown() } }
@@ -149,12 +158,22 @@ object VoiceAnnouncer {
      * 若 onDone 迟迟不来（引擎异常），实例随进程结束而释放，与旧实现一致。
      * 调用方可从任何线程调用：内部自行切到 Main（TTS 回调走主线程）。
      */
-    private suspend fun enqueue(context: Context, texts: List<String>): VoiceDiagnosis {
+    private suspend fun enqueue(context: Context, texts: List<String>, background: Boolean): VoiceDiagnosis {
         return withContext(Dispatchers.Main) {
+            val startedAt = System.currentTimeMillis()
+            // 后台路径共享总预算（见 BACKGROUND_BUDGET_MS）；前台试听不受此限。
+            fun nextTimeoutMs(attemptIndex: Int): Long {
+                if (!background) return INIT_TIMEOUT_MS
+                val remaining = BACKGROUND_BUDGET_MS - (System.currentTimeMillis() - startedAt)
+                val cap = if (attemptIndex == 0) 4_000L else 2_000L
+                return minOf(cap, remaining).coerceAtLeast(0L)
+            }
             var engine: TextToSpeech? = null
             try {
-                var (initStatus, tts) = initEngine(context, null) { engine = it }
+                var (initStatus, tts) = initEngine(context, null, nextTimeoutMs(0)) { engine = it }
                 var failedDefaultPkg: String? = null
+                // 实际发声的引擎：默认引擎用其自报包名，兜底命中的用指定包名（不冒充默认）
+                var usedPackage: String? = null
                 if (initStatus != TextToSpeech.SUCCESS) {
                     // 默认引擎初始化失败：逐个尝试其他已装引擎兜底（部分国产 ROM 的默认
                     // 引擎绑定不稳定，但同机其他引擎可用）。最多试 3 个，避免长时间无声等待。
@@ -165,11 +184,17 @@ object VoiceAnnouncer {
                     val candidates = installedEnginePackages(context)
                         .filter { it != failedDefaultPkg }
                         .take(3)
-                    for (pkg in candidates) {
-                        val (status, instance) = initEngine(context, pkg) { engine = it }
+                    for ((index, pkg) in candidates.withIndex()) {
+                        val timeout = nextTimeoutMs(index + 1)
+                        if (timeout < MIN_ATTEMPT_MS) {
+                            Log.w(TAG, "TTS fallback budget exhausted, stop trying engines")
+                            break
+                        }
+                        val (status, instance) = initEngine(context, pkg, timeout) { engine = it }
                         if (status == TextToSpeech.SUCCESS && instance != null) {
                             initStatus = status
                             tts = instance
+                            usedPackage = pkg
                             break
                         }
                         Log.w(TAG, "TTS init fallback failed: engine=$pkg status=$status")
@@ -182,13 +207,24 @@ object VoiceAnnouncer {
                     return@withContext VoiceDiagnosis(false, Int.MIN_VALUE, emptyList(), failedDefaultPkg)
                 }
                 val activeTts = tts
+                val spokenPackage = usedPackage ?: activeTts.defaultEngine
                 // setLanguage 抛异常时用独立哨兵值，避免与 LANG_MISSING_DATA（-1）撞车误报。
                 val langResult = runCatching { activeTts.setLanguage(Locale.CHINESE) }
                     .getOrDefault(Int.MIN_VALUE)
                 if (langResult < 0) {
                     Log.w(TAG, "TTS setLanguage failed: result=$langResult")
                     runCatching { activeTts.shutdown() }
-                    return@withContext VoiceDiagnosis(true, langResult, emptyList(), activeTts.defaultEngine)
+                    return@withContext VoiceDiagnosis(true, langResult, emptyList(), spokenPackage)
+                }
+                // 语音走闹钟音频通道（审查 M-2）：TTS 默认走媒体流，媒体音量为 0 时
+                // 完全无声；强提醒语义与闹钟一致，固定 USAGE_ALARM。
+                runCatching {
+                    activeTts.setAudioAttributes(
+                        AudioAttributes.Builder()
+                            .setUsage(AudioAttributes.USAGE_ALARM)
+                            .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                            .build(),
+                    )
                 }
                 activeTts.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
                     override fun onStart(utteranceId: String?) = Unit
@@ -206,7 +242,7 @@ object VoiceAnnouncer {
                     runCatching { activeTts.speak(text, TextToSpeech.QUEUE_ADD, null, utteranceId) }
                         .getOrDefault(TextToSpeech.ERROR)
                 }
-                VoiceDiagnosis(true, langResult, results, activeTts.defaultEngine)
+                VoiceDiagnosis(true, langResult, results, spokenPackage)
             } catch (e: CancellationException) {
                 // 协程取消必须重抛（否则外层超时/取消会被吞成普通失败）；取消前释放引擎。
                 runCatching { engine?.shutdown() }
@@ -224,14 +260,14 @@ object VoiceAnnouncer {
      */
     suspend fun speakDose(context: Context, payload: DosePayload, showDrugDetail: Boolean): Boolean {
         val text = buildText(payload, showDrugDetail)
-        val diagnosis = enqueue(context, List(3) { text })
+        val diagnosis = enqueue(context, List(3) { text }, background = true)
         if (!diagnosis.ok) Log.w(TAG, "speakDose failed: ${diagnosis.describe()}")
         return diagnosis.ok
     }
 
     /** 前台试听：念一句测试语，返回完整诊断（供设置页展示真实状态）。 */
     suspend fun testSpeak(context: Context): VoiceDiagnosis {
-        return enqueue(context, listOf("这是药准时语音播报测试。该吃药了，请按时服药。"))
+        return enqueue(context, listOf("这是药准时语音播报测试。该吃药了，请按时服药。"), background = false)
     }
 }
 

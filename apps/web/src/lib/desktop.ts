@@ -17,6 +17,8 @@ export interface DesktopReminderItem {
   doseUnit?: string;
   storageLocation?: string | null;
   memberDisplayName?: string;
+  /** 条目级隐私开关（多成员时逐成员生效，优先于载荷级 showDrugDetail） */
+  showDrugDetail?: boolean;
 }
 
 export interface SyncRemindersPayload {

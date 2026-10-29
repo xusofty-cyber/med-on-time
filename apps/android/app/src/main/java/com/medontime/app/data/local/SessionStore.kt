@@ -34,6 +34,8 @@ class SessionStore(private val context: Context) {
         val CARE_MODE = booleanPreferencesKey("care_mode")
         val LOCK_SCREEN_SHOW_DRUG = booleanPreferencesKey("lock_screen_show_drug")
         val SCHEDULED_INSTANCE_IDS = stringSetPreferencesKey("scheduled_instance_ids")
+        /** 已排程载荷（JSON 数组，DosePayload 全字段）：精确闹钟链式自排的离线数据源 */
+        val SCHEDULED_PAYLOADS = stringPreferencesKey("scheduled_payloads")
         /** 界面主题 id：'0' 现行绿白（默认）/ 'a' 暖阳关怀；主题 B 不进移动端。 */
         val THEME_ID = stringPreferencesKey("theme_id")
     }
@@ -61,6 +63,15 @@ class SessionStore(private val context: Context) {
     suspend fun saveScheduledInstanceIds(ids: Set<String>) {
         context.dataStore.edit { prefs ->
             if (ids.isEmpty()) prefs.remove(Keys.SCHEDULED_INSTANCE_IDS) else prefs[Keys.SCHEDULED_INSTANCE_IDS] = ids
+        }
+    }
+
+    suspend fun scheduledPayloads(): String? =
+        context.dataStore.data.first()[Keys.SCHEDULED_PAYLOADS]
+
+    suspend fun saveScheduledPayloads(json: String?) {
+        context.dataStore.edit { prefs ->
+            if (json.isNullOrBlank()) prefs.remove(Keys.SCHEDULED_PAYLOADS) else prefs[Keys.SCHEDULED_PAYLOADS] = json
         }
     }
 
@@ -104,6 +115,7 @@ class SessionStore(private val context: Context) {
             it.remove(Keys.REFRESH_TOKEN)
             it.remove(Keys.ACCOUNT_ID)
             it.remove(Keys.CURRENT_MEMBER_ID)
+            it.remove(Keys.SCHEDULED_PAYLOADS)
             it[Keys.CARE_MODE] = false
             it[Keys.LOCK_SCREEN_SHOW_DRUG] = false
         }

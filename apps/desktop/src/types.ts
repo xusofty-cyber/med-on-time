@@ -41,6 +41,12 @@ export interface DesktopReminderItem {
   doseUnit?: string;
   storageLocation?: string | null;
   memberDisplayName?: string;
+  /**
+   * 条目级隐私开关（多成员同步时逐成员带入各自的 lockScreenShowDrugDetail）：
+   * 存在时优先于载荷级 showDrugDetail——某成员关了详情，其他成员开了，
+   * 不能用一个全局开关互相污染（2026-10-30 审查 DT-H4）。
+   */
+  showDrugDetail?: boolean;
 }
 
 export interface SyncRemindersPayload {

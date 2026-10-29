@@ -10,6 +10,7 @@
  *   日志只记条数与实例 id，严禁用药明细落日志（AGENTS.md 日志脱敏红线）。
  */
 import { Notification } from 'electron';
+import { getState, updateState } from './store';
 import type { DesktopReminderItem, ReminderSummary, SyncRemindersPayload } from './types';
 
 const TICK_MS = 15_000;
@@ -72,6 +73,7 @@ function sanitizeItem(v: unknown): DesktopReminderItem | null {
     doseUnit: sanitizeString(o['doseUnit'], 32),
     storageLocation: o['storageLocation'] === null ? null : sanitizeString(o['storageLocation'], 120),
     memberDisplayName: sanitizeString(o['memberDisplayName'], 64),
+    showDrugDetail: typeof o['showDrugDetail'] === 'boolean' ? o['showDrugDetail'] : undefined,
   };
 }
 
@@ -107,17 +109,15 @@ export class ReminderScheduler {
     private readonly onSummaryChanged: () => void,
   ) {}
 
-  sync(payload: SyncRemindersPayload): number {
+  /** 原始条目 → 已排程条目：终态剔除并记 fired 防复活、snooze 取顺延时刻、过期丢弃。 */
+  private buildScheduled(items: DesktopReminderItem[]): ScheduledItem[] {
     const now = Date.now();
-    this.showDrugDetail = payload.showDrugDetail;
-    this.items = payload.items
+    return items
       .map((i) => {
-        // 终态剂量：剔除且记入 fired，防止后续旧载荷把它当新条目复活通知。
         if (i.status && TERMINAL_STATUSES.has(i.status)) {
           this.fired.add(i.id);
           return null;
         }
-        // snoozed 以顺延时刻为实际触发点，其余以计划时刻为准。
         const at =
           i.status === 'snoozed' && i.snoozeUntil
             ? Date.parse(i.snoozeUntil)
@@ -127,12 +127,56 @@ export class ReminderScheduler {
       .filter((i): i is ScheduledItem => i !== null)
       .filter((i) => now - i.at < STALE_MS)
       .sort((a, b) => a.at - b.at);
+  }
+
+  /** 落盘当前调度（同步/触发/清理后调用；updateState 内部 250ms 防抖合并写）。 */
+  private persist(): void {
+    const items = this.items.map((i) => {
+      const { at: _at, ...rest } = i;
+      return rest;
+    });
+    const fired = [...this.fired];
+    const showDrugDetail = this.showDrugDetail;
+    updateState((s) => {
+      s.reminders = { items, fired, showDrugDetail, savedAt: Date.now() };
+    });
+  }
+
+  sync(payload: SyncRemindersPayload): number {
+    this.showDrugDetail = payload.showDrugDetail;
+    this.items = this.buildScheduled(payload.items);
     this.synced = true;
     console.info(`[desktop] reminders synced: ${this.items.length} item(s), detail=${this.showDrugDetail}`);
+    this.persist();
     this.ensureTimer();
     this.tick();
     this.onSummaryChanged();
     return this.items.length;
+  }
+
+  /**
+   * 主进程启动恢复（DT-H4）：调度此前只活在内存里，桌面端重启/被系统杀掉后
+   * 在渲染层下一次同步前（最长一个轮询周期）到点不响。现从落盘快照恢复：
+   * 条目重新过 sanitize 与过期过滤，fired 一并恢复防重复通知。
+   */
+  restore(): void {
+    const saved = getState().reminders;
+    if (!saved) return;
+    const clean = saved.items
+      .map((raw) => sanitizeItem(raw))
+      .filter((i): i is DesktopReminderItem => i !== null);
+    this.fired = new Set(
+      Array.isArray(saved.fired)
+        ? saved.fired.filter((x): x is string => typeof x === 'string')
+        : [],
+    );
+    this.showDrugDetail = saved.showDrugDetail === true;
+    this.items = this.buildScheduled(clean);
+    this.synced = true;
+    console.info(`[desktop] reminders restored: ${this.items.length} item(s)`);
+    this.ensureTimer();
+    this.tick();
+    this.onSummaryChanged();
   }
 
   clear(): void {
@@ -143,6 +187,9 @@ export class ReminderScheduler {
       clearInterval(this.timer);
       this.timer = null;
     }
+    updateState((s) => {
+      s.reminders = null;
+    });
     this.onSummaryChanged();
   }
 
@@ -168,17 +215,23 @@ export class ReminderScheduler {
 
   private tick(): void {
     const now = Date.now();
+    let changed = false;
     for (const item of this.items) {
       if (this.fired.has(item.id)) continue;
       if (item.at <= now && now - item.at <= GRACE_MS) {
         this.fired.add(item.id);
+        changed = true;
         this.fire(item);
       }
     }
     // 顺带清理已彻底过期的条目，托盘概览随之刷新
     const before = this.items.length;
     this.items = this.items.filter((i) => now - i.at < STALE_MS);
-    if (this.items.length !== before) this.onSummaryChanged();
+    if (this.items.length !== before) {
+      changed = true;
+      this.onSummaryChanged();
+    }
+    if (changed) this.persist();
   }
 
   private fire(item: ScheduledItem): void {
@@ -186,8 +239,10 @@ export class ReminderScheduler {
       console.warn(`[desktop] notification unsupported, skipped instance=${item.id}`);
       return;
     }
+    // 条目级隐私开关优先于载荷级（多成员各自的关怀设置互不污染）
+    const showDetail = item.showDrugDetail ?? this.showDrugDetail;
     const detail =
-      this.showDrugDetail && item.drugNameSnapshot
+      showDetail && item.drugNameSnapshot
         ? `${item.drugNameSnapshot}${item.doseAmount != null ? ` ${item.doseAmount}${item.doseUnit ?? ''}` : ''}${
             item.storageLocation ? `（存放在${item.storageLocation}）` : ''
           }`

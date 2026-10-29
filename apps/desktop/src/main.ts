@@ -362,6 +362,7 @@ if (!gotLock) {
     if (target.kind === 'local') registerLocalProtocol(target.webRoot);
     registerIpc();
     applyAutoLaunch(getState().settings.autoLaunch);
+    scheduler.restore();
     mainWindow = createWindow();
     createTray();
     nativeTheme.on('updated', () => {

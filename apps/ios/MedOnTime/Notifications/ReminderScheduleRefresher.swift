@@ -25,7 +25,12 @@ enum ReminderScheduleRefresher {
                 memberId: member.id,
                 memberTimeZoneId: member.timezone
             )
-            env.localNotifications.scheduleUpcomingReminders(items, careSettings: session.careSettings)
+            let overrides = await env.planStrongAlertOverrides(memberId: member.id)
+            env.localNotifications.scheduleUpcomingReminders(
+                items,
+                careSettings: session.careSettings,
+                planOverrides: overrides
+            )
         } catch {
             // 拉取失败：既有排程仍是最近一次成功口径，不清空、不覆盖。
         }

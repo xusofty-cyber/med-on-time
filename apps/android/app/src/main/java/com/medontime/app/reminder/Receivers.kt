@@ -51,6 +51,8 @@ class ExactAlarmReceiver : BroadcastReceiver() {
         // finish() 只在 Job 完成回调里调一次：即使 appScope 已取消、launch 块体不执行，
         // 完成回调仍会跑，goAsync 不会漏 finish。
         appScope.launch {
+            // 精确闹钟链式自排：先接排下一条未来实例（离线读落盘载荷），再走强提醒呈现
+            runCatching { app.container.reminderScheduler.scheduleNextExactFromStore(payload.instanceId) }
             try {
                 withTimeoutOrNull(9_000L) {
                     DoseAlerter.presentStrong(context, payload, showDetail)

@@ -54,7 +54,8 @@ final class TodayViewModel: ObservableObject {
             // C-1 修复：排程含今明两日——只排当日时，用户某天不打开 App 当天即零提醒。
             let tzId = fetched.first?.timezone ?? session.currentMember?.timezone ?? "Asia/Shanghai"
             let upcoming = (try? await reminderService.todayAndTomorrow(memberId: memberId, memberTimeZoneId: tzId)) ?? fetched
-            localNotifications.scheduleUpcomingReminders(upcoming, careSettings: currentSettings)
+            let overrides = await AppEnvironment.shared.planStrongAlertOverrides(memberId: memberId)
+            localNotifications.scheduleUpcomingReminders(upcoming, careSettings: currentSettings, planOverrides: overrides)
         } catch {
             errorMessage = (error as? APIError)?.message ?? "今日提醒加载失败"
         }
