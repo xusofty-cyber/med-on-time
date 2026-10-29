@@ -94,6 +94,7 @@ describe('Auth WeChat Bind Scan Confirmation', () => {
         mockWechat,
         store,
         null as any,
+        null as any,
       );
     });
 

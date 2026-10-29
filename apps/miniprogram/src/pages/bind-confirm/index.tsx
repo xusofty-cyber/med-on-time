@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Taro, { useRouter } from '@tarojs/taro';
 import { Button, Text, View } from '@tarojs/components';
 import { authApi } from '../../lib/endpoints';
 import { toastError, toastOk } from '../../lib/api';
+import { fmtDateTime } from '../../lib/time';
 import { useSessionGuard } from '../../lib/hooks';
 import { Card, Loading, PageShell } from '../../components/ui';
 
@@ -26,6 +27,26 @@ export default function BindConfirm() {
   const { booted, account } = useSessionGuard();
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
+  // 目标账号信息（审查 MP-H2）：确认前必须核对，加载失败禁用确认（fail-closed）
+  const [preview, setPreview] = useState<Awaited<ReturnType<typeof authApi.previewBindTicket>> | null>(null);
+  const [previewError, setPreviewError] = useState('');
+  useEffect(() => {
+    if (!ticket || !account) return;
+    let cancelled = false;
+    authApi
+      .previewBindTicket(ticket)
+      .then((p) => {
+        if (!cancelled) setPreview(p);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setPreviewError('无法读取目标账号信息，为安全起见已禁用确认，请返回重新扫码。');
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [ticket, account]);
 
   const confirm = async () => {
     if (!ticket) {
@@ -74,11 +95,33 @@ export default function BindConfirm() {
             </>
           ) : ticket ? (
             <>
-              <Text className='tx-md'>将当前微信绑定到网页账号</Text>
+              <Text className='tx-md'>将当前微信绑定到下方网页账号，请仔细核对：</Text>
+              {preview ? (
+                <View className='col' style={{ gap: '8rpx' }}>
+                  <Text className='tx-md tx-strong'>目标账号：{preview.targetNickname}</Text>
+                  {preview.targetPhoneMasked ? (
+                    <Text className='tx-sm'>手机号：{preview.targetPhoneMasked}</Text>
+                  ) : null}
+                  {preview.targetEmailMasked ? (
+                    <Text className='tx-sm'>邮箱：{preview.targetEmailMasked}</Text>
+                  ) : null}
+                  <Text className='tx-sm'>发起时间：{fmtDateTime(preview.createdAt)}</Text>
+                  <Text className='tx-sm'>有效期至：{fmtDateTime(preview.expiresAt)}</Text>
+                </View>
+              ) : previewError ? (
+                <Text className='tx-sm tx-sub'>{previewError}</Text>
+              ) : (
+                <Text className='tx-sm tx-sub'>正在读取目标账号信息…</Text>
+              )}
               <Text className='tx-sm tx-sub'>
-                绑定后，您可以使用当前微信扫码登录药准时网页版，并接收用药提醒通知。请确认是您本人在电脑上操作。
+                绑定后，您可以使用当前微信扫码登录药准时网页版，并接收用药提醒通知。若上方账号不是您本人的，请勿确认。
               </Text>
-              <Button className='btn btn-primary btn-block' loading={busy} onClick={confirm}>
+              <Button
+                className='btn btn-primary btn-block'
+                loading={busy}
+                disabled={!preview}
+                onClick={confirm}
+              >
                 确认绑定
               </Button>
               <Button

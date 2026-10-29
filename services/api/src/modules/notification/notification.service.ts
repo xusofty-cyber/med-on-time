@@ -81,6 +81,7 @@ const DELIVERY_RESULT_TEXT: Record<string, string> = {
   success: '已送达',
   failed: '发送失败',
   suppressed_dedup: '去重跳过',
+  suppressed_not_configured: '通道未配置',
 };
 
 /** 由实例快照合成前端 NotificationItem 期望的 title/content */

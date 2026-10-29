@@ -126,7 +126,7 @@ export class ReminderQueueService implements OnModuleDestroy {
   }
 }
 
-function parseRedisUrl(raw: string): RedisConnectionOptions {
+export function parseRedisUrl(raw: string): RedisConnectionOptions {
   try {
     const u = new URL(raw);
     const db = u.pathname.replace('/', '');

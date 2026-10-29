@@ -20,6 +20,7 @@ import {
   type SmsScene,
 } from './services/verification-code.service';
 import { WechatMiniappService } from './services/wechat-miniapp.service';
+import { LoginThrottleService } from './services/login-throttle.service';
 import {
   ScanLoginTicketStore,
   SCAN_TICKET_TTL_MS,
@@ -56,16 +57,17 @@ export class AuthService {
     private readonly codes: VerificationCodeService,
     private readonly wechat: WechatMiniappService,
     private readonly scanTickets: ScanLoginTicketStore,
+    private readonly throttle: LoginThrottleService,
     private readonly config: ConfigService,
   ) {}
 
-  async sendSmsCode(phone: string, scene: SmsScene): Promise<{ expiresInSeconds: number }> {
-    return this.codes.send(phone, this.phoneCrypto.hashPhone(phone), scene);
+  async sendSmsCode(phone: string, scene: SmsScene, ctx?: RequestContext): Promise<{ expiresInSeconds: number }> {
+    return this.codes.send(phone, this.phoneCrypto.hashPhone(phone), scene, ctx?.ipAddress);
   }
 
-  async sendEmailCode(email: string, scene: CodeScene): Promise<{ expiresInSeconds: number }> {
+  async sendEmailCode(email: string, scene: CodeScene, ctx?: RequestContext): Promise<{ expiresInSeconds: number }> {
     const normalized = PhoneCryptoService.normalizeEmail(email);
-    return this.codes.sendEmail(normalized, this.phoneCrypto.hashEmail(normalized), scene);
+    return this.codes.sendEmail(normalized, this.phoneCrypto.hashEmail(normalized), scene, ctx?.ipAddress);
   }
 
   async register(dto: RegisterDto, ctx: RequestContext): Promise<TokenPair> {
@@ -201,25 +203,44 @@ export class AuthService {
     if (!identifier) {
       throw new BusinessException(BusinessCode.BadRequest, '账号不能为空');
     }
-    const account = identifier.includes('@')
-      ? await this.findAccountByEmailHash(this.phoneCrypto.hashEmail(identifier))
-      : await this.findAccountByPhoneHash(this.phoneCrypto.hashPhone(identifier));
-    if (!account || !account.passwordHash) {
+    const isEmail = identifier.includes('@');
+    const idHash = isEmail
+      ? this.phoneCrypto.hashEmail(identifier)
+      : this.phoneCrypto.hashPhone(identifier);
+    // 登录防爆破（2026-10-30 审查 H-1）：账号维度 + IP 维度双记，任一锁定即拒；
+    // 口径同后台：15 分钟窗口内失败 5 次锁定 15 分钟（状态落 Redis）。
+    const dims = [`acct:${idHash}`];
+    if (ctx.ipAddress) dims.push(`ip:${ctx.ipAddress}`);
+    for (const dim of dims) {
+      const lockedSec = await this.throttle.lockedSeconds('user', dim);
+      if (lockedSec > 0) {
+        throw new BusinessException(
+          BusinessCode.Forbidden,
+          `连续登录失败次数过多，已锁定，请 ${Math.ceil(lockedSec / 60)} 分钟后重试`,
+          HttpStatus.FORBIDDEN,
+        );
+      }
+    }
+    const fail = async (): Promise<never> => {
+      for (const dim of dims) await this.throttle.recordFailure('user', dim);
       throw new BusinessException(
         BusinessCode.Unauthorized,
         '账号或密码不正确',
         HttpStatus.UNAUTHORIZED,
       );
+    };
+    const account = isEmail
+      ? await this.findAccountByEmailHash(idHash)
+      : await this.findAccountByPhoneHash(idHash);
+    if (!account || !account.passwordHash) {
+      return fail();
     }
     this.assertAccountUsable(account);
     const ok = await argon2.verify(account.passwordHash, dto.password);
     if (!ok) {
-      throw new BusinessException(
-        BusinessCode.Unauthorized,
-        '账号或密码不正确',
-        HttpStatus.UNAUTHORIZED,
-      );
+      return fail();
     }
+    for (const dim of dims) await this.throttle.clear('user', dim);
     await this.touchLogin(account.id);
     return this.issueTokens(account, dto, ctx);
   }
@@ -675,6 +696,30 @@ export class AuthService {
     return { status: 'confirmed', ...tokens };
   }
 
+  /**
+   * 小程序确认页预览（登录票，2026-10-30 审查 MP-H1）：
+   * 确认前必须让扫码人看到「谁在发起」——发起端平台/设备名/发起与过期时间；
+   * 只下发这些信息，不含任何令牌（取票走 poll 的一次性换发路径）。
+   */
+  async previewScanTicket(ticketId: string) {
+    const ticket = await this.scanTickets.get(ticketId);
+    if (!ticket || ticket.purpose === 'bind_wechat') {
+      throw new BusinessException(
+        BusinessCode.NotFound,
+        '登录二维码不存在或已过期，请在网页端刷新',
+        HttpStatus.NOT_FOUND,
+      );
+    }
+    return {
+      purpose: 'login' as const,
+      status: ticket.status,
+      platform: ticket.platform ?? 'web',
+      deviceName: ticket.deviceName ?? null,
+      createdAt: new Date(ticket.createdAt).toISOString(),
+      expiresAt: new Date(ticket.expiresAt).toISOString(),
+    };
+  }
+
   /** 小程序端确认：调用者为小程序登录态账号，确认其本人登录网页版 */
   async confirmScanTicket(
     ticketId: string,
@@ -765,6 +810,46 @@ export class AuthService {
       return { status: 'expired' };
     }
     return { status: ticket.status };
+  }
+
+  /**
+   * 小程序确认页预览（绑定票，2026-10-30 审查 MP-H2）：
+   * 确认前必须让扫码人核对目标网页账号——下发其昵称与脱敏手机/邮箱；
+   * 钓鱼二维码把微信绑到他人账号的攻击面靠这一步人工核对堵住。
+   */
+  async previewBindTicket(ticketId: string) {
+    const ticket = await this.scanTickets.get(ticketId);
+    if (!ticket || ticket.purpose !== 'bind_wechat' || !ticket.ownerAccountId) {
+      throw new BusinessException(
+        BusinessCode.NotFound,
+        '绑定二维码不存在或已过期，请在网页端重新生成',
+        HttpStatus.NOT_FOUND,
+      );
+    }
+    const owner = await this.prisma.userAccount.findFirst({
+      where: { id: ticket.ownerAccountId, deletedAt: null },
+    });
+    if (!owner) {
+      throw new BusinessException(
+        BusinessCode.NotFound,
+        '目标账号不存在',
+        HttpStatus.NOT_FOUND,
+      );
+    }
+    const view = (await this.buildAccountView(owner)) as {
+      nickname: string;
+      phoneMasked: string | null;
+      emailMasked: string | null;
+    };
+    return {
+      purpose: 'bind_wechat' as const,
+      status: ticket.status,
+      targetNickname: view.nickname,
+      targetPhoneMasked: view.phoneMasked,
+      targetEmailMasked: view.emailMasked,
+      createdAt: new Date(ticket.createdAt).toISOString(),
+      expiresAt: new Date(ticket.expiresAt).toISOString(),
+    };
   }
 
   async confirmBindTicket(

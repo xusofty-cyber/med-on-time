@@ -63,6 +63,22 @@ export class TokenService {
         '生产环境必须配置 JWT_ACCESS_SECRET 与 JWT_REFRESH_SECRET，禁止回退开发默认密钥',
       );
     }
+    // 管理员密钥独立性（2026-10-30 审查 H-3）：生产环境 ADMIN_JWT_SECRET
+    // 必须显式配置且不得与用户端 access 密钥相同——管理员令牌与用户令牌
+    // 同钥等于隔离失效（任一端密钥泄漏即全域沦陷），缺失/相同一律拒启动。
+    if (isProd) {
+      const adminSecret = this.config.get<string>('ADMIN_JWT_SECRET');
+      if (!adminSecret) {
+        throw new Error(
+          '生产环境必须配置 ADMIN_JWT_SECRET（管理员令牌独立密钥），禁止回退用户端密钥',
+        );
+      }
+      if (rawAccessSecret && adminSecret === rawAccessSecret) {
+        throw new Error(
+          'ADMIN_JWT_SECRET 不得与 JWT_ACCESS_SECRET 相同（管理员与用户令牌必须异钥）',
+        );
+      }
+    }
     this.accessSecret = rawAccessSecret ?? DEV_ACCESS_SECRET_FALLBACK;
     this.refreshSecret = rawRefreshSecret ?? DEV_REFRESH_SECRET_FALLBACK;
     this.accessTtlSeconds = parseTtlSeconds(

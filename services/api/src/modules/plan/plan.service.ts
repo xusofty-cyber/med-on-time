@@ -319,6 +319,82 @@ export class PlanService {
     return plan;
   }
 
+  /**
+   * 过敏命中校验（2026-10-30 全项目审查 H-4 定版）：建/改计划时把计划药品与
+   * 成员过敏档案（member_allergy 的 drug / drug_category / allergen_code 三种
+   * 结构化引用）比对，命中只产出结构化强警告、不硬拦截；前端展示后由用户
+   * 确认继续（确认动作发生在知情前提下，警告本身即留痕于响应）。
+   */
+  private async checkAllergyWarnings(
+    memberId: string,
+    entries: { drugId: string; drugName: string }[],
+  ): Promise<
+    {
+      drugId: string;
+      drugName: string;
+      allergyId: string;
+      allergen: string;
+      severity: string | null;
+      matchType: 'drug' | 'category';
+    }[]
+  > {
+    if (entries.length === 0) return [];
+    const allergies = await this.prisma.memberAllergy.findMany({
+      where: { memberId, deletedAt: null },
+    });
+    if (allergies.length === 0) return [];
+    const drugIds = [...new Set(entries.map((e) => e.drugId))];
+    const drugRows = await this.prisma.drug.findMany({
+      where: { id: { in: drugIds } },
+      select: { id: true, categoryId: true },
+    });
+    const drugCategoryOf = new Map(drugRows.map((d) => [d.id, d.categoryId]));
+    const categoryIds = [
+      ...new Set(drugRows.map((d) => d.categoryId).filter((v): v is string => !!v)),
+    ];
+    const categories =
+      categoryIds.length > 0
+        ? await this.prisma.drugCategory.findMany({
+            where: { id: { in: categoryIds } },
+            select: { id: true, code: true },
+          })
+        : [];
+    const categoryCodeOf = new Map(categories.map((c) => [c.id, c.code]));
+    const warnings: {
+      drugId: string;
+      drugName: string;
+      allergyId: string;
+      allergen: string;
+      severity: string | null;
+      matchType: 'drug' | 'category';
+    }[] = [];
+    for (const entry of entries) {
+      const categoryId = drugCategoryOf.get(entry.drugId) ?? null;
+      const categoryCode = categoryId ? categoryCodeOf.get(categoryId) : undefined;
+      for (const allergy of allergies) {
+        let matchType: 'drug' | 'category' | null = null;
+        if (allergy.drugId && allergy.drugId === entry.drugId) {
+          matchType = 'drug';
+        } else if (allergy.drugCategoryId && categoryId === allergy.drugCategoryId) {
+          matchType = 'category';
+        } else if (allergy.allergenCode && categoryCode === allergy.allergenCode) {
+          matchType = 'category';
+        }
+        if (matchType) {
+          warnings.push({
+            drugId: entry.drugId,
+            drugName: entry.drugName,
+            allergyId: allergy.id,
+            allergen: allergy.allergen,
+            severity: allergy.severity,
+            matchType,
+          });
+        }
+      }
+    }
+    return warnings;
+  }
+
   private async loadPlan(db: Db, planId: string) {
     const plan = await this.findPlanOrThrow(db, planId);
     const [items, phases] = await Promise.all([
@@ -836,7 +912,15 @@ export class PlanService {
     }
     // 当日即时生效：新建计划立即补生成今天未到点剂量（生成器内过滤非 Active/PRN）
     await this.triggerSameDayGeneration(memberId);
-    return this.withCycleFields(created, planId);
+    const view = await this.withCycleFields(created, planId);
+    const allergyWarnings = await this.checkAllergyWarnings(
+      memberId,
+      dto.items.map((item) => ({
+        drugId: item.drugId,
+        drugName: drugs.get(item.drugId)?.genericName ?? item.drugId,
+      })),
+    );
+    return { ...view, allergyWarnings };
   }
 
   /* ---------------------------- 查询 ---------------------------- */
@@ -1535,7 +1619,18 @@ export class PlanService {
     }
     // 当日即时生效：排程变更后补生成今天未到点剂量（幂等，只补缺）
     await this.triggerSameDayGeneration(existing.memberId);
-    return this.withCycleFields(planRes, planId);
+    const view = await this.withCycleFields(planRes, planId);
+    if (dto.items !== undefined) {
+      // 明细被替换时才做过敏命中校验（改备注等无关编辑不重复警告）
+      const items =
+        (planRes as { items?: { drugId: string; drugNameSnapshot: string }[] }).items ?? [];
+      const allergyWarnings = await this.checkAllergyWarnings(
+        existing.memberId,
+        items.map((i) => ({ drugId: i.drugId, drugName: i.drugNameSnapshot })),
+      );
+      return { ...view, allergyWarnings };
+    }
+    return view;
   }
 
   /* ---------------------------- 暂停 / 恢复 / 删除 ---------------------------- */

@@ -10,6 +10,7 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { PhoneCryptoService } from './services/phone-crypto.service';
 import { TokenService } from './services/token.service';
 import { WechatMiniappService } from './services/wechat-miniapp.service';
+import { LoginThrottleService } from './services/login-throttle.service';
 import {
   DevStubMailSender,
   MailSender,
@@ -51,6 +52,7 @@ import {
     SessionService,
     VerificationCodeService,
     WechatMiniappService,
+    LoginThrottleService,
     { provide: ScanLoginTicketStore, useClass: RedisScanLoginTicketStore },
     { provide: RefreshSessionStore, useClass: RedisRefreshSessionStore },
     { provide: VerificationCodeStore, useClass: RedisVerificationCodeStore },

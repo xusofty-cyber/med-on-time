@@ -106,6 +106,8 @@ export class InMemoryVerificationCodeStore extends VerificationCodeStore {
 const CODE_TTL_MS = 5 * 60 * 1000;
 const RESEND_INTERVAL_MS = 60 * 1000;
 const HOURLY_LIMIT = 5;
+/** IP 维度发送上限（跨目标，2026-10-30 审查 H-1） */
+const IP_HOURLY_LIMIT = 20;
 const MAX_ATTEMPTS = 5;
 
 /**
@@ -126,17 +128,19 @@ export class VerificationCodeService {
   }
 
   /** 短信通道发送（既有入口，签名不变）。 */
-  async send(phone: string, phoneHash: string, scene: SmsScene): Promise<{ expiresInSeconds: number }> {
+  async send(phone: string, phoneHash: string, scene: SmsScene, ipAddress?: string): Promise<{ expiresInSeconds: number }> {
     return this.issue('sms', phoneHash, normalizeScene(scene), (code) =>
       this.smsSender.sendVerificationCode(phone, code, scene),
+      ipAddress,
     );
   }
 
   /** 邮件通道发送。 */
-  async sendEmail(email: string, emailHash: string, scene: CodeScene): Promise<{ expiresInSeconds: number }> {
+  async sendEmail(email: string, emailHash: string, scene: CodeScene, ipAddress?: string): Promise<{ expiresInSeconds: number }> {
     const normalized = normalizeScene(scene);
     return this.issue('mail', emailHash, normalized, (code) =>
       this.mailSender.sendVerificationCode(email, code, normalized),
+      ipAddress,
     );
   }
 
@@ -145,8 +149,26 @@ export class VerificationCodeService {
     targetHash: string,
     scene: CodeScene,
     deliver: (code: string) => Promise<void>,
+    ipAddress?: string,
   ): Promise<{ expiresInSeconds: number }> {
     const now = Date.now();
+    // IP 维度限频（2026-10-30 审查 H-1）：单 IP 1 小时跨目标至多 20 次，
+    // 防撞库式批量刷码；目标维度限频保持不变（60 秒重发 / 1 小时 5 次）。
+    let ipHistoryKey: string | null = null;
+    let ipHistory: number[] = [];
+    if (ipAddress) {
+      ipHistoryKey = `hist:ip:${ipAddress}`;
+      ipHistory = (await this.store.getSendHistory(ipHistoryKey)).filter(
+        (t) => now - t < 60 * 60 * 1000,
+      );
+      if (ipHistory.length >= IP_HOURLY_LIMIT) {
+        throw new BusinessException(
+          BusinessCode.BadRequest,
+          '验证码发送次数已达上限，请 1 小时后再试',
+          HttpStatus.TOO_MANY_REQUESTS,
+        );
+      }
+    }
     const historyKey = `hist:${this.key(channel, targetHash, scene)}`;
     const history = (await this.store.getSendHistory(historyKey)).filter(
       (t) => now - t < 60 * 60 * 1000,
@@ -176,6 +198,10 @@ export class VerificationCodeService {
     });
     history.push(now);
     await this.store.setSendHistory(historyKey, history);
+    if (ipHistoryKey) {
+      ipHistory.push(now);
+      await this.store.setSendHistory(ipHistoryKey, ipHistory);
+    }
     try {
       await deliver(code);
     } catch (err) {

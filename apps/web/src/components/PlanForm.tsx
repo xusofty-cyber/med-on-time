@@ -5,7 +5,7 @@ import { Button, ErrorText, Field, Select, TextInput } from './ui';
 import { DrugPicker } from './DrugPicker';
 import { COURSE_LABELS, FREQUENCY_LABELS, MEAL_LABELS, WEEKDAY_LABELS } from '../lib/dict';
 import { todayInTz } from '../lib/time';
-import { CYCLE_PRESETS, STRONG_ALERT_LABELS, type CyclePresetKey, type Drug, type Plan, type PlanItemInput, type PlanPayload, type PlanPhaseInput, type StrongAlertMode } from '../lib/types';
+import { CYCLE_PRESETS, STRONG_ALERT_LABELS, type AllergyWarning, type CyclePresetKey, type Drug, type Plan, type PlanItemInput, type PlanPayload, type PlanPhaseInput, type StrongAlertMode } from '../lib/types';
 
 interface ItemDraft extends PlanItemInput {
   key: number;
@@ -80,6 +80,7 @@ export function PlanForm({
   const [strongAlert, setStrongAlert] = useState<'member' | StrongAlertMode>('member');
   const [error, setError] = useState<unknown>(null);
   const [busy, setBusy] = useState(false);
+  const [allergyWarnings, setAllergyWarnings] = useState<AllergyWarning[] | null>(null);
 
   useEffect(() => {
     if (plan) {
@@ -163,8 +164,14 @@ export function PlanForm({
       phases: planType === 'prn' ? [] : phases,
     };
     try {
-      if (plan) await planApi.update(plan.id, payload);
-      else await planApi.create(memberId, payload);
+      const saved = plan
+        ? await planApi.update(plan.id, payload)
+        : await planApi.create(memberId, payload);
+      if (saved.allergyWarnings && saved.allergyWarnings.length > 0) {
+        // 过敏强警告：计划已保存，但必须由用户看完警告并点「我已知晓」才关闭表单
+        setAllergyWarnings(saved.allergyWarnings);
+        return;
+      }
       actions.toast('success', plan ? '计划已更新，变更会记入变更史' : '计划已创建');
       onSaved();
     } catch (err) {
@@ -456,14 +463,41 @@ export function PlanForm({
       </Field>
 
       <ErrorText error={error} />
-      <div className="flex gap-2">
-        <Button variant="ghost" className="flex-1" onClick={onClose}>
-          取消
-        </Button>
-        <Button type="submit" className="flex-1" disabled={busy}>
-          {busy ? '保存中…' : plan ? '保存修改' : '创建计划'}
-        </Button>
-      </div>
+      {allergyWarnings ? (
+        <div className="flex flex-col gap-3 rounded-xl border border-red-300 bg-red-50 px-4 py-3">
+          <p className="font-semibold text-red-800">⚠ 过敏风险警告（计划已保存）</p>
+          <ul className="flex flex-col gap-1 text-sm text-red-700">
+            {allergyWarnings.map((w) => (
+              <li key={`${w.allergyId}-${w.drugId}`}>
+                「{w.drugName}」与过敏档案「{w.allergen}」命中
+                （{w.matchType === 'drug' ? '同一药品' : '同类药品'}
+                {w.severity ? `，严重程度：${w.severity}` : ''}）
+              </li>
+            ))}
+          </ul>
+          <p className="text-sm text-red-700">
+            请确认您已知晓上述过敏风险。如系误报或病情已变化，请先到健康档案修正过敏信息，或删除该计划重新制定。
+          </p>
+          <Button
+            type="button"
+            onClick={() => {
+              actions.toast('success', plan ? '计划已更新，变更会记入变更史' : '计划已创建');
+              onSaved();
+            }}
+          >
+            我已知晓
+          </Button>
+        </div>
+      ) : (
+        <div className="flex gap-2">
+          <Button variant="ghost" className="flex-1" onClick={onClose}>
+            取消
+          </Button>
+          <Button type="submit" className="flex-1" disabled={busy}>
+            {busy ? '保存中…' : plan ? '保存修改' : '创建计划'}
+          </Button>
+        </div>
+      )}
     </form>
   );
 }

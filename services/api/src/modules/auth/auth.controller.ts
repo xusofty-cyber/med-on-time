@@ -39,14 +39,14 @@ export class AuthController {
 
   /** 发送短信验证码（register/login/reset 三场景，限频见 VerificationCodeService） */
   @Post('sms/send')
-  async sendSmsCode(@Body() dto: SendSmsCodeDto) {
-    return this.service.sendSmsCode(dto.phone, dto.scene);
+  async sendSmsCode(@Body() dto: SendSmsCodeDto, @Req() req: Request) {
+    return this.service.sendSmsCode(dto.phone, dto.scene, requestContext(req));
   }
 
   /** 发送邮箱验证码（register/login/reset_password/bind 四场景，限频同短信） */
   @Post('email/send')
-  async sendEmailCode(@Body() dto: SendEmailCodeDto) {
-    return this.service.sendEmailCode(dto.email, dto.scene);
+  async sendEmailCode(@Body() dto: SendEmailCodeDto, @Req() req: Request) {
+    return this.service.sendEmailCode(dto.email, dto.scene, requestContext(req));
   }
 
   @Post('register')
@@ -131,6 +131,14 @@ export class AuthController {
     return this.service.pollScanTicket(id, requestContext(req));
   }
 
+  /** 扫码登录：小程序确认页预览发起端信息（需登录态，不含令牌） */
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @Get('scan-login/tickets/:id/preview')
+  async previewScanTicket(@Param('id') id: string) {
+    return this.service.previewScanTicket(id);
+  }
+
   /** 扫码登录：小程序端确认（需登录态，确认本人登录网页版） */
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
@@ -170,6 +178,14 @@ export class AuthController {
     @Param('id') id: string,
   ) {
     return this.service.getBindTicket(id, user.accountId);
+  }
+
+  /** 微信绑定：小程序确认页预览目标账号脱敏信息（需登录态） */
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @Get('wechat/bind-tickets/:id/preview')
+  async previewBindTicket(@Param('id') id: string) {
+    return this.service.previewBindTicket(id);
   }
 
   /** 微信绑定：小程序端扫码确认（需登录态，携带绑定票据与 wx.login 的 code） */

@@ -11,6 +11,7 @@ import type { AuthenticatedAdmin } from '../../common/decorators/admin.decorator
 import { DrugSeedImportService, type DrugSeedImportResult } from './drug-seed-import.service';
 import { PhoneCryptoService } from '../auth/services/phone-crypto.service';
 import { SessionService } from '../auth/services/session.service';
+import { LoginThrottleService } from '../auth/services/login-throttle.service';
 import type {
   AdminLoginDto,
   CreateAppVersionDto,
@@ -45,48 +46,35 @@ export const DRUG_REVIEW_VERIFY_ACTION = 'admin:drug:review_verify';
  */
 @Injectable()
 export class AdminService {
-  private static readonly LOCKOUT_WINDOW_MS = 15 * 60 * 1000;
-  private static readonly MAX_FAILED_ATTEMPTS = 5;
-  private static readonly LOCKOUT_DURATION_MS = 15 * 60 * 1000;
-  private readonly loginAttempts = new Map<string, { failures: number[]; lockedUntil?: number }>();
-
   constructor(
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
     private readonly seedImport: DrugSeedImportService,
     private readonly phoneCrypto: PhoneCryptoService,
     private readonly sessionService: SessionService,
+    private readonly throttle: LoginThrottleService,
   ) {}
 
-  private assertNotLocked(key: string, now: number): void {
-    const entry = this.loginAttempts.get(key);
-    if (!entry) return;
-    if (entry.lockedUntil && entry.lockedUntil > now) {
-      const waitMin = Math.ceil((entry.lockedUntil - now) / 60_000);
+  // 登录防爆破（2026-10-30 审查 M-6）：状态迁 Redis 与用户端共用
+  // LoginThrottleService（15 分钟窗口失败 5 次锁 15 分钟，重启不清零）；
+  // 保留原方法名收敛调用点改动，key 语义不变（用户名 / ip:<ip>）。
+  private async assertNotLocked(key: string): Promise<void> {
+    const lockedSec = await this.throttle.lockedSeconds('admin', key);
+    if (lockedSec > 0) {
       throw new BusinessException(
         BusinessCode.Forbidden,
-        `连续登录失败次数过多，已锁定，请 ${waitMin} 分钟后重试`,
+        `连续登录失败次数过多，已锁定，请 ${Math.ceil(lockedSec / 60)} 分钟后重试`,
         HttpStatus.FORBIDDEN,
       );
     }
   }
 
-  private recordLoginFailure(key: string, now: number): void {
-    let entry = this.loginAttempts.get(key);
-    if (!entry) {
-      entry = { failures: [] };
-      this.loginAttempts.set(key, entry);
-    }
-    entry.failures = entry.failures.filter((t) => now - t < AdminService.LOCKOUT_WINDOW_MS);
-    entry.failures.push(now);
-    if (entry.failures.length >= AdminService.MAX_FAILED_ATTEMPTS) {
-      entry.lockedUntil = now + AdminService.LOCKOUT_DURATION_MS;
-      entry.failures = [];
-    }
+  private async recordLoginFailure(key: string): Promise<void> {
+    await this.throttle.recordFailure('admin', key);
   }
 
-  private clearLoginFailures(key: string): void {
-    this.loginAttempts.delete(key);
+  private async clearLoginFailures(key: string): Promise<void> {
+    await this.throttle.clear('admin', key);
   }
 
   /** 密文手机号 → 脱敏展示（138****1234）；解密失败/无手机号返回 null，页面显示「-」。 */
@@ -102,10 +90,9 @@ export class AdminService {
   // ------------------------------------------------------------------ 登录
 
   async login(dto: AdminLoginDto, ctx: AdminRequestContext) {
-    const now = Date.now();
-    this.assertNotLocked(dto.username, now);
+    await this.assertNotLocked(dto.username);
     if (ctx.ip) {
-      this.assertNotLocked(`ip:${ctx.ip}`, now);
+      await this.assertNotLocked(`ip:${ctx.ip}`);
     }
 
     const admin = await this.prisma.adminUser.findFirst({
@@ -113,8 +100,8 @@ export class AdminService {
       include: { userRoles: { where: { deletedAt: null }, include: { role: true } } },
     });
     if (!admin) {
-      this.recordLoginFailure(dto.username, now);
-      if (ctx.ip) this.recordLoginFailure(`ip:${ctx.ip}`, now);
+      await this.recordLoginFailure(dto.username);
+      if (ctx.ip) await this.recordLoginFailure(`ip:${ctx.ip}`);
       throw new BusinessException(BusinessCode.Unauthorized, '用户名或密码不正确', HttpStatus.UNAUTHORIZED);
     }
     let passwordOk = false;
@@ -124,8 +111,8 @@ export class AdminService {
       passwordOk = false;
     }
     if (!passwordOk) {
-      this.recordLoginFailure(dto.username, now);
-      if (ctx.ip) this.recordLoginFailure(`ip:${ctx.ip}`, now);
+      await this.recordLoginFailure(dto.username);
+      if (ctx.ip) await this.recordLoginFailure(`ip:${ctx.ip}`);
       await this.writeAudit({
         adminId: admin.id,
         action: 'admin:auth:login',
@@ -137,8 +124,8 @@ export class AdminService {
       });
       throw new BusinessException(BusinessCode.Unauthorized, '用户名或密码不正确', HttpStatus.UNAUTHORIZED);
     }
-    this.clearLoginFailures(dto.username);
-    if (ctx.ip) this.clearLoginFailures(`ip:${ctx.ip}`);
+    await this.clearLoginFailures(dto.username);
+    if (ctx.ip) await this.clearLoginFailures(`ip:${ctx.ip}`);
     if (admin.status !== 'active') {
       throw new BusinessException(
         BusinessCode.Forbidden,
@@ -159,8 +146,8 @@ export class AdminService {
       detail: { username: admin.username, roles },
       ctx,
     });
-    this.clearLoginFailures(dto.username);
-    if (ctx.ip) this.clearLoginFailures(`ip:${ctx.ip}`);
+    await this.clearLoginFailures(dto.username);
+    if (ctx.ip) await this.clearLoginFailures(`ip:${ctx.ip}`);
     const accessToken = signJwt(
       { sub: admin.id, type: 'admin', aud: 'admin', username: admin.username, roles },
       this.adminSecret(),

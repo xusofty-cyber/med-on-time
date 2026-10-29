@@ -3,6 +3,7 @@ import Taro, { useRouter } from '@tarojs/taro';
 import { Button, Text, View } from '@tarojs/components';
 import { authApi } from '../../lib/endpoints';
 import { toastError } from '../../lib/api';
+import { fmtDateTime } from '../../lib/time';
 import { consumePendingScanTicket, setPendingScanTicket, useSessionGuard } from '../../lib/hooks';
 import { Card, Loading, PageShell } from '../../components/ui';
 
@@ -39,6 +40,28 @@ export default function ScanLogin() {
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
   const [scanError, setScanError] = useState('');
+  // 发起端信息（审查 MP-H1）：确认前必须展示，加载失败禁用确认（fail-closed）
+  const [preview, setPreview] = useState<Awaited<ReturnType<typeof authApi.previewScanTicket>> | null>(null);
+  const [previewError, setPreviewError] = useState('');
+  useEffect(() => {
+    if (!ticket || !account) return;
+    let cancelled = false;
+    setPreview(null);
+    setPreviewError('');
+    authApi
+      .previewScanTicket(ticket)
+      .then((p) => {
+        if (!cancelled) setPreview(p);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setPreviewError('无法读取这张二维码的发起信息，为安全起见已禁用确认，请重新扫码。');
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [ticket, account]);
 
   const scan = async () => {
     setScanError('');
@@ -90,9 +113,26 @@ export default function ScanLogin() {
           ) : ticket ? (
             <>
               <Text className='tx-md'>
-                将以当前账号「{account.nickname}」登录网页版。请确认是您本人在电脑上操作。
+                将以当前账号「{account.nickname}」登录网页版。请核对下方发起信息，确认是您本人在电脑上操作。
               </Text>
-              <Button className='btn btn-primary btn-block' loading={busy} onClick={confirm}>
+              {preview ? (
+                <View className='col' style={{ gap: '8rpx' }}>
+                  <Text className='tx-sm'>发起端：{preview.platform === 'web' ? '网页版' : preview.platform}</Text>
+                  <Text className='tx-sm'>设备：{preview.deviceName ?? '未知设备'}</Text>
+                  <Text className='tx-sm'>发起时间：{fmtDateTime(preview.createdAt)}</Text>
+                  <Text className='tx-sm'>有效期至：{fmtDateTime(preview.expiresAt)}</Text>
+                </View>
+              ) : previewError ? (
+                <Text className='tx-sm tx-sub'>{previewError}</Text>
+              ) : (
+                <Text className='tx-sm tx-sub'>正在读取发起信息…</Text>
+              )}
+              <Button
+                className='btn btn-primary btn-block'
+                loading={busy}
+                disabled={!preview}
+                onClick={confirm}
+              >
                 确认登录
               </Button>
               <Button

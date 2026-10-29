@@ -72,6 +72,27 @@ export const authApi = {
   /** 扫码登录网页版（需登录）：确认当前账号登录 Web 端；票据过期/已被他人确认时后端给出业务提示。 */
   confirmScanTicket: (ticketId: string) =>
     http.post<{ status: 'confirmed'; nickname: string }>('/auth/scan-login/confirm', { ticketId }),
+  /** 扫码登录确认页预览：发起端平台/设备名/时间（确认前必须展示，加载失败禁用确认） */
+  previewScanTicket: (ticketId: string) =>
+    http.get<{
+      purpose: 'login';
+      status: string;
+      platform: string;
+      deviceName: string | null;
+      createdAt: string;
+      expiresAt: string;
+    }>(`/auth/scan-login/tickets/${ticketId}/preview`),
+  /** 绑定确认页预览：目标网页账号昵称与脱敏手机/邮箱（确认前必须核对） */
+  previewBindTicket: (ticketId: string) =>
+    http.get<{
+      purpose: 'bind_wechat';
+      status: string;
+      targetNickname: string;
+      targetPhoneMasked: string | null;
+      targetEmailMasked: string | null;
+      createdAt: string;
+      expiresAt: string;
+    }>(`/auth/wechat/bind-tickets/${ticketId}/preview`),
   /** 扫码确认微信绑定（需登录）：确认将当前微信绑定到网页账号 */
   confirmBindTicket: (ticketId: string, code: string) =>
     http.post<{ status: 'confirmed'; bound: boolean }>('/auth/wechat/bind-confirm', {

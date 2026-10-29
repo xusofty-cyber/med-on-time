@@ -15,7 +15,8 @@ import {
 */
 
 export interface ChannelSendResult {
-result: 'success' | 'failed';
+/** success/failed 为真实投递结果；suppressed_* 为未下发的终局状态（去重/通道未配置等） */
+result: 'success' | 'failed' | 'suppressed_dedup' | 'suppressed_not_configured';
 providerMsgId?: string;
 errorCode?: string;
 }
@@ -108,19 +109,21 @@ export class TencentSmsReminderProvider implements NotificationChannelProvider {
 }
 
 /**
-* App 推送：命中设备（pushToken 非空且 pushEnabled）时调用。
-* 生产环境替换为 APNs / FCM / 极光聚合实现同一接口。
+* App 推送（日志桩，真实通道未接入）：
+* 诚实口径（2026-10-30 审查 H-5）——APNs / FCM / 极光均未接入，本提供方
+* 并未真正下发任何推送，禁止再记 success 假成功（会污染送达统计并触发
+* 跨渠道去重误判）。固定返回 suppressed_not_configured；接入真实通道时
+* 替换本实现并恢复 success 语义（同一接口）。
 */
 export class LogPushProvider implements NotificationChannelProvider {
 readonly channel = 'app_push';
 private readonly logger = new Logger(LogPushProvider.name);
 
 async send(ctx: ReminderChannelContext): Promise<ChannelSendResult> {
-const providerMsgId = `log-stub:${uuidv7()}`;
-this.logger.log(
-`[push-stub] would push reminder instance=${ctx.instanceId} device=${ctx.deviceId?? '-'} msg=${providerMsgId}`,
+this.logger.warn(
+`[push-not-configured] no real push provider configured; suppressed instance=${ctx.instanceId} device=${ctx.deviceId?? '-'}`,
 );
-return { result: 'success', providerMsgId};
+return { result: 'suppressed_not_configured', errorCode: 'PUSH_NOT_CONFIGURED' };
 }
 }
 

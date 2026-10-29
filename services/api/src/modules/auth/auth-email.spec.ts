@@ -191,6 +191,11 @@ describe('Auth Email Dual-Channel Extensions', () => {
         codeService,
         {} as any,
         {} as any,
+        {
+          lockedSeconds: jest.fn().mockResolvedValue(0),
+          recordFailure: jest.fn().mockResolvedValue(undefined),
+          clear: jest.fn().mockResolvedValue(undefined),
+        } as any,
         config,
       );
     });

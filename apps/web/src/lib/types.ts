@@ -129,6 +129,16 @@ export interface PlanItemInput {
   courseDays?: number | null;
 }
 
+/** 过敏命中强警告（建/改计划响应附带，命中不拦截、前端必须展示确认） */
+export interface AllergyWarning {
+  drugId: string;
+  drugName: string;
+  allergyId: string;
+  allergen: string;
+  severity?: string | null;
+  matchType: 'drug' | 'category';
+}
+
 export interface Plan {
   id: string;
   memberId: string;
@@ -147,6 +157,8 @@ export interface Plan {
   cycleIntervalMinutes?: number | null;
   /** 强提醒方式覆盖原值：null = 跟随成员关怀设置 */
   strongAlertModeOverride?: StrongAlertMode | null;
+  /** 仅建/改计划响应附带：过敏命中警告（其余接口不返回） */
+  allergyWarnings?: AllergyWarning[];
   items?: PlanItem[];
   phases?: PlanPhase[];
   createdAt?: string;

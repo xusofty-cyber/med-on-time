@@ -108,13 +108,22 @@ export class AccountService {
     };
   }
 
-  /** 冷静期内撤销注销：cancelling → active，清注销字段。 */
+  /** 冷静期内撤销注销：cancelling → active，清注销字段。期满后终局处理随时可能执行，不可再撤销。 */
   async withdrawCancel(accountId: string) {
     const account = await this.prisma.userAccount.findFirst({
       where: { id: accountId, deletedAt: null },
     });
     if (!account || account.status !== AccountStatus.Cancelling) {
       throw new BusinessException(BusinessCode.Conflict, '当前不在注销冷静期，无可撤销的申请');
+    }
+    if (
+      account.cancelApplyAt &&
+      account.cancelApplyAt.getTime() + CANCEL_COOLING_DAYS * 24 * 3600 * 1000 <= Date.now()
+    ) {
+      throw new BusinessException(
+        BusinessCode.Conflict,
+        '冷静期已届满，注销已进入终局处理，不可撤销',
+      );
     }
     await this.prisma.userAccount.update({
       where: { id: accountId },
