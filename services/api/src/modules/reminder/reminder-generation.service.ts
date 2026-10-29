@@ -189,6 +189,25 @@ export class ReminderGenerationService {
       data: effectiveRows,
       skipDuplicates: true,
     });
+    // 次日空洞修复（2026-10-30 全项目审查 C-1）：计划暂停/删除/改排程会把未来实例
+    // 置 Cancelled，被取消的行仍占幂等键，skipDuplicates 使其永不重建——计划恢复后
+    // 次日全天无提醒且无任何错误信号。本轮 rows 命中的 key 均属当前 active 计划/明细、
+    // 日期仍在排程内，其 Cancelled 只是计划过渡期产物：未来时刻者复活为 Pending，
+    // 下方补登记投递任务的逻辑会一并覆盖；已过时刻者不复活（归历史与统计口径）。
+    // 小时节拍使恢复后 ≤1 小时内即完成修复，远在次日开始之前。
+    await this.prisma.reminderInstance.updateMany({
+      where: {
+        idempotencyKey: { in: effectiveRows.map((r) => r.idempotencyKey) },
+        status: ReminderInstanceStatus.Cancelled,
+        scheduledAtUtc: { gt: new Date() },
+        deletedAt: null,
+      },
+      data: {
+        status: ReminderInstanceStatus.Pending,
+        snoozeUntil: null,
+        updatedAt: new Date(),
+      },
+    });
     // 为待投递实例登记到点投递任务：新生成者必登记；重跑时若发现既有 pending
     // 实例缺任务（如首次登记时 Redis 不可用）一并补登记——jobId 去重保证不重复。
     const existing = await this.prisma.reminderInstance.findMany({

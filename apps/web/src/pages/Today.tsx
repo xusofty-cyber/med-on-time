@@ -21,6 +21,8 @@ function desktopPayload(
     items: list.map((i) => ({
       id: i.id,
       scheduledAtUtc: i.scheduledAtUtc,
+      status: i.status,
+      snoozeUntil: i.snoozeUntil ?? null,
       drugNameSnapshot: i.drugNameSnapshot,
       doseAmount: i.doseAmount,
       doseUnit: i.doseUnit,

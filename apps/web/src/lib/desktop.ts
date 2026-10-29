@@ -9,6 +9,9 @@
 export interface DesktopReminderItem {
   id: string;
   scheduledAtUtc: string;
+  /** 实例状态；桌面主进程据此过滤终态（已服/跳过/取消/漏服不再提醒）并处理 snooze 时刻 */
+  status?: string;
+  snoozeUntil?: string | null;
   drugNameSnapshot?: string;
   doseAmount?: number | string;
   doseUnit?: string;

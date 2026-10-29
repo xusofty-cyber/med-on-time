@@ -231,3 +231,11 @@
 - 根因：AndroidManifest.xml 缺 `<queries>` 的 TTS_SERVICE 声明；targetSdk 34 下 Android 11+ 包可见性过滤使 App 无法绑定系统 TTS 引擎服务，TextToSpeech 初始化必返回 ERROR。系统设置属系统应用、不受过滤——10-26 记录中“TTS 引擎已由用户实测排除（系统试听有声）”的排除依据不成立，特此纠正：10-26 修复（进程保活/去重/诊断）都对，但初始化这一关一直没过，所以语音从未真正播出。
 - 修复：① AndroidManifest 补 TTS_SERVICE queries 声明；② VoiceAnnouncer 初始化抽 initEngine 助手，默认引擎失败时枚举已装引擎按包名逐个兜底（上限 3），诊断口径不变（initOk/enginePackage 取成功实例）；③ 安卓 versionCode 2→3、versionName 改 0.3.3（注：v0.3.2 发布时 gradle 版本号未同步，APK 内仍为 2/0.2.1，本次起对齐发布线）。
 - 验证口径：本机无 Android SDK，靠 CI 安卓构建 + 用户真机复测（试听出声 + 到点语音提醒）。
+
+## 2026-10-30 全项目审查 P0 五条修复（第一批）
+- 背景：10-30 全项目审查（7 专家组，总结论在助手侧 medontime-review/full-review-2026-10-30/00）定级 P0 五条，负责人令先修。本批全部由云曦亲手实现并本地验证。
+- P0-1 次日提醒空洞：根因是被取消实例占幂等键、生成 createMany skipDuplicates 永不重建。修复在 reminder-generation.service.ts 的 generateForMember：createMany 后把本轮排程命中、未来时刻的 Cancelled 实例复活为 Pending（清 snoozeUntil），随后既有补登记逻辑自动补投递任务；小时节拍保证恢复后 ≤1h 修复。新增 reminder-generation.spec.ts 3 用例（复活/过期不复活/正常生成）。实测：api build 通过、jest 全量 8 套件 57 用例全过（此前 4 套件加载失败系本地依赖漂移，frozen 安装后自愈，印证审查 M-2）。
+- P0-2 桌面已服仍提醒：桌面契约 DesktopReminderItem 补 status/snoozeUntil（types.ts + web 侧 lib/desktop.ts 同形声明 + Today.tsx 同步载荷）；主进程 sanitize 校验状态、sync 时终态（taken/skipped/cancelled/missed）剔除并记 fired 防复活、snoozed 以 snoozeUntil 为触发时刻。web typecheck、desktop tsc 均通过。
+- P0-3 iOS 提醒链：ReminderService 新增 todayAndTomorrow（今日 + 按成员时区 byDate 明日）；排程改名 scheduleUpcomingReminders 并在今日页加载时排今明两日；新增 ReminderScheduleRefresher（回前台重排 + BGAppRefreshTask 6h 续期，Info.plist 已登记 fetch 后台模式与任务标识）；CareSettingsView 强提醒说明改如实口径（iOS 无系统强音、语音仅前台）。本机无 Xcode，靠 CI iOS 构建验证；APNs 仍为独立立项（需后端推送通道）。
+- P0-4 质量门禁 CI：新增 .github/workflows/ci.yml（push/PR 到 develop/main：frozen 安装 → prisma generate → api build/test → web/admin typecheck → desktop tsc），内容按本地全绿口径校准；工作流文件经 GitHub 网页端提交（集成通道写 workflows 会 403）。release 发版与 CI 的强制依赖关系未动（需改 release.yml，列后续）。
+- P0-5 update.sh：顺序改为 拉取 → 强制备份（失败即中止）→ 构建 → 一次性容器先行迁移 → 换容器 → 健康检查；新增 --no-pull（回滚到已检出提交用，配套 DEPLOY 回滚口径）。bash -n 通过；未在生产执行过，下次部署首次实跑需留意。

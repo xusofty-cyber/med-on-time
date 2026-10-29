@@ -2,6 +2,8 @@
  * 本地提醒调度：渲染层登录后同步当日时间线，主进程以定时器到点发系统通知。
  *
  * 口径：
+ * - 状态过滤：终态（taken/skipped/cancelled/missed）剂量永不通知，同步时即剔除并
+ *   记入 fired 防旧载荷复活；snoozed 剂量以 snoozeUntil 为触发时刻（DT-C1 修复）。
  * - 幂等：同一 reminder_instance 只通知一次（fired 集合去重），与后端提醒幂等键互为补充。
  * - 追赶：同步/启动时已过点但在宽限窗（15 分钟）内的条目补发一次；更久的视为过期不打扰。
  * - 隐私：showDrugDetail=false（默认）时通知正文不出现药名/剂量；
@@ -14,6 +16,15 @@ const TICK_MS = 15_000;
 const GRACE_MS = 15 * 60_000;
 const STALE_MS = 2 * 60 * 60_000;
 const MAX_ITEMS = 500;
+
+/** 终态：这些状态的剂量绝不到点通知（已服再提醒会诱导重复服药）。 */
+const TERMINAL_STATUSES = new Set(['taken', 'skipped', 'cancelled', 'missed']);
+const KNOWN_STATUSES = new Set([
+  'pending',
+  'reminded',
+  'snoozed',
+  ...TERMINAL_STATUSES,
+]);
 
 interface ScheduledItem extends DesktopReminderItem {
   at: number;
@@ -42,9 +53,20 @@ function sanitizeItem(v: unknown): DesktopReminderItem | null {
       : typeof rawDose === 'string'
         ? rawDose.slice(0, 32)
         : undefined;
+  // 状态缺失/未知（旧版 web 载荷）按 pending 兼容；snoozeUntil 须可解析才保留。
+  const status =
+    typeof o['status'] === 'string' && KNOWN_STATUSES.has(o['status'])
+      ? o['status']
+      : 'pending';
+  const snoozeUntil =
+    typeof o['snoozeUntil'] === 'string' && !Number.isNaN(Date.parse(o['snoozeUntil']))
+      ? o['snoozeUntil']
+      : null;
   return {
     id: o['id'],
     scheduledAtUtc: o['scheduledAtUtc'],
+    status,
+    snoozeUntil,
     drugNameSnapshot: sanitizeString(o['drugNameSnapshot'], 120),
     doseAmount,
     doseUnit: sanitizeString(o['doseUnit'], 32),
@@ -89,7 +111,20 @@ export class ReminderScheduler {
     const now = Date.now();
     this.showDrugDetail = payload.showDrugDetail;
     this.items = payload.items
-      .map((i) => ({ ...i, at: Date.parse(i.scheduledAtUtc) }))
+      .map((i) => {
+        // 终态剂量：剔除且记入 fired，防止后续旧载荷把它当新条目复活通知。
+        if (i.status && TERMINAL_STATUSES.has(i.status)) {
+          this.fired.add(i.id);
+          return null;
+        }
+        // snoozed 以顺延时刻为实际触发点，其余以计划时刻为准。
+        const at =
+          i.status === 'snoozed' && i.snoozeUntil
+            ? Date.parse(i.snoozeUntil)
+            : Date.parse(i.scheduledAtUtc);
+        return { ...i, at };
+      })
+      .filter((i): i is ScheduledItem => i !== null)
       .filter((i) => now - i.at < STALE_MS)
       .sort((a, b) => a.at - b.at);
     this.synced = true;

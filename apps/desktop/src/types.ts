@@ -26,6 +26,15 @@ export interface DesktopReminderItem {
   id: string;
   /** ISO 8601 UTC 到点时刻（scheduledAtUtc） */
   scheduledAtUtc: string;
+  /**
+   * 实例状态（pending / reminded / snoozed / taken / skipped / missed / cancelled）。
+   * 主进程据此过滤终态：已服/已跳过/已取消/已漏服的剂量绝不再到点通知（防重复服药，
+   * 2026-10-30 全项目审查 DT-C1）；snoozed 时以 snoozeUntil 为实际触发时刻。
+   * 旧版 web 载荷无此字段时主进程按 pending 兼容处理。
+   */
+  status?: string;
+  /** snooze 后再次提醒的 ISO 8601 UTC 时刻（status=snoozed 时有效） */
+  snoozeUntil?: string | null;
   /** 以下明细仅在 showDrugDetail=true 时用于通知正文 */
   drugNameSnapshot?: string;
   doseAmount?: number | string;
