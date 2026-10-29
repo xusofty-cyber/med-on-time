@@ -103,6 +103,45 @@ object VoiceAnnouncer {
         }
 
     /**
+     * 创建并等待一个 TTS 实例初始化完成。[enginePackage] 为 null 时用系统默认引擎，
+     * 否则按包名指定引擎。返回 (initStatus, instance)；超时按 ERROR 处理。
+     * [onCreated] 在实例创建后立即回调（供调用方登记取消清理）；失败实例由调用方 shutdown。
+     */
+    private suspend fun initEngine(
+        context: Context,
+        enginePackage: String?,
+        onCreated: (TextToSpeech?) -> Unit,
+    ): Pair<Int, TextToSpeech?> {
+        var instance: TextToSpeech? = null
+        val status = withTimeoutOrNull(INIT_TIMEOUT_MS) {
+            suspendCancellableCoroutine<Int> { cont ->
+                // 取消时释放已创建的引擎，避免每次取消泄漏一个 TTS 服务绑定。
+                cont.invokeOnCancellation { runCatching { instance?.shutdown() } }
+                val listener = TextToSpeech.OnInitListener { s ->
+                    if (cont.isActive) cont.resume(s)
+                }
+                instance = if (enginePackage == null) {
+                    TextToSpeech(context.applicationContext, listener)
+                } else {
+                    TextToSpeech(context.applicationContext, listener, enginePackage)
+                }
+                onCreated(instance)
+            }
+        } ?: TextToSpeech.ERROR
+        return status to instance
+    }
+
+    /** 已安装的 TTS 引擎包名（依赖 manifest 的 queries 声明才查得到，见 AndroidManifest）。 */
+    @Suppress("DEPRECATION")
+    private fun installedEnginePackages(context: Context): List<String> {
+        val intent = Intent(TextToSpeech.Engine.INTENT_ACTION_TTS_SERVICE)
+        val services = runCatching {
+            context.packageManager.queryIntentServices(intent, 0)
+        }.getOrDefault(emptyList())
+        return services.map { it.serviceInfo.packageName }.distinct()
+    }
+
+    /**
      * 初始化 TTS 并排队播报 [texts]（每条一次 speak 调用），返回诊断。
      *
      * 播报是异步的：speak() 返回 SUCCESS 只代表已排队，系统 TTS 服务随后播放；
@@ -114,46 +153,60 @@ object VoiceAnnouncer {
         return withContext(Dispatchers.Main) {
             var engine: TextToSpeech? = null
             try {
-                val initStatus = withTimeoutOrNull(INIT_TIMEOUT_MS) {
-                    suspendCancellableCoroutine<Int> { cont ->
-                        // 取消时释放已创建的引擎，避免每次取消泄漏一个 TTS 服务绑定。
-                        cont.invokeOnCancellation { runCatching { engine?.shutdown() } }
-                        engine = TextToSpeech(context.applicationContext) { status ->
-                            if (cont.isActive) cont.resume(status)
+                var (initStatus, tts) = initEngine(context, null) { engine = it }
+                var failedDefaultPkg: String? = null
+                if (initStatus != TextToSpeech.SUCCESS) {
+                    // 默认引擎初始化失败：逐个尝试其他已装引擎兜底（部分国产 ROM 的默认
+                    // 引擎绑定不稳定，但同机其他引擎可用）。最多试 3 个，避免长时间无声等待。
+                    failedDefaultPkg = tts?.defaultEngine
+                    runCatching { tts?.shutdown() }
+                    engine = null
+                    tts = null
+                    val candidates = installedEnginePackages(context)
+                        .filter { it != failedDefaultPkg }
+                        .take(3)
+                    for (pkg in candidates) {
+                        val (status, instance) = initEngine(context, pkg) { engine = it }
+                        if (status == TextToSpeech.SUCCESS && instance != null) {
+                            initStatus = status
+                            tts = instance
+                            break
                         }
+                        Log.w(TAG, "TTS init fallback failed: engine=$pkg status=$status")
+                        runCatching { instance?.shutdown() }
+                        engine = null
                     }
-                } ?: TextToSpeech.ERROR
-                val tts = engine
+                }
                 if (initStatus != TextToSpeech.SUCCESS || tts == null) {
                     Log.w(TAG, "TTS init failed: status=$initStatus")
-                    runCatching { tts?.shutdown() }
-                    return@withContext VoiceDiagnosis(false, Int.MIN_VALUE, emptyList(), tts?.defaultEngine)
+                    return@withContext VoiceDiagnosis(false, Int.MIN_VALUE, emptyList(), failedDefaultPkg)
                 }
+                val activeTts = tts
                 // setLanguage 抛异常时用独立哨兵值，避免与 LANG_MISSING_DATA（-1）撞车误报。
-                val langResult = runCatching { tts.setLanguage(Locale.CHINESE) }
+                val langResult = runCatching { activeTts.setLanguage(Locale.CHINESE) }
                     .getOrDefault(Int.MIN_VALUE)
                 if (langResult < 0) {
                     Log.w(TAG, "TTS setLanguage failed: result=$langResult")
-                    runCatching { tts.shutdown() }
-                    return@withContext VoiceDiagnosis(true, langResult, emptyList(), tts.defaultEngine)
+                    runCatching { activeTts.shutdown() }
+                    return@withContext VoiceDiagnosis(true, langResult, emptyList(), activeTts.defaultEngine)
                 }
-                tts.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
+                activeTts.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
                     override fun onStart(utteranceId: String?) = Unit
                     override fun onDone(utteranceId: String?) {
-                        if (utteranceId == "dose-last") runCatching { tts.shutdown() }
+                        if (utteranceId == "dose-last") runCatching { activeTts.shutdown() }
                     }
 
                     @Deprecated("deprecated in API 21")
                     override fun onError(utteranceId: String?) {
-                        runCatching { tts.shutdown() }
+                        runCatching { activeTts.shutdown() }
                     }
                 })
                 val results = texts.mapIndexed { index, text ->
                     val utteranceId = if (index == texts.lastIndex) "dose-last" else "dose-$index"
-                    runCatching { tts.speak(text, TextToSpeech.QUEUE_ADD, null, utteranceId) }
+                    runCatching { activeTts.speak(text, TextToSpeech.QUEUE_ADD, null, utteranceId) }
                         .getOrDefault(TextToSpeech.ERROR)
                 }
-                VoiceDiagnosis(true, langResult, results, tts.defaultEngine)
+                VoiceDiagnosis(true, langResult, results, activeTts.defaultEngine)
             } catch (e: CancellationException) {
                 // 协程取消必须重抛（否则外层超时/取消会被吞成普通失败）；取消前释放引擎。
                 runCatching { engine?.shutdown() }

@@ -225,3 +225,9 @@
 - 根因（App 侧）：ExactAlarmReceiver 异步初始化 TTS 后立即返回，进程可能在播出前被系统杀掉；且 90 秒去重先记后播，失败一路把另一路也拦住；TTS 失败全程静默。TTS 引擎已由用户实测排除（系统试听有声）。
 - 修复（分支 fix/android-voice-test-and-harden）：VoiceAnnouncer 改悬挂式 enqueue，判 init/setLanguage/speak 返回值并返回诊断；DoseAlerter 去重只记成功，失败不记且留 lastVoiceError；ExactAlarmReceiver 用 goAsync + 唤醒锁（新增 WAKE_LOCK 权限）保到语音排队完成；设置页加“试听语音”按钮（报真实状态）与计划覆盖生效展示（防再误以为成员设置已生效）。
 - 代码审查：首轮 0 Critical、2 High（H1 setLanguage 判定只认 0、H2 去重不再原子）+ 2 Medium + 8 Low，均已修；窄幅复审 verdict 可合（0 Critical/High/Medium），新发现 2 Low（voice 分支吞取消异常、setLanguage 异常误报）已顺手修掉。用户授权：不再经用户审核，由云澈直接合 PR 并发 v0.3.2。注意：本机无 Android SDK，无法本地编译，靠审查 + Release 构建验证。
+
+## 2026-10-30 安卓 TTS 初始化失败根因与修复（v0.3.3）
+- 用户报：v0.3.2 设置页「试听语音」报“语音引擎初始化失败”，但系统设置里 TTS 测试发声正常。
+- 根因：AndroidManifest.xml 缺 `<queries>` 的 TTS_SERVICE 声明；targetSdk 34 下 Android 11+ 包可见性过滤使 App 无法绑定系统 TTS 引擎服务，TextToSpeech 初始化必返回 ERROR。系统设置属系统应用、不受过滤——10-26 记录中“TTS 引擎已由用户实测排除（系统试听有声）”的排除依据不成立，特此纠正：10-26 修复（进程保活/去重/诊断）都对，但初始化这一关一直没过，所以语音从未真正播出。
+- 修复：① AndroidManifest 补 TTS_SERVICE queries 声明；② VoiceAnnouncer 初始化抽 initEngine 助手，默认引擎失败时枚举已装引擎按包名逐个兜底（上限 3），诊断口径不变（initOk/enginePackage 取成功实例）；③ 安卓 versionCode 2→3、versionName 改 0.3.3（注：v0.3.2 发布时 gradle 版本号未同步，APK 内仍为 2/0.2.1，本次起对齐发布线）。
+- 验证口径：本机无 Android SDK，靠 CI 安卓构建 + 用户真机复测（试听出声 + 到点语音提醒）。

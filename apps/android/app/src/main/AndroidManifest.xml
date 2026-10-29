@@ -16,6 +16,15 @@
     <!-- 强提醒·闹钟模式：到点全屏弹出闹钟页（锁屏可见、可点亮屏幕） -->
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
 
+    <!-- Android 11+ 包可见性（targetSdk 34）：不声明则应用看不到系统 TTS 引擎服务，
+         TextToSpeech 初始化回调必返回 ERROR（系统设置自带测试不受此限，故“系统测正常、
+         App 内试听/播报初始化失败”）。强提醒语音播报依赖此声明。 -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.TTS_SERVICE" />
+        </intent>
+    </queries>
+
     <application
         android:name=".MedOnTimeApp"
         android:allowBackup="false"

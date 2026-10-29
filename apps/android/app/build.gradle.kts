@@ -13,8 +13,8 @@ android {
         applicationId = "com.medontime.app"
         minSdk = 26
         targetSdk = 34
-        versionCode = 2
-        versionName = "0.2.1"
+        versionCode = 3
+        versionName = "0.3.3"
 
         // API 基地址默认值：生产地址；模拟器联调本机后端时在 App「设置」里改，
         // 运行时以 DataStore 中保存的地址为准（见 ApiProvider / AppSettings）。
