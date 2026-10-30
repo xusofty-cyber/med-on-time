@@ -305,3 +305,8 @@
 - 修复与现状（11:47 实查）：小程序以新提交 00abd87 重推落地，远端链完整且顺序为 00abd87（小程序）→ f1292e6（原生）→ f681828（Admin）→ da8aaba（落档）→ 8a5563f（Web）→ f058753（cookie）；关键文件抽查（MP/Admin i18n 运行时、安卓 values-en、iOS L10n.swift）均在树。CI：f058753 #14、8a5563f #15、f681828 #17 均 Success（浏览器实查 Actions）。
 - 纪律（已同步 ~/AGENTS.md）：推送串行化，一笔落地并抽查树后再发下一笔；全部结束后复核完整提交链与关键文件存在性；交接所报 SHA 必须自己复跑验证。
 - 最终核验（11:53，浏览器实查 Actions）：CI #18（f1292e6 原生）Success、CI #19（00abd87 小程序重推，当前 HEAD）Success；手动触发 Release #29（targets=all、develop@00abd87、未勾选 publish）：桌面 Win/macOS/Linux、安卓 APK（assembleRelease 3m35s）、iOS 无签名 .app、小程序 dist 全部成功，汇总发布 skipped（预期）。至此 2026-10-30 三项续令（异地加密备份 / refresh cookie / i18n 三语）全部完成并推送 develop、CI 与打包双核验通过；均未部署生产（部署前置不变：服务器先配独立 ADMIN_JWT_SECRET + 磁盘 86% 先清）。
+
+## 2026-10-30 推送通道切换：连接器快照推送 → git 直推（云曦实测）
+- 用户裁定：改走 git 直推，免逐次授权。GitHub 账号 xusofty-cyber 已添加本机 SSH 公钥「Muse VM (yunxi)」（指纹 SHA256:/RqHgBHDKbqU3w1GooVZqk3phJAtCtciUcziat3nDsM，2026-10-30 13:36 经 sudo 邮箱验证码确认添加；既有钥匙未动）。
+- 通道：22 端口直连被出口代理重置，须经 HTTPS_PROXY 的 CONNECT 隧道——仓库已配 core.sshCommand 指向 ~/workspace/.tools/ssh/ssh_config_gh（ProxyCommand 复用 .tools/ssh/tsconnect.py，凭据只读环境变量）。本地空壳 .git 已替换为正式克隆（HEAD 5779423 与远端一致）；对账差异仅 ci.yml 本地缺失（已从远端恢复）与 update.sh 本地多可执行位（内容一致，已还原）。
+- 本条即首笔直推实测提交；此后代码推送默认 git push（串行、推后核链纪律不变），.github/workflows/ 仍不可由连接器写、git 直推可写（待后续实际验证），连接器保留为只读核验与应急通道。
