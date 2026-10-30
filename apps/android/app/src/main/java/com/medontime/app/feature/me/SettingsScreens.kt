@@ -28,7 +28,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.appcompat.app.AppCompatDelegate
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.res.stringResource
+import androidx.core.os.LocaleListCompat
+import com.medontime.app.R
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
@@ -246,6 +250,36 @@ fun SettingsScreen() {
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+
+        SectionTitle(stringResource(R.string.settings_language))
+        // 逐应用语言（I18N.md 定版）：空 = 跟随系统；其余经 AppCompatDelegate 下发（API 33+ 系统 LocaleManager，低版本 AppCompat 存储）。
+        val currentLocaleTag = AppCompatDelegate.getApplicationLocales().toLanguageTags()
+        listOf(
+            "" to stringResource(R.string.settings_language_system),
+            "zh-CN" to "简体中文",
+            "zh-TW" to "繁體中文",
+            "en" to "English",
+        ).forEach { (tag, label) ->
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .selectable(
+                        selected = currentLocaleTag == tag,
+                        onClick = {
+                            AppCompatDelegate.setApplicationLocales(
+                                if (tag.isEmpty()) LocaleListCompat.getEmptyLocaleList()
+                                else LocaleListCompat.forLanguageTags(tag),
+                            )
+                        },
+                        role = Role.RadioButton,
+                    )
+                    .padding(vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                RadioButton(selected = currentLocaleTag == tag, onClick = null)
+                Text(label, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(start = 12.dp))
+            }
+        }
 
         SectionTitle("提醒权限")
         val alarmManager = remember { context.getSystemService(AlarmManager::class.java) }

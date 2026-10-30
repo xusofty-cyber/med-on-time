@@ -81,6 +81,7 @@ struct SettingsView: View {
     @EnvironmentObject private var themeStore: ThemeStore
     @State private var showCancelConfirm = false
     @State private var cancelReason = ""
+    @AppStorage(InterfaceLocale.storageKey) private var localePreference = ""
     @State private var cancelApplied = false
     @State private var wechatMessage: String?
 
@@ -88,6 +89,7 @@ struct SettingsView: View {
         Form {
             profileSection
             themeSection
+            languageSection
             sessionsSection
             prefsSection
             wechatSection
@@ -171,6 +173,17 @@ struct SettingsView: View {
             Text("界面主题")
         } footer: {
             Text("主题 B（临床极简）仅 Admin 与 PC Web 可用，移动端不提供。切换后立即生效，保存在本机。")
+        }
+    }
+
+    private var languageSection: some View {
+        Section("界面语言") {
+            Picker("界面语言", selection: $localePreference) {
+                Text("跟随系统").tag("")
+                Text("简体中文").tag("zh-Hans")
+                Text("繁體中文").tag("zh-Hant")
+                Text("English").tag("en")
+            }
         }
     }
 

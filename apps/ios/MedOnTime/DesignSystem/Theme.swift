@@ -14,15 +14,15 @@ enum AppTheme: String, CaseIterable {
 
     var label: String {
         switch self {
-        case .standard: return "现行绿白"
-        case .warm: return "暖阳关怀"
+        case .standard: return L("现行绿白")
+        case .warm: return L("暖阳关怀")
         }
     }
 
     var description: String {
         switch self {
-        case .standard: return "默认主题 · 绿白配色"
-        case .warm: return "暖白护眼底色 · 大字号与疏朗间距，适合长辈日常使用"
+        case .standard: return L("默认主题 · 绿白配色")
+        case .warm: return L("暖白护眼底色 · 大字号与疏朗间距，适合长辈日常使用")
         }
     }
 }
@@ -253,9 +253,9 @@ struct ErrorBanner: View {
 
 /// 空态占位（iOS 16 无 ContentUnavailableView，自备一份等价组件）。
 struct EmptyStateView: View {
-    let title: String
+    let title: LocalizedStringKey
     let systemImage: String
-    let description: String?
+    let description: LocalizedStringKey?
 
     var body: some View {
         VStack(spacing: 10) {

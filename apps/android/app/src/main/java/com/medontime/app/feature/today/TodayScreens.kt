@@ -36,6 +36,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
+import android.content.Context
+import com.medontime.app.R
 import androidx.compose.ui.unit.dp
 import com.medontime.app.ui.theme.AppTheme
 import com.medontime.app.ui.theme.LocalAppTheme
@@ -78,6 +81,7 @@ data class TodayUiState(
 )
 
 class TodayViewModel(
+    private val appContext: Context,
     private val store: SessionStore,
     private val memberRepo: MemberRepository,
     private val reminderRepo: ReminderRepository,
@@ -114,7 +118,7 @@ class TodayViewModel(
             } catch (e: ApiException) {
                 _state.update { it.copy(loading = false, error = e.message) }
             } catch (e: Exception) {
-                _state.update { it.copy(loading = false, error = e.message ?: "加载失败") }
+                _state.update { it.copy(loading = false, error = e.message ?: appContext.getString(R.string.today_load_failed)) }
             }
         }
     }
@@ -141,26 +145,26 @@ class TodayViewModel(
                 _state.update { it.copy(actingId = null, day = day, message = doneMessage) }
                 runCatching { scheduler.syncTimeline() }
             } catch (e: ApiException) {
-                _state.update { it.copy(actingId = null, message = "操作失败：${e.message}") }
+                _state.update { it.copy(actingId = null, message = appContext.getString(R.string.today_action_failed, e.message)) }
             } catch (e: Exception) {
-                _state.update { it.copy(actingId = null, message = e.message ?: "操作失败") }
+                _state.update { it.copy(actingId = null, message = e.message ?: appContext.getString(R.string.today_action_failed_plain)) }
             }
         }
     }
 
     fun checkin(instance: ReminderInstanceDto) {
         val requestId = requestIds.getOrPut(instance.id) { UUID.randomUUID().toString() }
-        act(instance, { reminderRepo.checkin(instance.id, requestId) }, "已打卡")
+        act(instance, { reminderRepo.checkin(instance.id, requestId) }, appContext.getString(R.string.today_checked_in))
         requestIds.remove(instance.id)
     }
 
     fun snooze(instance: ReminderInstanceDto) {
-        act(instance, { reminderRepo.snooze(instance.id, null) }, "已按提醒周期顺延")
+        act(instance, { reminderRepo.snooze(instance.id, null) }, appContext.getString(R.string.today_snoozed_msg))
     }
 
     fun skip(instance: ReminderInstanceDto) {
         val requestId = UUID.randomUUID().toString()
-        act(instance, { reminderRepo.skip(instance.id, null, requestId) }, "已跳过本次")
+        act(instance, { reminderRepo.skip(instance.id, null, requestId) }, appContext.getString(R.string.today_skipped_msg))
     }
 }
 
@@ -170,6 +174,7 @@ fun TodayScreen() {
     val vm: TodayViewModel = viewModel(
         factory = viewModelFactory {
             TodayViewModel(
+                container.appContext,
                 container.sessionStore,
                 container.memberRepository,
                 container.reminderRepository,
@@ -182,7 +187,7 @@ fun TodayScreen() {
     LaunchedEffect(Unit) { vm.load() }
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-        Text("今日提醒", style = MaterialTheme.typography.headlineSmall)
+        Text(stringResource(R.string.today_title), style = MaterialTheme.typography.headlineSmall)
         if (state.members.isNotEmpty()) {
             Row(
                 modifier = Modifier
@@ -206,13 +211,13 @@ fun TodayScreen() {
         when {
             state.loading -> LoadingBox()
             state.error != null -> ErrorBox(state.error!!, onRetry = { vm.load() })
-            state.currentMember == null -> EmptyBox("还没有成员档案，请先到「我的」里添加成员")
+            state.currentMember == null -> EmptyBox(stringResource(R.string.today_no_member))
             state.day == null || state.day!!.items.isEmpty() ->
-                EmptyBox("今天没有待服药提醒。可在「计划」里为${state.currentMember?.displayName ?: "成员"}添加用药计划。")
+                EmptyBox(stringResource(R.string.today_empty, state.currentMember?.displayName ?: stringResource(R.string.today_member_fallback)))
             else -> {
                 val day = state.day!!
                 Text(
-                    "${day.date} · 共 ${day.items.size} 次",
+                    stringResource(R.string.today_count, day.date, day.items.size),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -242,12 +247,12 @@ private fun DoseCard(
     onSkip: () -> Unit,
 ) {
     val statusText = when (instance.status) {
-        ReminderInstanceStatus.Taken -> "已服用"
-        ReminderInstanceStatus.Skipped -> "已跳过"
-        ReminderInstanceStatus.Missed -> "已漏服"
-        ReminderInstanceStatus.Snoozed -> "已顺延（${instance.snoozeCount} 次）"
-        ReminderInstanceStatus.Cancelled -> "已取消"
-        else -> "待服用"
+        ReminderInstanceStatus.Taken -> stringResource(R.string.today_status_taken)
+        ReminderInstanceStatus.Skipped -> stringResource(R.string.today_status_skipped)
+        ReminderInstanceStatus.Missed -> stringResource(R.string.today_status_missed)
+        ReminderInstanceStatus.Snoozed -> stringResource(R.string.today_status_snoozed, instance.snoozeCount)
+        ReminderInstanceStatus.Cancelled -> stringResource(R.string.today_status_cancelled)
+        else -> stringResource(R.string.today_status_pending)
     }
     val containerColor = when (instance.status) {
         ReminderInstanceStatus.Taken -> MaterialTheme.colorScheme.primaryContainer
@@ -305,11 +310,11 @@ private fun DoseCard(
             Spacer(Modifier.height(4.dp))
             Text(instance.drugNameSnapshot, style = MaterialTheme.typography.titleLarge)
             Text(
-                "剂量 ${instance.doseAmount}${instance.doseUnit}",
+                stringResource(R.string.today_dose, instance.doseAmount, instance.doseUnit),
                 style = MaterialTheme.typography.bodyLarge,
             )
             instance.intake?.takenAt?.let {
-                Text("服药时间 ${it.replace('T', ' ').take(16)}", style = MaterialTheme.typography.bodyMedium)
+                Text(stringResource(R.string.today_taken_at, it.replace('T', ' ').take(16)), style = MaterialTheme.typography.bodyMedium)
             }
             if (instance.actionable || instance.status == ReminderInstanceStatus.Missed) {
                 Spacer(Modifier.height(12.dp))
@@ -318,15 +323,15 @@ private fun DoseCard(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     CareButton(
-                        text = if (instance.status == ReminderInstanceStatus.Missed) "补打卡" else "已服用",
+                        text = if (instance.status == ReminderInstanceStatus.Missed) stringResource(R.string.today_checkin_backfill) else stringResource(R.string.today_status_taken),
                         onClick = onCheckin,
                         enabled = !acting,
                         modifier = Modifier.weight(1f),
                         icon = Icons.Filled.Check,
                     )
                     if (instance.actionable) {
-                        CareTextButton(text = "稍后", onClick = onSnooze, modifier = Modifier.weight(0.6f), icon = Icons.Filled.Schedule)
-                        CareTextButton(text = "跳过", onClick = onSkip, modifier = Modifier.weight(0.6f), icon = Icons.Filled.Close)
+                        CareTextButton(text = stringResource(R.string.today_snooze), onClick = onSnooze, modifier = Modifier.weight(0.6f), icon = Icons.Filled.Schedule)
+                        CareTextButton(text = stringResource(R.string.today_skip), onClick = onSkip, modifier = Modifier.weight(0.6f), icon = Icons.Filled.Close)
                     }
                 }
             }

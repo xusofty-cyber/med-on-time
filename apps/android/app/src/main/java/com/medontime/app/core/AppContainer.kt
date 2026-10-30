@@ -20,6 +20,8 @@ import kotlinx.coroutines.SupervisorJob
  * 在无 Android SDK 的交付环境下可逐行核查；引入 Hilt 时只需把本容器改为 Module 绑定，仓库层签名不变。
  */
 class AppContainer(context: Context) {
+    /** 应用级 Context（ViewModel 层取资源文案用；Activity 侧文案一律走 Compose stringResource）。 */
+    val appContext: Context = context.applicationContext
     val sessionStore: SessionStore = SessionStore(context.applicationContext)
     val apiProvider: ApiProvider = ApiProvider(sessionStore)
 

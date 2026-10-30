@@ -71,7 +71,7 @@ final class AuthViewModel: ObservableObject {
 
     /// 短信通道暂未开通：不调接口，提示并切回邮箱通道。
     func smsUnavailable() {
-        errorMessage = "短信通道暂未开通，请使用邮箱验证码"
+        errorMessage = L("短信通道暂未开通，请使用邮箱验证码")
         codeChannel = .email
     }
 
@@ -83,17 +83,17 @@ final class AuthViewModel: ObservableObject {
     /// 邮箱发码：成功后提示并起 60 秒重发倒计时（与 Web 端 EmailCodeButton 同口径；后端限频 message 直接透出）。
     func sendEmailCode(scene: EmailCodeScene) async {
         guard emailIsValid else {
-            errorMessage = "请输入正确的邮箱地址"
+            errorMessage = L("请输入正确的邮箱地址")
             return
         }
         guard emailCountdown <= 0 else { return }
         do {
             _ = try await authService.sendEmailCode(email: email, scene: scene)
-            infoMessage = "验证码已发送，请注意查收邮件"
+            infoMessage = L("验证码已发送，请注意查收邮件")
             errorMessage = nil
             await startCountdown(\.emailCountdown)
         } catch {
-            errorMessage = (error as? APIError)?.message ?? "验证码发送失败"
+            errorMessage = (error as? APIError)?.message ?? L("验证码发送失败")
         }
     }
 
@@ -162,7 +162,7 @@ final class AuthViewModel: ObservableObject {
         do {
             try await operation()
         } catch {
-            errorMessage = (error as? APIError)?.message ?? "操作失败，请稍后重试"
+            errorMessage = (error as? APIError)?.message ?? L("操作失败，请稍后重试")
         }
     }
 }

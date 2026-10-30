@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!-- Compose 为主渲染，宿主主题仅提供窗口底色与状态栏基调（医嘱绿 #0B6B4F） -->
-    <style name="Theme.MedOnTime" parent="android:Theme.Material.Light.NoActionBar">
+    <style name="Theme.MedOnTime" parent="Theme.AppCompat.Light.NoActionBar">
         <item name="android:statusBarColor">#0B6B4F</item>
         <item name="android:windowLightStatusBar">false</item>
     </style>

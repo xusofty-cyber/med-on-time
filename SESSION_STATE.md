@@ -289,3 +289,13 @@
 - 与 Web 同构的类型化字典（apps/admin/src/i18n/，zh-CN 事实源、键集合类型约束）；theme.tsx 的 ConfigProvider 按语言下发 antd 官方 locale（zh_CN/zh_TW/en_US）并同步 dayjs locale；顶栏新增语言切换 Select（与主题切换并列），语言存 localStorage mot.locale（Admin 独立源）。
 - constants/labels.ts 全部枚举字典改函数式现取（*Meta/*Text 签名不变，*Map/*Enum 改函数、调用点已同步）；AdminLayout 菜单/顶栏/主题名、登录、仪表盘、账号、成员、计划监管、药品库（含双人核验与 seed 导入文案）、审计、客服裁决、内容管理三页签（文章组/公众号文章/协议版本）、应用版本、大模型配置、request 层兜底文案全部词条化。typecheck + vite build 全过。
 - Web 端 i18n 已推送 develop（8a5563f，经 commits 列表核实；首次推送被审批超时 SIGTERM 未落地、后台重推成功——推送后必须核 HEAD）。
+
+## 2026-10-30 续批三（3）：i18n 三语落地·小程序端
+- 与 Web/Admin 同构的类型化字典（apps/miniprogram/src/lib/i18n/，zh-CN 事实源 570+ 键、键集合类型约束，漏译编译期报错）；语言存 Taro storage mot.locale、默认 zh-CN；设置页新增「界面语言」SegTabs 切换卡；app.tsx 启动与语言变更时同步 tabBar 文案（setTabBarItem），各页 useNavTitle 同步导航栏标题（index.config.ts 保留简中默认）。
+- lib/dict.ts 17 组枚举标签与 lib/types.ts 强提醒/周期预设、lib/theme.ts 主题清单全部改函数式现取；lib/notify.ts 订阅授权文案、lib/api.ts 兜底文案、components（ui/MemberBar/PlanForm/DrugPicker/EmailCodeButton/SmsCodeButton）与全部页面（登录/注册/今日/计划/计划编辑/成员/授权/依从/消息中心/我的/扫码登录/绑定确认/设置）文案全部词条化。全 src 汉字扫描残留仅注释、分隔符与 app.config 默认值（运行时被覆盖）。
+- 验证：tsc --noEmit 全过；taro build --type weapp 构建成功（16.8s）。注意：字典追加时 auth.wxNoCode 与既有键重名过一次（TS1117），已去重——后续追加块先查键名冲突。
+
+## 2026-10-30 续批三（4）：i18n 三语落地·Android / iOS（原生收官）
+- Android（平台资源方案）：res/values、values-zh-rTW、values-en 三份 strings.xml 同键 70 条（通知通道 + 底部导航 + 通用 + 登录注册全量 + 今日提醒全量 + 设置·界面语言）；AppNav 底栏、Common.ErrorBox、AuthScreens（含 AuthViewModel 校验/提示文案，经 AppContainer.appContext 取词）、TodayScreens（含 TodayViewModel 兜底文案）全部改 stringResource/getString。逐应用语言：新增 appcompat 1.7.0 依赖，MainActivity 改 AppCompatActivity，宿主主题父类改 Theme.AppCompat.Light.NoActionBar（全 Compose 渲染，无原生控件样式面），res/xml/locales_config.xml + Manifest localeConfig 与 AppLocalesMetadataHolderService（autoStoreLocales）；设置页新增「界面语言」单选（跟随系统/简/繁/英，AppCompatDelegate.setApplicationLocales）。其余业务屏（计划/成员/依从等）文案仍为简中，列为后续逐屏迁移（资源键就绪后按同法推进）。
+- iOS（Localizable.strings 源串键方案）：Resources 下新增 zh-Hans/zh-Hant/en 三份 Localizable.strings 同键 122 条（键=简中文案；含枚举标签、Tab、今日、登录、主题名与空状态文案）。新增 Core/L10n.swift（InterfaceLocale：偏好存 UserDefaults mot.locale，"" 跟随系统；L() 按当前语言从对应 .lproj 取词）。SharedEnums 全部 72 处 label 改 L() 现取；DesignSystem 主题名/说明改 L()，EmptyStateView 参数改 LocalizedStringKey（8 处调用点均为字面量，自动按环境语言取词）；AuthViewModel 提示文案改 L()，LoginView 两处 rawValue Picker 与倒计时按钮改 L()；RootView 注入 environment(\.locale)；设置页新增「界面语言」Picker（跟随系统/简/繁/英，@AppStorage 与 RootView 同键）。XcodeGen 按源码树收录 .lproj（变体组），实际打包效果以打包工作流复核为准；CFBundleDisplayName 仍为「药准时」（InfoPlist.strings 未做，列后续）。
+- 至此续批三四端 + 桌面（复用 Web）三语全部落地。边界不变：后端业务错误 message 仍简中（服务端按 locale 化为后端待办）；原生非核心屏与 iOS 其余 Feature 视图按同法逐屏迁移列后续。

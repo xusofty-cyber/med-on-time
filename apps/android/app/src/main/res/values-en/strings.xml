@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">MedOnTime</string>
+    <string name="notification_channel_reminders">Medication reminders</string>
+    <string name="notification_channel_reminders_desc">Due-dose reminders (local fallback, deduplicated with server delivery)</string>
+    <string name="notification_generic_title">Medication reminder</string>
+    <string name="notification_generic_text">You have a medication reminder. Tap to view.</string>
+
+    <string name="nav_today">Today</string>
+    <string name="nav_plans">Plans</string>
+    <string name="nav_stats">Stats</string>
+    <string name="nav_me">Me</string>
+
+    <string name="common_retry">Retry</string>
+
+    <string name="auth_tagline">Never be late for a dose again</string>
+    <string name="auth_tab_password">Password</string>
+    <string name="auth_tab_code">Code</string>
+    <string name="auth_account_label">Phone or email</string>
+    <string name="auth_password_label">Password</string>
+    <string name="auth_login">Sign in</string>
+    <string name="auth_logging_in">Signing in…</string>
+    <string name="auth_forgot">Forgot password?</string>
+    <string name="auth_channel_phone_off">Phone (not yet available)</string>
+    <string name="auth_channel_email">Email</string>
+    <string name="auth_sms_unavailable">SMS is not available yet. Please use an email code.</string>
+    <string name="auth_phone_label">Phone</string>
+    <string name="auth_sms_code_label">SMS code</string>
+    <string name="auth_email_label">Email</string>
+    <string name="auth_email_code_label">Email code</string>
+    <string name="auth_send_code">Send code</string>
+    <string name="auth_sending_code">Sending…</string>
+    <string name="auth_resend_in">Resend in %1$ds</string>
+    <string name="auth_new_password_label">New password (8–64 chars, letters and digits)</string>
+    <string name="auth_reset_password">Reset password</string>
+    <string name="auth_go_register">No account? Register</string>
+    <string name="auth_go_login">Already have an account? Sign in</string>
+    <string name="auth_register_title">Create account</string>
+    <string name="auth_phone_account_label">Phone (your account)</string>
+    <string name="auth_set_password_label">Set password (8–64 chars, letters and digits)</string>
+    <string name="auth_nickname_label">Nickname (optional)</string>
+    <string name="auth_phone_optional_label">Phone (optional, unverified)</string>
+    <string name="auth_register">Register and sign in</string>
+    <string name="auth_registering">Registering…</string>
+    <string name="auth_error_op_failed">Operation failed</string>
+    <string name="auth_error_email">Enter a valid email address</string>
+    <string name="auth_error_phone_or_email">Enter a valid phone number or email</string>
+    <string name="auth_error_phone">Enter a valid phone number</string>
+    <string name="auth_error_password_rule">Password must be 8–64 characters with both letters and digits</string>
+    <string name="auth_code_sent">Code sent. Check your email.</string>
+    <string name="auth_password_reset_done">Password reset. Sign in with the new password.</string>
+
+    <string name="today_title">Today\'s reminders</string>
+    <string name="today_no_member">No member profile yet. Add a member under \"Me\" first.</string>
+    <string name="today_empty">No doses due today. Add a medication plan for %1$s under \"Plans\".</string>
+    <string name="today_member_fallback">the member</string>
+    <string name="today_count">%1$s · %2$d doses</string>
+    <string name="today_status_taken">Taken</string>
+    <string name="today_status_skipped">Skipped</string>
+    <string name="today_status_missed">Missed</string>
+    <string name="today_status_snoozed">Snoozed (%1$d)</string>
+    <string name="today_status_cancelled">Cancelled</string>
+    <string name="today_status_pending">Pending</string>
+    <string name="today_dose">Dose %1$s%2$s</string>
+    <string name="today_taken_at">Taken at %1$s</string>
+    <string name="today_checkin_backfill">Backfill</string>
+    <string name="today_snooze">Later</string>
+    <string name="today_skip">Skip</string>
+    <string name="today_load_failed">Loading failed</string>
+    <string name="today_action_failed">Operation failed: %1$s</string>
+    <string name="today_action_failed_plain">Operation failed</string>
+    <string name="today_checked_in">Checked in</string>
+    <string name="today_snoozed_msg">Snoozed by the reminder cycle</string>
+    <string name="today_skipped_msg">Skipped this dose</string>
+
+    <string name="settings_language">Language</string>
+    <string name="settings_language_system">System default</string>
+</resources>

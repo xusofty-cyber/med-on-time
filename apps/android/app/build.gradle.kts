@@ -70,6 +70,8 @@ dependencies {
     val composeBom = platform("androidx.compose:compose-bom:2024.09.00")
     implementation(composeBom)
     implementation("androidx.core:core-ktx:1.13.1")
+    // 逐应用语言（per-app locale）：AppCompatDelegate.setApplicationLocales，API 33+ 走系统 LocaleManager，低版本走 AppCompat 存储与配置注入
+    implementation("androidx.appcompat:appcompat:1.7.0")
     implementation("androidx.activity:activity-compose:1.9.2")
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-graphics")

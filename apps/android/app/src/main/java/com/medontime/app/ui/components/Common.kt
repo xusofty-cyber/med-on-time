@@ -1,5 +1,7 @@
 package com.medontime.app.ui.components
 
+import androidx.compose.ui.res.stringResource
+import com.medontime.app.R
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -51,7 +53,7 @@ fun ErrorBox(message: String, modifier: Modifier = Modifier, onRetry: (() -> Uni
                 modifier = Modifier.padding(16.dp),
             )
             if (onRetry != null) {
-                OutlinedButton(onClick = onRetry) { Text("重试") }
+                OutlinedButton(onClick = onRetry) { Text(stringResource(R.string.common_retry)) }
             }
         }
     }

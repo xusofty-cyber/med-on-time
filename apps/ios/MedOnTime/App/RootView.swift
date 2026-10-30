@@ -4,6 +4,8 @@ import SwiftUI
 struct RootView: View {
     @EnvironmentObject private var session: AuthSession
     @StateObject private var themeStore = ThemeStore.shared
+    // 界面语言（I18N.md 定版）："" 跟随系统；注入 environment 后 SwiftUI 字面量按所选语言取词。
+    @AppStorage(InterfaceLocale.storageKey) private var localePreference = ""
 
     var body: some View {
         Group {
@@ -24,6 +26,7 @@ struct RootView: View {
             await session.bootstrap()
         }
         .environment(\.careMode, session.careSettings?.careMode ?? false)
+        .environment(\.locale, Locale(identifier: localePreference.isEmpty ? InterfaceLocale.current : localePreference))
         .environmentObject(themeStore)
         .if(session.careSettings?.careMode == true) { view in
             view.dynamicTypeSize(.accessibility1)

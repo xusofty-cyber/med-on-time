@@ -26,6 +26,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
+import com.medontime.app.R
 import androidx.core.content.ContextCompat
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
@@ -204,26 +206,26 @@ private fun AppBottomBar(navController: NavHostController) {
         NavigationBarItem(
             selected = currentRoute == Routes.TODAY,
             onClick = { navigateTab(navController, Routes.TODAY) },
-            icon = { Icon(Icons.Filled.Home, contentDescription = "今日") },
-            label = { Text("今日") },
+            icon = { Icon(Icons.Filled.Home, contentDescription = stringResource(R.string.nav_today)) },
+            label = { Text(stringResource(R.string.nav_today)) },
         )
         NavigationBarItem(
             selected = currentRoute == Routes.PLANS,
             onClick = { navigateTab(navController, Routes.PLANS) },
-            icon = { Icon(Icons.Filled.List, contentDescription = "计划") },
-            label = { Text("计划") },
+            icon = { Icon(Icons.Filled.List, contentDescription = stringResource(R.string.nav_plans)) },
+            label = { Text(stringResource(R.string.nav_plans)) },
         )
         NavigationBarItem(
             selected = currentRoute == Routes.ADHERENCE,
             onClick = { navigateTab(navController, Routes.ADHERENCE) },
-            icon = { Icon(Icons.Filled.DateRange, contentDescription = "统计") },
-            label = { Text("统计") },
+            icon = { Icon(Icons.Filled.DateRange, contentDescription = stringResource(R.string.nav_stats)) },
+            label = { Text(stringResource(R.string.nav_stats)) },
         )
         NavigationBarItem(
             selected = currentRoute == Routes.ME,
             onClick = { navigateTab(navController, Routes.ME) },
-            icon = { Icon(Icons.Filled.Person, contentDescription = "我的") },
-            label = { Text("我的") },
+            icon = { Icon(Icons.Filled.Person, contentDescription = stringResource(R.string.nav_me)) },
+            label = { Text(stringResource(R.string.nav_me)) },
         )
     }
 }

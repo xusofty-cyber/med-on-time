@@ -12,9 +12,9 @@ enum StrongAlertMode: String, Codable, CaseIterable {
 
     var label: String {
         switch self {
-        case .none: return "普通通知"
-        case .alarm: return "强提醒闹钟"
-        case .voice: return "语音播报"
+        case .none: return L("普通通知")
+        case .alarm: return L("强提醒闹钟")
+        case .voice: return L("语音播报")
         }
     }
 }
@@ -27,9 +27,9 @@ enum CaregiverLevel: String, Codable, CaseIterable {
 
     var label: String {
         switch self {
-        case .l1: return "L1 · 仅查看"
-        case .l2: return "L2 · 可协助打卡"
-        case .l3: return "L3 · 可协助配置"
+        case .l1: return L("L1 · 仅查看")
+        case .l2: return L("L2 · 可协助打卡")
+        case .l3: return L("L3 · 可协助配置")
         }
     }
 }
@@ -45,12 +45,12 @@ enum AuthorizationStatus: String, Codable {
 
     var label: String {
         switch self {
-        case .pendingAccept: return "待接受"
-        case .active: return "生效中"
-        case .suspended: return "已暂停"
-        case .revoked: return "已撤销"
-        case .expired: return "已过期"
-        case .rejected: return "已拒绝"
+        case .pendingAccept: return L("待接受")
+        case .active: return L("生效中")
+        case .suspended: return L("已暂停")
+        case .revoked: return L("已撤销")
+        case .expired: return L("已过期")
+        case .rejected: return L("已拒绝")
         }
     }
 }
@@ -67,13 +67,13 @@ enum ReminderInstanceStatus: String, Codable {
 
     var label: String {
         switch self {
-        case .pending: return "待提醒"
-        case .reminded: return "待服药"
-        case .taken: return "已服用"
-        case .snoozed: return "已稍后"
-        case .skipped: return "已跳过"
-        case .missed: return "已漏服"
-        case .cancelled: return "已取消"
+        case .pending: return L("待提醒")
+        case .reminded: return L("待服药")
+        case .taken: return L("已服用")
+        case .snoozed: return L("已稍后")
+        case .skipped: return L("已跳过")
+        case .missed: return L("已漏服")
+        case .cancelled: return L("已取消")
         }
     }
 
@@ -96,10 +96,10 @@ enum PlanStatus: String, Codable {
 
     var label: String {
         switch self {
-        case .active: return "进行中"
-        case .paused: return "已暂停"
-        case .finished: return "已完成"
-        case .stopped: return "已停止"
+        case .active: return L("进行中")
+        case .paused: return L("已暂停")
+        case .finished: return L("已完成")
+        case .stopped: return L("已停止")
         }
     }
 }
@@ -118,8 +118,8 @@ enum PlanType: String, Codable, CaseIterable {
 
     var label: String {
         switch self {
-        case .scheduled: return "常规计划"
-        case .prn: return "按需服用（PRN）"
+        case .scheduled: return L("常规计划")
+        case .prn: return L("按需服用（PRN）")
         }
     }
 }
@@ -153,15 +153,15 @@ enum MemberRelationship: String, Codable, CaseIterable {
 
     var label: String {
         switch self {
-        case .selfMember: return "本人"
-        case .father: return "父亲"
-        case .mother: return "母亲"
-        case .spouse: return "配偶"
-        case .child: return "子女"
-        case .grandparent: return "祖辈"
-        case .otherFamily: return "其他家人"
-        case .employer: return "雇主"
-        case .other: return "其他"
+        case .selfMember: return L("本人")
+        case .father: return L("父亲")
+        case .mother: return L("母亲")
+        case .spouse: return L("配偶")
+        case .child: return L("子女")
+        case .grandparent: return L("祖辈")
+        case .otherFamily: return L("其他家人")
+        case .employer: return L("雇主")
+        case .other: return L("其他")
         }
     }
 }
@@ -202,10 +202,10 @@ enum StockChangeType: String, Codable, CaseIterable {
 
     var label: String {
         switch self {
-        case .intakeDeduct: return "服药扣减"
-        case .manualAdjust: return "手动调整"
-        case .restock: return "补货入库"
-        case .expiryWriteoff: return "过期作废"
+        case .intakeDeduct: return L("服药扣减")
+        case .manualAdjust: return L("手动调整")
+        case .restock: return L("补货入库")
+        case .expiryWriteoff: return L("过期作废")
         }
     }
 }
@@ -226,9 +226,9 @@ enum AllergenType: String, Codable, CaseIterable {
 
     var label: String {
         switch self {
-        case .drugCategory: return "药品类别"
-        case .drug: return "具体药品"
-        case .other: return "其他"
+        case .drugCategory: return L("药品类别")
+        case .drug: return L("具体药品")
+        case .other: return L("其他")
         }
     }
 }
@@ -241,9 +241,9 @@ enum Severity: String, Codable, CaseIterable {
 
     var label: String {
         switch self {
-        case .mild: return "轻微"
-        case .moderate: return "中等"
-        case .severe: return "严重"
+        case .mild: return L("轻微")
+        case .moderate: return L("中等")
+        case .severe: return L("严重")
         }
     }
 }
@@ -257,10 +257,10 @@ enum OperatorType: String, Codable {
 
     var label: String {
         switch self {
-        case .memberSelf: return "成员本人"
-        case .caregiver: return "照护人"
-        case .adminCs: return "客服"
-        case .system: return "系统"
+        case .memberSelf: return L("成员本人")
+        case .caregiver: return L("照护人")
+        case .adminCs: return L("客服")
+        case .system: return L("系统")
         }
     }
 }
@@ -314,13 +314,13 @@ enum DosageForm: String, Codable, CaseIterable {
 
     var label: String {
         switch self {
-        case .tablet: return "片剂"
-        case .capsule: return "胶囊"
-        case .granule: return "颗粒"
-        case .oralLiquid: return "口服液"
-        case .injection: return "注射剂"
-        case .external: return "外用"
-        case .other: return "其他"
+        case .tablet: return L("片剂")
+        case .capsule: return L("胶囊")
+        case .granule: return L("颗粒")
+        case .oralLiquid: return L("口服液")
+        case .injection: return L("注射剂")
+        case .external: return L("外用")
+        case .other: return L("其他")
         }
     }
 }
@@ -336,12 +336,12 @@ enum FrequencyType: String, Codable, CaseIterable {
 
     var label: String {
         switch self {
-        case .daily: return "每日一次"
-        case .timesPerDay: return "每日多次"
-        case .weekly: return "每周固定日"
-        case .intervalDays: return "每隔几天"
-        case .onDemand: return "按需"
-        case .courseCycle: return "疗程周期"
+        case .daily: return L("每日一次")
+        case .timesPerDay: return L("每日多次")
+        case .weekly: return L("每周固定日")
+        case .intervalDays: return L("每隔几天")
+        case .onDemand: return L("按需")
+        case .courseCycle: return L("疗程周期")
         }
     }
 }
@@ -356,11 +356,11 @@ enum MealRelation: String, Codable, CaseIterable {
 
     var label: String {
         switch self {
-        case .beforeMeal: return "饭前"
-        case .withMeal: return "随餐"
-        case .afterMeal: return "饭后"
-        case .beforeSleep: return "睡前"
-        case .none: return "不限"
+        case .beforeMeal: return L("饭前")
+        case .withMeal: return L("随餐")
+        case .afterMeal: return L("饭后")
+        case .beforeSleep: return L("睡前")
+        case .none: return L("不限")
         }
     }
 }
@@ -373,9 +373,9 @@ enum CourseType: String, Codable, CaseIterable {
 
     var label: String {
         switch self {
-        case .longTerm: return "长期服用"
-        case .fixedDays: return "固定天数"
-        case .untilFinished: return "服完为止"
+        case .longTerm: return L("长期服用")
+        case .fixedDays: return L("固定天数")
+        case .untilFinished: return L("服完为止")
         }
     }
 }
@@ -404,9 +404,9 @@ enum CyclePreset: String, Codable, CaseIterable {
 
     var label: String {
         switch self {
-        case .standard: return "标准（90 分钟内每 15 分钟）"
-        case .gentle: return "温和（120 分钟内每 30 分钟）"
-        case .strict: return "严格（60 分钟内每 10 分钟）"
+        case .standard: return L("标准（90 分钟内每 15 分钟）")
+        case .gentle: return L("温和（120 分钟内每 30 分钟）")
+        case .strict: return L("严格（60 分钟内每 10 分钟）")
         }
     }
 }

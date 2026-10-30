@@ -18,7 +18,7 @@ struct LoginView: View {
                     header
                     Picker("登录方式", selection: $mode) {
                         ForEach(LoginMode.allCases, id: \.self) { item in
-                            Text(item.rawValue).tag(item)
+                            Text(L(item.rawValue)).tag(item)
                         }
                     }
                     .pickerStyle(.segmented)
@@ -43,7 +43,7 @@ struct LoginView: View {
                         VStack(spacing: 12) {
                             Picker("验证码接收方式", selection: $viewModel.codeChannel) {
                                 ForEach(AuthViewModel.CodeChannel.allCases, id: \.self) { item in
-                                    Text(item.rawValue).tag(item)
+                                    Text(L(item.rawValue)).tag(item)
                                 }
                             }
                             .pickerStyle(.segmented)
@@ -84,7 +84,7 @@ struct LoginView: View {
                                         .padding(12)
                                         .background(Color(.secondarySystemBackground))
                                         .clipShape(RoundedRectangle(cornerRadius: 10))
-                                    Button(viewModel.emailCountdown > 0 ? "\(viewModel.emailCountdown)s" : "发送验证码") {
+                                    Button(viewModel.emailCountdown > 0 ? "\(viewModel.emailCountdown)s" : L("发送验证码")) {
                                         Task { await viewModel.sendEmailCode(scene: .login) }
                                     }
                                     .disabled(viewModel.emailCountdown > 0)
