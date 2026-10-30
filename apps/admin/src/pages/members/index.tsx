@@ -14,9 +14,11 @@ import {
 } from '../../constants/labels';
 import { toProTable } from '../../services/request';
 import { fmtDate, fmtDateTime, shortId } from '../../utils/format';
+import { tr, useT } from '../../i18n';
 
 /** 成员管理：列表 + 所属账号 + 授权关系（照护人）展示 */
 export default function MembersPage() {
+  const t = useT();
   const [detail, setDetail] = useState<MemberItem | null>(null);
   /* 阶段 2：色值一律读 AntD token。 */
   const { token } = antdTheme.useToken();
@@ -26,28 +28,28 @@ export default function MembersPage() {
 
   const columns: ProColumns<MemberItem>[] = [
     {
-      title: '关键字',
+      title: t('memb.keyword'),
       dataIndex: 'keyword',
       hideInTable: true,
-      fieldProps: { placeholder: '成员名 / 账号昵称' },
+      fieldProps: { placeholder: t('memb.keywordPlaceholder') },
     },
     {
-      title: '所属账号 ID',
+      title: t('memb.accountIdSearch'),
       dataIndex: 'accountId',
       hideInTable: true,
-      fieldProps: { placeholder: '按账号 ID 精确筛选' },
+      fieldProps: { placeholder: t('memb.accountIdPlaceholder') },
     },
-    { title: '成员 ID', dataIndex: 'id', hideInSearch: true, width: 110, render: (_, r) => <span title={r.id}>{shortId(r.id)}</span> },
-    { title: '成员名', dataIndex: 'displayName', hideInSearch: true, ellipsis: true },
+    { title: t('memb.id'), dataIndex: 'id', hideInSearch: true, width: 110, render: (_, r) => <span title={r.id}>{shortId(r.id)}</span> },
+    { title: t('memb.name'), dataIndex: 'displayName', hideInSearch: true, ellipsis: true },
     {
-      title: '与账号关系',
+      title: t('memb.relationship'),
       dataIndex: 'relationship',
       hideInSearch: true,
       width: 110,
       render: (_, r) => relationshipText(r.relationship),
     },
     {
-      title: '所属账号',
+      title: t('memb.account'),
       dataIndex: 'accountNickname',
       hideInSearch: true,
       ellipsis: true,
@@ -62,51 +64,51 @@ export default function MembersPage() {
         ),
     },
     {
-      title: '状态',
+      title: t('common.status'),
       dataIndex: 'status',
       width: 100,
-      valueEnum: memberStatusEnum,
+      valueEnum: memberStatusEnum(),
       render: (_, r) => {
         const m = memberStatusMeta(r.status);
         return <Tag color={m.color}>{m.text}</Tag>;
       },
     },
     {
-      title: '授权关系',
+      title: t('memb.auths'),
       dataIndex: 'authorizations',
       hideInSearch: true,
       width: 130,
       render: (_, r) => {
         const total = r.authorizations?.length ?? 0;
-        if (total === 0) return <span style={{ color: token.colorTextSecondary }}>无照护人</span>;
+        if (total === 0) return <span style={{ color: token.colorTextSecondary }}>{t('memb.noCaregiver')}</span>;
         return (
           <span>
-            生效 <Tag color="green">{activeAuthCount(r)}</Tag> / 共 {total}
+            {t('memb.authActivePrefix')} <Tag color="green">{activeAuthCount(r)}</Tag>{t('memb.authTotalSuffix', { total })}
           </span>
         );
       },
     },
     {
-      title: '创建时间',
+      title: t('common.createdAt'),
       dataIndex: 'createdAt',
       hideInSearch: true,
       width: 150,
       render: (_, r) => fmtDateTime(r.createdAt),
     },
     {
-      title: '操作',
+      title: t('common.actions'),
       valueType: 'option',
       width: 90,
       render: (_, record) => (
         <Button type="link" size="small" icon={<EyeOutlined />} onClick={() => setDetail(record)}>
-          详情
+          {t('acct.detailBtn')}
         </Button>
       ),
     },
   ];
 
   return (
-    <PageContainer title="成员管理" subTitle="成员（member）及其所属账号、照护授权关系">
+    <PageContainer title={t('memb.title')} subTitle={t('memb.subTitle')}>
       <ProTable<MemberItem>
         rowKey="id"
         columns={columns}
@@ -116,7 +118,7 @@ export default function MembersPage() {
       />
 
       <Drawer
-        title={detail ? `成员详情 · ${detail.displayName}` : '成员详情'}
+        title={detail ? t('memb.detailTitle', { name: detail.displayName }) : t('memb.detailTitlePlain')}
         width={560}
         open={!!detail}
         onClose={() => setDetail(null)}
@@ -124,33 +126,33 @@ export default function MembersPage() {
         {detail && (
           <>
             <Descriptions column={1} bordered size="small">
-              <Descriptions.Item label="成员 ID">{detail.id}</Descriptions.Item>
-              <Descriptions.Item label="成员名">{detail.displayName}</Descriptions.Item>
-              <Descriptions.Item label="与账号关系">{relationshipText(detail.relationship)}</Descriptions.Item>
-              <Descriptions.Item label="性别">{genderText(detail.gender)}</Descriptions.Item>
-              <Descriptions.Item label="出生日期">{fmtDate(detail.birthDate)}</Descriptions.Item>
-              <Descriptions.Item label="状态">
+              <Descriptions.Item label={t('memb.id')}>{detail.id}</Descriptions.Item>
+              <Descriptions.Item label={t('memb.name')}>{detail.displayName}</Descriptions.Item>
+              <Descriptions.Item label={t('memb.relationship')}>{relationshipText(detail.relationship)}</Descriptions.Item>
+              <Descriptions.Item label={t('memb.gender')}>{genderText(detail.gender)}</Descriptions.Item>
+              <Descriptions.Item label={t('memb.birthDate')}>{fmtDate(detail.birthDate)}</Descriptions.Item>
+              <Descriptions.Item label={t('common.status')}>
                 <Tag color={memberStatusMeta(detail.status).color}>
                   {memberStatusMeta(detail.status).text}
                 </Tag>
               </Descriptions.Item>
-              <Descriptions.Item label="时区">{detail.timezone}</Descriptions.Item>
-              <Descriptions.Item label="所属账号">
+              <Descriptions.Item label={t('memb.timezone')}>{detail.timezone}</Descriptions.Item>
+              <Descriptions.Item label={t('memb.account')}>
                 {detail.account
-                  ? `${detail.account.nickname}（${detail.account.phoneMasked ?? ''}）`
+                  ? t('memb.accountTitle', { nickname: detail.account.nickname, phone: detail.account.phoneMasked ?? '' })
                   : detail.accountId}
               </Descriptions.Item>
-              <Descriptions.Item label="创建时间">{fmtDateTime(detail.createdAt)}</Descriptions.Item>
+              <Descriptions.Item label={t('common.createdAt')}>{fmtDateTime(detail.createdAt)}</Descriptions.Item>
             </Descriptions>
 
             <h4 style={{ margin: '20px 0 8px' }}>
-              授权关系 · 照护人（{detail.authorizations?.length ?? 0}）
+              {t('memb.authHead', { n: detail.authorizations?.length ?? 0 })}
             </h4>
             <List
               size="small"
               bordered
               dataSource={detail.authorizations ?? []}
-              locale={{ emptyText: '暂无授权关系' }}
+              locale={{ emptyText: t('memb.noAuths') }}
               renderItem={(a) => (
                 <List.Item>
                   <List.Item.Meta
@@ -165,9 +167,9 @@ export default function MembersPage() {
                     }
                     description={
                       <span>
-                        邀请 {fmtDateTime(a.invitedAt)}
-                        {a.expiresAt ? ` · 到期 ${fmtDateTime(a.expiresAt)}` : ' · 长期有效'}
-                        {a.revokeReason ? ` · 撤销原因：${a.revokeReason}` : ''}
+                        {t('memb.invited', { time: fmtDateTime(a.invitedAt) })}
+                        {a.expiresAt ? t('memb.expires', { time: fmtDateTime(a.expiresAt) }) : t('memb.longTerm')}
+                        {a.revokeReason ? t('memb.revokeReason', { reason: a.revokeReason }) : ''}
                       </span>
                     }
                   />
@@ -175,7 +177,7 @@ export default function MembersPage() {
               )}
             />
             <p style={{ color: token.colorTextSecondary, marginTop: 12 }}>
-              数据隔离红线：照护人仅可见被授权成员的数据，看不到同户其他成员。
+              {t('memb.isolationNote')}
             </p>
           </>
         )}

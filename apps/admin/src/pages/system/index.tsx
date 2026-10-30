@@ -26,6 +26,7 @@ import {
 } from '../../constants/labels';
 import { toProTable } from '../../services/request';
 import { fmtDateTime } from '../../utils/format';
+import { useT } from '../../i18n';
 
 /** 校验 URL 协议是否仅为 http: 或 https:（防止 javascript: 伪协议 XSS） */
 function safeHttpUrl(url?: string | null): string | null {
@@ -40,34 +41,35 @@ function safeHttpUrl(url?: string | null): string | null {
 
 /** 系统 · 应用版本管理（app_version）：低于 min_supported_version 的客户端将被强制升级 */
 export default function AppVersionsPage() {
+  const t = useT();
   const actionRef = useRef<ActionType>();
   const [editing, setEditing] = useState<AppVersionItem | 'new' | null>(null);
 
   const columns: ProColumns<AppVersionItem>[] = [
     {
-      title: '关键字',
+      title: t('sys.keyword'),
       dataIndex: 'keyword',
       hideInTable: true,
-      fieldProps: { placeholder: '版本号 / 更新说明' },
+      fieldProps: { placeholder: t('sys.keywordPlaceholder') },
     },
     {
-      title: '平台',
+      title: t('sys.platform'),
       dataIndex: 'platform',
       width: 130,
-      valueEnum: platformEnum,
+      valueEnum: platformEnum(),
       render: (_, r) => platformText(r.platform),
     },
-    { title: '版本', dataIndex: 'version', hideInSearch: true, width: 110 },
+    { title: t('sys.version'), dataIndex: 'version', hideInSearch: true, width: 110 },
     {
-      title: '最低支持版本',
+      title: t('sys.minVersion'),
       dataIndex: 'minSupportedVersion',
       hideInSearch: true,
       width: 120,
       render: (_, r) => r.minSupportedVersion ?? '-',
     },
-    { title: '更新说明', dataIndex: 'releaseNote', hideInSearch: true, ellipsis: true, render: (_, r) => r.releaseNote ?? '-' },
+    { title: t('sys.releaseNote'), dataIndex: 'releaseNote', hideInSearch: true, ellipsis: true, render: (_, r) => r.releaseNote ?? '-' },
     {
-      title: '下载地址',
+      title: t('sys.downloadUrl'),
       dataIndex: 'downloadUrl',
       hideInSearch: true,
       ellipsis: true,
@@ -84,41 +86,41 @@ export default function AppVersionsPage() {
       },
     },
     {
-      title: '状态',
+      title: t('common.status'),
       dataIndex: 'status',
       width: 100,
-      valueEnum: appVersionStatusEnum,
+      valueEnum: appVersionStatusEnum(),
       render: (_, r) => {
         const m = appVersionStatusMeta(r.status);
         return <Tag color={m.color}>{m.text}</Tag>;
       },
     },
     {
-      title: '创建时间',
+      title: t('common.createdAt'),
       dataIndex: 'createdAt',
       hideInSearch: true,
       width: 150,
       render: (_, r) => fmtDateTime(r.createdAt),
     },
     {
-      title: '操作',
+      title: t('common.actions'),
       valueType: 'option',
       width: 140,
       render: (_, record) => (
         <Space>
           <Button type="link" size="small" icon={<EditOutlined />} onClick={() => setEditing(record)}>
-            编辑
+            {t('cnt.edit')}
           </Button>
           <Popconfirm
-            title="确认删除该版本记录？"
+            title={t('sys.deleteConfirm')}
             onConfirm={async () => {
               await deleteAppVersion(record.id);
-              message.success('已删除');
+              message.success(t('sys.deleted'));
               actionRef.current?.reload();
             }}
           >
             <Button type="link" size="small" danger icon={<DeleteOutlined />}>
-              删除
+              {t('common.delete')}
             </Button>
           </Popconfirm>
         </Space>
@@ -128,8 +130,8 @@ export default function AppVersionsPage() {
 
   return (
     <PageContainer
-      title="应用版本管理"
-      subTitle="各端版本发布与强更门槛（app_version，按 平台 + 版本 唯一）"
+      title={t('sys.title')}
+      subTitle={t('sys.subTitle')}
     >
       <ProTable<AppVersionItem>
         rowKey="id"
@@ -140,13 +142,13 @@ export default function AppVersionsPage() {
         pagination={{ defaultPageSize: 20, showSizeChanger: true }}
         toolBarRender={() => [
           <Button key="new" type="primary" icon={<PlusOutlined />} onClick={() => setEditing('new')}>
-            新建版本
+            {t('sys.newVersion')}
           </Button>,
         ]}
       />
 
       <ModalForm<AppVersionPayload>
-        title={editing === 'new' ? '新建版本' : '编辑版本'}
+        title={editing === 'new' ? t('sys.newTitle') : t('sys.editTitle')}
         open={!!editing}
         onOpenChange={(open) => {
           if (!open) setEditing(null);
@@ -168,10 +170,10 @@ export default function AppVersionsPage() {
         onFinish={async (values) => {
           if (editing === 'new') {
             await createAppVersion(values);
-            message.success('版本已创建');
+            message.success(t('sys.created'));
           } else if (editing) {
             await updateAppVersion(editing.id, values);
-            message.success('版本已更新');
+            message.success(t('sys.updated'));
           }
           setEditing(null);
           actionRef.current?.reload();
@@ -180,27 +182,27 @@ export default function AppVersionsPage() {
       >
         <ProFormSelect
           name="platform"
-          label="平台"
-          options={Object.entries(platformEnum).map(([value, v]) => ({ value, label: v.text }))}
+          label={t('sys.platform')}
+          options={Object.entries(platformEnum()).map(([value, v]) => ({ value, label: v.text }))}
           rules={[{ required: true }]}
         />
-        <ProFormText name="version" label="版本号" placeholder="如 1.0.0" rules={[{ required: true }]} />
+        <ProFormText name="version" label={t('sys.version')} placeholder={t('sys.versionPlaceholder')} rules={[{ required: true }]} />
         <ProFormText
           name="minSupportedVersion"
-          label="最低支持版本"
-          placeholder="低于此版本的客户端将被强制升级"
+          label={t('sys.minVersion')}
+          placeholder={t('sys.minVersionPlaceholder')}
         />
-        <ProFormTextArea name="releaseNote" label="更新说明" fieldProps={{ rows: 3 }} />
+        <ProFormTextArea name="releaseNote" label={t('sys.releaseNote')} fieldProps={{ rows: 3 }} />
         <ProFormText
           name="downloadUrl"
-          label="下载地址"
-          placeholder="https://"
-          rules={[{ type: 'url', pattern: /^https?:\/\//i, message: '请输入以 http:// 或 https:// 开头的合法地址' }]}
+          label={t('sys.downloadUrl')}
+          placeholder={t('sys.urlPlaceholder')}
+          rules={[{ type: 'url', pattern: /^https?:\/\//i, message: t('sys.urlInvalid') }]}
         />
         <ProFormSelect
           name="status"
-          label="状态"
-          options={Object.entries(appVersionStatusEnum).map(([value, v]) => ({ value, label: v.text }))}
+          label={t('common.status')}
+          options={Object.entries(appVersionStatusEnum()).map(([value, v]) => ({ value, label: v.text }))}
           rules={[{ required: true }]}
         />
       </ModalForm>

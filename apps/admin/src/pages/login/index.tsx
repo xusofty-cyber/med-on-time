@@ -6,6 +6,7 @@ import { adminLogin } from '../../api/admin';
 import { ApiError } from '../../services/request';
 import { isLoggedIn, saveSession } from '../../services/session';
 import { ADMIN_THEMES, useAdminTheme } from '../../theme';
+import { tr, useT } from '../../i18n';
 
 interface LoginValues {
   username: string;
@@ -14,6 +15,7 @@ interface LoginValues {
 
 /** 管理员登录（POST /admin/auth/login，token 主体为 admin） */
 export default function LoginPage() {
+  const t = useT();
   /* 阶段 2：登录渐变跟随主题（ADMIN_THEMES[].loginGradient），卡片底读 token。 */
   const { token } = antdTheme.useToken();
   const { themeId } = useAdminTheme();
@@ -30,11 +32,11 @@ export default function LoginPage() {
     try {
       const result = await adminLogin(values.username, values.password);
       saveSession(result.accessToken, result.admin);
-      message.success(`欢迎回来，${result.admin.realName}`);
+      message.success(t('login.welcome', { name: result.admin.realName }));
       navigate(from, { replace: true });
       return true;
     } catch (err) {
-      message.error(err instanceof ApiError ? err.message : '登录失败，请稍后重试');
+      message.error(err instanceof ApiError ? err.message : t('login.failed'));
       return false;
     }
   };
@@ -63,20 +65,20 @@ export default function LoginPage() {
         }}
       >
         <LoginForm<LoginValues>
-          title="药准时 MedOnTime"
-          subTitle="后台管理平台 · 仅限授权管理员"
+          title={t('login.title')}
+          subTitle={t('login.subTitle')}
           onFinish={onFinish}
-          submitter={{ searchConfig: { submitText: '登录' } }}
+          submitter={{ searchConfig: { submitText: t('login.submit') } }}
         >
           <ProFormText
             name="username"
-            label="管理员账号"
+            label={t('login.username')}
             fieldProps={{ size: 'large', prefix: <UserOutlined /> }}
-            rules={[{ required: true, message: '请输入管理员账号' }]}
+            rules={[{ required: true, message: t('login.usernameRequired') }]}
           />
           <ProFormText.Password
             name="password"
-            label="密码"
+            label={t('login.password')}
             fieldProps={{
               size: 'large',
               prefix: <LockOutlined />,
@@ -88,8 +90,8 @@ export default function LoginPage() {
                 <button
                   type="button"
                   className="pwd-eye-btn"
-                  aria-label={visible ? '隐藏密码' : '显示密码'}
-                  title={visible ? '隐藏密码' : '显示密码'}
+                  aria-label={visible ? t('login.hidePassword') : t('login.showPassword')}
+                  title={visible ? t('login.hidePassword') : t('login.showPassword')}
                   onKeyPress={(e) => {
                     /* 2026-10-25 修复：ProForm 默认 Enter 提交表单（BaseForm onKeyPress），
                      * eye 按钮上按 Enter 会同时切换可见性与提交表单、触发空字段校验；
@@ -111,7 +113,7 @@ export default function LoginPage() {
                 </button>
               ),
             }}
-            rules={[{ required: true, message: '请输入密码' }]}
+            rules={[{ required: true, message: t('login.passwordRequired') }]}
           />
         </LoginForm>
       </div>

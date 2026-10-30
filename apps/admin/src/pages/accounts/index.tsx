@@ -25,9 +25,11 @@ import {
 } from '../../constants/labels';
 import { toProTable } from '../../services/request';
 import { fmtDateTime, shortId } from '../../utils/format';
+import { tr, useT } from '../../i18n';
 
 /** 账号管理：列表（搜索/分页/状态）+ 详情抽屉 + 冻结/解冻 */
 export default function AccountsPage() {
+  const t = useT();
   const actionRef = useRef<ActionType>();
   const [detail, setDetail] = useState<AccountDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -46,72 +48,72 @@ export default function AccountsPage() {
 
   const doUnfreeze = async (record: AccountItem) => {
     await unfreezeAccount(record.id);
-    message.success(`账号「${record.nickname}」已解冻`);
+    message.success(t('acct.unfrozen', { name: record.nickname }));
     actionRef.current?.reload();
     if (detail?.id === record.id) setDetail(await getAccount(record.id));
   };
 
   const columns: ProColumns<AccountItem>[] = [
     {
-      title: '关键字',
+      title: t('acct.keyword'),
       dataIndex: 'keyword',
       hideInTable: true,
-      fieldProps: { placeholder: '昵称 / 手机号' },
+      fieldProps: { placeholder: t('acct.keywordPlaceholder') },
     },
-    { title: '账号 ID', dataIndex: 'id', hideInSearch: true, width: 110, render: (_, r) => <span title={r.id}>{shortId(r.id)}</span> },
-    { title: '昵称', dataIndex: 'nickname', hideInSearch: true, ellipsis: true },
+    { title: t('acct.id'), dataIndex: 'id', hideInSearch: true, width: 110, render: (_, r) => <span title={r.id}>{shortId(r.id)}</span> },
+    { title: t('acct.nickname'), dataIndex: 'nickname', hideInSearch: true, ellipsis: true },
     {
-      title: '手机号',
+      title: t('acct.phone'),
       dataIndex: 'phoneMasked',
       hideInSearch: true,
       width: 130,
       render: (_, r) => r.phoneMasked ?? r.phone ?? '-',
     },
     {
-      title: '注册渠道',
+      title: t('acct.channel'),
       dataIndex: 'registerChannel',
       hideInSearch: true,
       width: 110,
       render: (_, r) => registerChannelText(r.registerChannel),
     },
     {
-      title: '状态',
+      title: t('common.status'),
       dataIndex: 'status',
       width: 110,
-      valueEnum: accountStatusEnum,
+      valueEnum: accountStatusEnum(),
       render: (_, r) => {
         const m = accountStatusMeta(r.status);
         return <Tag color={m.color}>{m.text}</Tag>;
       },
     },
-    { title: '成员数', dataIndex: 'memberCount', hideInSearch: true, width: 80, render: (_, r) => r.memberCount ?? '-' },
+    { title: t('acct.memberCount'), dataIndex: 'memberCount', hideInSearch: true, width: 80, render: (_, r) => r.memberCount ?? '-' },
     {
-      title: '注册时间',
+      title: t('acct.registeredAt'),
       dataIndex: 'registeredAt',
       hideInSearch: true,
       width: 150,
       render: (_, r) => fmtDateTime(r.registeredAt),
     },
     {
-      title: '最近登录',
+      title: t('acct.lastLogin'),
       dataIndex: 'lastLoginAt',
       hideInSearch: true,
       width: 150,
       render: (_, r) => fmtDateTime(r.lastLoginAt),
     },
     {
-      title: '操作',
+      title: t('common.actions'),
       valueType: 'option',
       width: 170,
       render: (_, record) => (
         <Space>
           <Button type="link" size="small" icon={<EyeOutlined />} onClick={() => openDetail(record.id)}>
-            详情
+            {t('acct.detailBtn')}
           </Button>
           {record.status === 'frozen' ? (
-            <Popconfirm title={`确认解冻账号「${record.nickname}」？`} onConfirm={() => doUnfreeze(record)}>
+            <Popconfirm title={t('acct.unfreezeConfirm', { name: record.nickname })} onConfirm={() => doUnfreeze(record)}>
               <Button type="link" size="small" icon={<UnlockOutlined />}>
-                解冻
+                {t('acct.unfreeze')}
               </Button>
             </Popconfirm>
           ) : record.status === 'active' ? (
@@ -122,7 +124,7 @@ export default function AccountsPage() {
               icon={<LockOutlined />}
               onClick={() => setFreezeTarget(record)}
             >
-              冻结
+              {t('acct.freeze')}
             </Button>
           ) : null}
         </Space>
@@ -131,7 +133,7 @@ export default function AccountsPage() {
   ];
 
   return (
-    <PageContainer title="账号管理" subTitle="用户账号（user_account）检索、详情与冻结/解冻">
+    <PageContainer title={t('acct.title')} subTitle={t('acct.subTitle')}>
       <ProTable<AccountItem>
         rowKey="id"
         actionRef={actionRef}
@@ -142,19 +144,19 @@ export default function AccountsPage() {
       />
 
       <Drawer
-        title={detail ? `账号详情 · ${detail.nickname}` : '账号详情'}
+        title={detail ? t('acct.detailTitle', { name: detail.nickname }) : t('acct.detailTitlePlain')}
         width={560}
         open={!!detail || detailLoading}
         loading={detailLoading}
         onClose={() => setDetail(null)}
         extra={
           detail && detail.status === 'frozen' ? (
-            <Popconfirm title="确认解冻该账号？" onConfirm={() => doUnfreeze(detail)}>
-              <Button icon={<UnlockOutlined />}>解冻账号</Button>
+            <Popconfirm title={t('acct.unfreezeConfirmShort')} onConfirm={() => doUnfreeze(detail)}>
+              <Button icon={<UnlockOutlined />}>{t('acct.unfreezeAccount')}</Button>
             </Popconfirm>
           ) : detail && detail.status === 'active' ? (
             <Button danger icon={<LockOutlined />} onClick={() => setFreezeTarget(detail)}>
-              冻结账号
+              {t('acct.freezeAccount')}
             </Button>
           ) : undefined
         }
@@ -162,36 +164,36 @@ export default function AccountsPage() {
         {detail && (
           <>
             <Descriptions column={1} bordered size="small">
-              <Descriptions.Item label="账号 ID">{detail.id}</Descriptions.Item>
-              <Descriptions.Item label="昵称">{detail.nickname}</Descriptions.Item>
-              <Descriptions.Item label="手机号">{detail.phoneMasked ?? detail.phone ?? '-'}</Descriptions.Item>
-              <Descriptions.Item label="状态">
+              <Descriptions.Item label={t('acct.id')}>{detail.id}</Descriptions.Item>
+              <Descriptions.Item label={t('acct.nickname')}>{detail.nickname}</Descriptions.Item>
+              <Descriptions.Item label={t('acct.phone')}>{detail.phoneMasked ?? detail.phone ?? '-'}</Descriptions.Item>
+              <Descriptions.Item label={t('common.status')}>
                 <Tag color={accountStatusMeta(detail.status).color}>
                   {accountStatusMeta(detail.status).text}
                 </Tag>
               </Descriptions.Item>
-              <Descriptions.Item label="注册渠道">{registerChannelText(detail.registerChannel)}</Descriptions.Item>
-              <Descriptions.Item label="注册时间">{fmtDateTime(detail.registeredAt)}</Descriptions.Item>
-              <Descriptions.Item label="最近登录">{fmtDateTime(detail.lastLoginAt)}</Descriptions.Item>
-              <Descriptions.Item label="时区">{detail.timezone ?? '-'}</Descriptions.Item>
+              <Descriptions.Item label={t('acct.channel')}>{registerChannelText(detail.registerChannel)}</Descriptions.Item>
+              <Descriptions.Item label={t('acct.registeredAt')}>{fmtDateTime(detail.registeredAt)}</Descriptions.Item>
+              <Descriptions.Item label={t('acct.lastLogin')}>{fmtDateTime(detail.lastLoginAt)}</Descriptions.Item>
+              <Descriptions.Item label={t('acct.timezone')}>{detail.timezone ?? '-'}</Descriptions.Item>
               {detail.cancelApplyAt && (
-                <Descriptions.Item label="注销申请">{fmtDateTime(detail.cancelApplyAt)}</Descriptions.Item>
+                <Descriptions.Item label={t('acct.cancelApply')}>{fmtDateTime(detail.cancelApplyAt)}</Descriptions.Item>
               )}
               {detail.cancelReason && (
-                <Descriptions.Item label="注销原因">{detail.cancelReason}</Descriptions.Item>
+                <Descriptions.Item label={t('acct.cancelReason')}>{detail.cancelReason}</Descriptions.Item>
               )}
               {detail.oauthBindings && detail.oauthBindings.length > 0 && (
-                <Descriptions.Item label="第三方绑定">
-                  {detail.oauthBindings.map((b) => b.provider).join('、')}
+                <Descriptions.Item label={t('acct.oauthBindings')}>
+                  {detail.oauthBindings.map((b) => b.provider).join(t('acct.joinSeparator'))}
                 </Descriptions.Item>
               )}
             </Descriptions>
-            <h4 style={{ margin: '20px 0 8px' }}>旗下成员（{detail.members?.length ?? 0}）</h4>
+            <h4 style={{ margin: '20px 0 8px' }}>{t('acct.membersHead', { n: detail.members?.length ?? 0 })}</h4>
             <List
               size="small"
               bordered
               dataSource={detail.members ?? []}
-              locale={{ emptyText: '暂无成员' }}
+              locale={{ emptyText: t('acct.noMembers') }}
               renderItem={(m) => (
                 <List.Item>
                   <span>
@@ -207,7 +209,7 @@ export default function AccountsPage() {
       </Drawer>
 
       <ModalForm<{ reason?: string }>
-        title={freezeTarget ? `冻结账号 · ${freezeTarget.nickname}` : '冻结账号'}
+        title={freezeTarget ? t('acct.freezeTitle', { name: freezeTarget.nickname }) : t('acct.freezeTitlePlain')}
         open={!!freezeTarget}
         onOpenChange={(open) => {
           if (!open) setFreezeTarget(null);
@@ -217,7 +219,7 @@ export default function AccountsPage() {
         onFinish={async (values) => {
           if (!freezeTarget) return false;
           await freezeAccount(freezeTarget.id, values.reason);
-          message.success(`账号「${freezeTarget.nickname}」已冻结`);
+          message.success(t('acct.frozen', { name: freezeTarget.nickname }));
           setFreezeTarget(null);
           actionRef.current?.reload();
           if (detail?.id === freezeTarget.id) setDetail(await getAccount(freezeTarget.id));
@@ -225,9 +227,9 @@ export default function AccountsPage() {
         }}
       >
         <p style={{ color: token.colorTextSecondary }}>
-          冻结后该账号将无法登录与接收提醒，旗下成员计划同步暂停投递。冻结原因将写入审计日志。
+          {t('acct.freezeNote')}
         </p>
-        <ProFormTextArea name="reason" label="冻结原因" fieldProps={{ rows: 3, maxLength: 200 }} />
+        <ProFormTextArea name="reason" label={t('acct.freezeReason')} fieldProps={{ rows: 3, maxLength: 200 }} />
       </ModalForm>
     </PageContainer>
   );

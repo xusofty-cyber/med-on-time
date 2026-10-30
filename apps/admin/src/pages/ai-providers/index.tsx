@@ -28,16 +28,19 @@ import {
 } from '../../api/admin';
 import type { AiProviderItem, AiProviderPayload } from '../../api/types';
 import { fmtDateTime } from '../../utils/format';
+import { tr, useT } from '../../i18n';
 
-const CAPABILITY_OPTIONS = [
-  { value: 'general', label: '通用（general）' },
-  { value: 'photo_recognize', label: '拍照识别（photo_recognize）' },
-  { value: 'health_qa', label: '健康问答（health_qa）' },
-];
+function capabilityOptions(): { value: string; label: string }[] {
+  return [
+    { value: 'general', label: tr('ai.cap.general') },
+    { value: 'photo_recognize', label: tr('ai.cap.photo_recognize') },
+    { value: 'health_qa', label: tr('ai.cap.health_qa') },
+  ];
+}
 
-const CAPABILITY_LABEL: Record<string, string> = Object.fromEntries(
-  CAPABILITY_OPTIONS.map((o) => [o.value, o.label]),
-);
+function capabilityLabel(v: string): string {
+  return capabilityOptions().find((o) => o.value === v)?.label ?? v;
+}
 
 interface FormValues {
   name: string;
@@ -54,6 +57,7 @@ interface FormValues {
  * capability 精确匹配，未命中回落 general。拍照识别须选视觉模型（如 glm-4v-flash）。
  */
 export default function AiProvidersPage() {
+  const t = useT();
   const [rows, setRows] = useState<AiProviderItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [testingId, setTestingId] = useState<string | null>(null);
@@ -110,10 +114,10 @@ export default function AiProvidersPage() {
       if (values.apiKey) payload.apiKey = values.apiKey;
       if (editing) {
         await updateAiProvider(editing.id, payload);
-        message.success('配置已更新');
+        message.success(t('ai.updated'));
       } else {
         await createAiProvider(payload);
-        message.success('配置已创建');
+        message.success(t('ai.created'));
       }
       setModalOpen(false);
       void load();
@@ -125,7 +129,7 @@ export default function AiProvidersPage() {
   const toggleActive = async (row: AiProviderItem, next: boolean) => {
     try {
       await updateAiProvider(row.id, { isActive: next });
-      message.success(next ? '已设为生效配置' : '已停用');
+      message.success(next ? t('ai.activated') : t('ai.deactivated'));
       void load();
     } catch {
       /* 错误已由 request.ts 全局提示 */
@@ -136,9 +140,9 @@ export default function AiProvidersPage() {
     setTestingId(row.id);
     try {
       const res = await testAiProvider(row.id, { silent: true });
-      message.success(`连接成功：${res.model}，延迟 ${res.latencyMs}ms`);
+      message.success(t('ai.testOk', { model: res.model, ms: res.latencyMs }));
     } catch {
-      message.error('连接失败，请检查 URL、key 与模型名');
+      message.error(t('ai.testFail'));
     } finally {
       setTestingId(null);
     }
@@ -150,12 +154,12 @@ export default function AiProvidersPage() {
         type="info"
         showIcon
         style={{ marginBottom: 16 }}
-        message="大模型接入配置"
-        description="填写 OpenAI 兼容的请求 URL（如 https://open.bigmodel.cn/api/paas/v4）、模型名称与 API key。同一用途（capability）只有一条「生效」配置会被调用；拍照识别请单独配一条 photo_recognize 并选视觉模型（如 glm-4v-flash），未配时自动回落通用配置。API key 加密存储，页面只显示掩码。"
+        message={t('ai.alertTitle')}
+        description={t('ai.alertDesc')}
       />
       <div style={{ marginBottom: 16, textAlign: 'right' }}>
         <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>
-          新增配置
+          {t('ai.new')}
         </Button>
       </div>
       <Table<AiProviderItem>
@@ -164,21 +168,21 @@ export default function AiProvidersPage() {
         dataSource={rows}
         pagination={false}
         columns={[
-          { title: '名称', dataIndex: 'name' },
-          { title: '模型', dataIndex: 'modelName' },
+          { title: t('ai.name'), dataIndex: 'name' },
+          { title: t('ai.model'), dataIndex: 'modelName' },
           {
-            title: '用途',
+            title: t('ai.capability'),
             dataIndex: 'capability',
-            render: (v: string) => CAPABILITY_LABEL[v] ?? v,
+            render: (v: string) => capabilityLabel(v),
           },
           {
-            title: '请求 URL',
+            title: t('ai.baseUrl'),
             dataIndex: 'baseUrl',
             ellipsis: true,
           },
           { title: 'API key', dataIndex: 'apiKeyMasked' },
           {
-            title: '生效',
+            title: t('ai.active'),
             dataIndex: 'isActive',
             render: (v: boolean, row) => (
               <Space>
@@ -186,17 +190,17 @@ export default function AiProvidersPage() {
                   checked={v}
                   onChange={(next) => void toggleActive(row, next)}
                 />
-                {v ? <Tag color="green">生效中</Tag> : <Tag>未启用</Tag>}
+                {v ? <Tag color="green">{t('ai.activeTag')}</Tag> : <Tag>{t('ai.inactiveTag')}</Tag>}
               </Space>
             ),
           },
           {
-            title: '更新时间',
+            title: t('common.updatedAt'),
             dataIndex: 'updatedAt',
             render: (v: string) => fmtDateTime(v),
           },
           {
-            title: '操作',
+            title: t('common.actions'),
             render: (_, row) => (
               <Space>
                 <Button
@@ -205,21 +209,21 @@ export default function AiProvidersPage() {
                   loading={testingId === row.id}
                   onClick={() => void runTest(row)}
                 >
-                  测试连接
+                  {t('ai.test')}
                 </Button>
                 <Button
                   size="small"
                   icon={<EditOutlined />}
                   onClick={() => openEdit(row)}
                 >
-                  编辑
+                  {t('cnt.edit')}
                 </Button>
                 <Popconfirm
-                  title="删除该配置？"
+                  title={t('ai.deleteConfirm')}
                   onConfirm={async () => {
                     try {
                       await deleteAiProvider(row.id);
-                      message.success('已删除');
+                      message.success(t('ai.deleted'));
                       void load();
                     } catch {
                       /* 错误已由 request.ts 全局提示 */
@@ -227,7 +231,7 @@ export default function AiProvidersPage() {
                   }}
                 >
                   <Button size="small" danger icon={<DeleteOutlined />}>
-                    删除
+                    {t('common.delete')}
                   </Button>
                 </Popconfirm>
               </Space>
@@ -236,7 +240,7 @@ export default function AiProvidersPage() {
         ]}
       />
       <Modal
-        title={editing ? '编辑大模型配置' : '新增大模型配置'}
+        title={editing ? t('ai.editTitle') : t('ai.newTitle')}
         open={modalOpen}
         onOk={() => void submit()}
         onCancel={() => setModalOpen(false)}
@@ -245,24 +249,24 @@ export default function AiProvidersPage() {
         <Form form={form} layout="vertical">
           <Form.Item
             name="name"
-            label="名称"
-            rules={[{ required: true, message: '请填写名称' }]}
+            label={t('ai.name')}
+            rules={[{ required: true, message: t('ai.nameRequired') }]}
           >
-            <Input placeholder="如：智谱 GLM" />
+            <Input placeholder={t('ai.namePlaceholder')} />
           </Form.Item>
           <Form.Item
             name="modelName"
-            label="模型名称"
-            rules={[{ required: true, message: '请填写模型名称' }]}
+            label={t('ai.modelName')}
+            rules={[{ required: true, message: t('ai.modelRequired') }]}
           >
-            <Input placeholder="如：glm-4-flash / glm-4v-flash" />
+            <Input placeholder={t('ai.modelPlaceholder')} />
           </Form.Item>
           <Form.Item
             name="baseUrl"
-            label="请求 URL"
-            rules={[{ required: true, message: '请填写请求 URL' }]}
+            label={t('ai.baseUrl')}
+            rules={[{ required: true, message: t('ai.baseUrlRequired') }]}
           >
-            <Input placeholder="如：https://open.bigmodel.cn/api/paas/v4" />
+            <Input placeholder={t('ai.baseUrlPlaceholder')} />
           </Form.Item>
           <Form.Item
             name="apiKey"
@@ -270,16 +274,16 @@ export default function AiProvidersPage() {
             rules={
               editing
                 ? []
-                : [{ required: true, message: '请填写 API key' }]
+                : [{ required: true, message: t('ai.keyRequired') }]
             }
-            extra={editing ? '留空表示不更换现有 key' : undefined}
+            extra={editing ? t('ai.keyKeepHint') : undefined}
           >
             <Input.Password placeholder="sk-..." autoComplete="new-password" />
           </Form.Item>
-          <Form.Item name="capability" label="用途">
-            <Select options={CAPABILITY_OPTIONS} />
+          <Form.Item name="capability" label={t('ai.capability')}>
+            <Select options={capabilityOptions()} />
           </Form.Item>
-          <Form.Item name="isActive" label="设为生效" valuePropName="checked">
+          <Form.Item name="isActive" label={t('ai.setActive')} valuePropName="checked">
             <Switch />
           </Form.Item>
         </Form>

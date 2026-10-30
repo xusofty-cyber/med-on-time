@@ -35,12 +35,14 @@ import {
   drugSourceText,
 } from '../../constants/labels';
 import { toProTable } from '../../services/request';
+import { tr, useT } from '../../i18n';
 import { fmtDateTime, prettyJson } from '../../utils/format';
 
 const STATUS_KEYS = ['all', 'pending_review', 'approved', 'rejected', 'draft', 'off_shelf'] as const;
 
 /** 药品库管理：按核验状态过滤 + 说明书全字段详情 + 双人核验（初核/复核两段） + seed 导入 */
 export default function DrugsPage() {
+  const t = useT();
   const [searchParams] = useSearchParams();
   const actionRef = useRef<ActionType>();
   const [reviewStatus, setReviewStatus] = useState<string>(
@@ -67,10 +69,9 @@ export default function DrugsPage() {
 
   const doImport = () => {
     Modal.confirm({
-      title: '导入药品 seed 数据',
-      content:
-        '将调用 POST /admin/drugs/import-seed 导入 drug_seed_200.json（200 条）。其中待核验（pending_review）条目会以未发布状态入库，需双人核验通过后才对用户可见。',
-      okText: '开始导入',
+      title: t('drug.importTitle'),
+      content: t('drug.importContent'),
+      okText: t('drug.importOk'),
       onOk: async () => {
         setImporting(true);
         try {
@@ -86,31 +87,31 @@ export default function DrugsPage() {
 
   const columns: ProColumns<DrugItem>[] = [
     {
-      title: '关键字',
+      title: t('drug.keyword'),
       dataIndex: 'keyword',
       hideInTable: true,
-      fieldProps: { placeholder: '通用名 / 商品名 / 企业 / 批准文号' },
+      fieldProps: { placeholder: t('drug.keywordPlaceholder') },
     },
-    { title: '通用名', dataIndex: 'genericName', hideInSearch: true, ellipsis: true },
-    { title: '商品名', dataIndex: 'brandName', hideInSearch: true, ellipsis: true, render: (_, r) => r.brandName ?? '-' },
-    { title: '生产企业', dataIndex: 'manufacturer', hideInSearch: true, ellipsis: true, render: (_, r) => r.manufacturer ?? '-' },
-    { title: '批准文号', dataIndex: 'approvalNumber', hideInSearch: true, width: 130, render: (_, r) => r.approvalNumber ?? '-' },
+    { title: t('drug.genericName'), dataIndex: 'genericName', hideInSearch: true, ellipsis: true },
+    { title: t('drug.brandName'), dataIndex: 'brandName', hideInSearch: true, ellipsis: true, render: (_, r) => r.brandName ?? '-' },
+    { title: t('drug.manufacturer'), dataIndex: 'manufacturer', hideInSearch: true, ellipsis: true, render: (_, r) => r.manufacturer ?? '-' },
+    { title: t('drug.approvalNumber'), dataIndex: 'approvalNumber', hideInSearch: true, width: 130, render: (_, r) => r.approvalNumber ?? '-' },
     {
-      title: '剂型 / 规格',
+      title: t('drug.formSpec'),
       dataIndex: 'specification',
       hideInSearch: true,
       width: 170,
-      render: (_, r) => `${dosageFormText(r.dosageForm)} · ${r.specification}${r.unit}`,
+      render: (_, r) => t('drug.formSpecValue', { form: dosageFormText(r.dosageForm), spec: r.specification, unit: r.unit }),
     },
     {
-      title: '来源',
+      title: t('drug.source'),
       dataIndex: 'sourceType',
       hideInSearch: true,
       width: 100,
       render: (_, r) => drugSourceText(r.sourceType),
     },
     {
-      title: '核验状态',
+      title: t('drug.reviewStatus'),
       dataIndex: 'reviewStatus',
       hideInSearch: true,
       width: 110,
@@ -120,37 +121,37 @@ export default function DrugsPage() {
       },
     },
     {
-      title: '核验进度',
+      title: t('drug.reviewProgress'),
       dataIndex: 'reviewStage',
       hideInSearch: true,
       width: 130,
       render: (_, r) => {
         if (r.reviewStatus !== 'pending_review') return '-';
         const stage = r.review?.stage;
-        if (stage === 'verify') return <Tag color="blue">初核已过 · 待复核</Tag>;
-        if (stage === 'review') return <Tag color="orange">待初核</Tag>;
-        return <Tag color="orange">待核验</Tag>;
+        if (stage === 'verify') return <Tag color="blue">{t('drug.stageVerifyDone')}</Tag>;
+        if (stage === 'review') return <Tag color="orange">{t('drug.stageReview')}</Tag>;
+        return <Tag color="orange">{t('drug.stagePending')}</Tag>;
       },
     },
     {
-      title: '更新时间',
+      title: t('common.updatedAt'),
       dataIndex: 'updatedAt',
       hideInSearch: true,
       width: 150,
       render: (_, r) => fmtDateTime(r.updatedAt),
     },
     {
-      title: '操作',
+      title: t('common.actions'),
       valueType: 'option',
       width: 150,
       render: (_, record) => (
         <Space>
           <Button type="link" size="small" icon={<EyeOutlined />} onClick={() => openDetail(record.id)}>
-            详情
+            {t('drug.detailBtn')}
           </Button>
           {record.reviewStatus === 'pending_review' && (
             <Button type="link" size="small" onClick={() => { setDetail(null); setReviewTarget(record); }}>
-              核验
+              {t('drug.review')}
             </Button>
           )}
         </Space>
@@ -163,11 +164,11 @@ export default function DrugsPage() {
 
   return (
     <PageContainer
-      title="药品库管理"
-      subTitle="平台药品主数据（drug）：说明书维护、双人核验发布、seed 批量导入"
+      title={t('drug.title')}
+      subTitle={t('drug.subTitle')}
       extra={
         <Button type="primary" icon={<ImportOutlined />} loading={importing} onClick={doImport}>
-          导入 seed 药品库
+          {t('drug.importBtn')}
         </Button>
       }
     >
@@ -178,15 +179,15 @@ export default function DrugsPage() {
           closable
           onClose={() => setImportResult(null)}
           style={{ marginBottom: 16 }}
-          message="seed 导入完成"
+          message={t('drug.importDone')}
           description={
             <span>
-              共 {importResult.total ?? importResult.imported} 条：新导入 {importResult.imported} 条
-              {importResult.updated !== undefined && `，更新 ${importResult.updated} 条`}
-              {importResult.skipped !== undefined && `，跳过 ${importResult.skipped} 条`}
+              {t('drug.importSummary', { total: importResult.total ?? importResult.imported, imported: importResult.imported })}
+              {importResult.updated !== undefined && t('drug.importUpdated', { n: importResult.updated })}
+              {importResult.skipped !== undefined && t('drug.importSkipped', { n: importResult.skipped })}
               {importResult.pendingUnpublished !== undefined &&
-                `；其中 ${importResult.pendingUnpublished} 条为待核验，已置未发布`}
-              {importResult.message ? `。${importResult.message}` : ''}
+                t('drug.importPending', { n: importResult.pendingUnpublished })}
+              {importResult.message ? t('drug.importMsgSuffix', { msg: importResult.message }) : ''}
             </span>
           }
         />
@@ -199,7 +200,7 @@ export default function DrugsPage() {
           options={STATUS_KEYS.map((key) => ({
             value: key,
             label:
-              key === 'all' ? '全部' : drugReviewMeta(key).text,
+              key === 'all' ? t('common.all') : drugReviewMeta(key).text,
           }))}
         />
       </div>
@@ -215,7 +216,7 @@ export default function DrugsPage() {
       />
 
       <Drawer
-        title={detail ? `药品详情 · ${detail.genericName}` : '药品详情'}
+        title={detail ? t('drug.detailTitle', { name: detail.genericName }) : t('drug.detailTitlePlain')}
         width={760}
         open={!!detail || detailLoading}
         loading={detailLoading}
@@ -223,35 +224,35 @@ export default function DrugsPage() {
         extra={
           detail?.reviewStatus === 'pending_review' ? (
             <Button type="primary" onClick={() => setReviewTarget(detail)}>
-              执行核验
+              {t('drug.doReview')}
             </Button>
           ) : undefined
         }
       >
         {detail && (
           <>
-            <Descriptions column={2} bordered size="small" title="基本信息">
-              <Descriptions.Item label="通用名">{detail.genericName}</Descriptions.Item>
-              <Descriptions.Item label="商品名">{detail.brandName ?? '-'}</Descriptions.Item>
-              <Descriptions.Item label="生产企业">{detail.manufacturer ?? '-'}</Descriptions.Item>
-              <Descriptions.Item label="批准文号">{detail.approvalNumber ?? '-'}</Descriptions.Item>
-              <Descriptions.Item label="条形码">{detail.barcode ?? '-'}</Descriptions.Item>
-              <Descriptions.Item label="分类">{detail.categoryName ?? detail.categoryId ?? '-'}</Descriptions.Item>
-              <Descriptions.Item label="剂型">{dosageFormText(detail.dosageForm)}</Descriptions.Item>
-              <Descriptions.Item label="规格">{detail.specification}</Descriptions.Item>
-              <Descriptions.Item label="包装">{detail.packageDesc ?? '-'}</Descriptions.Item>
-              <Descriptions.Item label="最小单位">{detail.unit}</Descriptions.Item>
-              <Descriptions.Item label="OTC">{detail.isOtc ? '是（非处方药）' : '否（处方药）'}</Descriptions.Item>
-              <Descriptions.Item label="来源">{drugSourceText(detail.sourceType)}</Descriptions.Item>
-              <Descriptions.Item label="核验状态">
+            <Descriptions column={2} bordered size="small" title={t('drug.basicInfo')}>
+              <Descriptions.Item label={t('drug.genericName')}>{detail.genericName}</Descriptions.Item>
+              <Descriptions.Item label={t('drug.brandName')}>{detail.brandName ?? '-'}</Descriptions.Item>
+              <Descriptions.Item label={t('drug.manufacturer')}>{detail.manufacturer ?? '-'}</Descriptions.Item>
+              <Descriptions.Item label={t('drug.approvalNumber')}>{detail.approvalNumber ?? '-'}</Descriptions.Item>
+              <Descriptions.Item label={t('drug.barcode')}>{detail.barcode ?? '-'}</Descriptions.Item>
+              <Descriptions.Item label={t('drug.category')}>{detail.categoryName ?? detail.categoryId ?? '-'}</Descriptions.Item>
+              <Descriptions.Item label={t('drug.dosageForm')}>{dosageFormText(detail.dosageForm)}</Descriptions.Item>
+              <Descriptions.Item label={t('drug.spec')}>{detail.specification}</Descriptions.Item>
+              <Descriptions.Item label={t('drug.package')}>{detail.packageDesc ?? '-'}</Descriptions.Item>
+              <Descriptions.Item label={t('drug.minUnit')}>{detail.unit}</Descriptions.Item>
+              <Descriptions.Item label="OTC">{detail.isOtc ? t('drug.otcYes') : t('drug.otcNo')}</Descriptions.Item>
+              <Descriptions.Item label={t('drug.source')}>{drugSourceText(detail.sourceType)}</Descriptions.Item>
+              <Descriptions.Item label={t('drug.reviewStatus')}>
                 <Tag color={drugReviewMeta(detail.reviewStatus).color}>
                   {drugReviewMeta(detail.reviewStatus).text}
                 </Tag>
               </Descriptions.Item>
-              <Descriptions.Item label="更新时间">{fmtDateTime(detail.updatedAt)}</Descriptions.Item>
+              <Descriptions.Item label={t('common.updatedAt')}>{fmtDateTime(detail.updatedAt)}</Descriptions.Item>
             </Descriptions>
 
-            <h4 style={{ margin: '20px 0 8px' }}>双人核验进度</h4>
+            <h4 style={{ margin: '20px 0 8px' }}>{t('drug.progressHead')}</h4>
             <Steps
               size="small"
               current={
@@ -264,35 +265,35 @@ export default function DrugsPage() {
               status={detail.reviewStatus === 'rejected' ? 'error' : undefined}
               items={[
                 {
-                  title: '初核（reviewer）',
+                  title: t('drug.stepReviewTitle'),
                   description: detail.review?.reviewer?.at
-                    ? `${detail.review.reviewer.adminName ?? '核验员'} · ${fmtDateTime(detail.review.reviewer.at)}${detail.review.reviewer.comment ? ` · ${detail.review.reviewer.comment}` : ''}`
-                    : '待初核',
+                    ? `${detail.review.reviewer.adminName ?? t('drug.reviewerFallback')} · ${fmtDateTime(detail.review.reviewer.at)}${detail.review.reviewer.comment ? ` · ${detail.review.reviewer.comment}` : ''}`
+                    : t('drug.waitReview'),
                 },
                 {
-                  title: '复核（verifier）',
+                  title: t('drug.stepVerifyTitle'),
                   description: detail.review?.verifier?.at
-                    ? `${detail.review.verifier.adminName ?? '复核员'} · ${fmtDateTime(detail.review.verifier.at)}${detail.review.verifier.comment ? ` · ${detail.review.verifier.comment}` : ''}`
-                    : '待复核（须与初核为不同管理员）',
+                    ? `${detail.review.verifier.adminName ?? t('drug.verifierFallback')} · ${fmtDateTime(detail.review.verifier.at)}${detail.review.verifier.comment ? ` · ${detail.review.verifier.comment}` : ''}`
+                    : t('drug.waitVerify'),
                 },
                 {
-                  title: detail.reviewStatus === 'rejected' ? '已驳回' : '发布',
+                  title: detail.reviewStatus === 'rejected' ? t('drug.stepRejected') : t('drug.stepPublish'),
                   description:
                     detail.reviewStatus === 'approved'
-                      ? '双人核验通过，已对用户可见'
+                      ? t('drug.publishDone')
                       : detail.reviewStatus === 'rejected'
-                        ? '任一段驳回即退回，修正后重新提交'
-                        : '双人核验通过后自动发布',
+                        ? t('drug.publishRejected')
+                        : t('drug.publishPending'),
                 },
               ]}
             />
 
-            <h4 style={{ margin: '20px 0 8px' }}>说明书</h4>
+            <h4 style={{ margin: '20px 0 8px' }}>{t('drug.labelHead')}</h4>
             <Descriptions column={1} bordered size="small">
-              <Descriptions.Item label="适应症">
+              <Descriptions.Item label={t('drug.efficacy')}>
                 <span style={{ whiteSpace: 'pre-wrap' }}>{detail.efficacy ?? '-'}</span>
               </Descriptions.Item>
-              <Descriptions.Item label="用法用量">
+              <Descriptions.Item label={t('drug.usage')}>
                 <span style={{ whiteSpace: 'pre-wrap' }}>
                   {detail.usageDefault &&
                   typeof detail.usageDefault === 'object' &&
@@ -301,23 +302,23 @@ export default function DrugsPage() {
                     : prettyJson(detail.usageDefault)}
                 </span>
               </Descriptions.Item>
-              <Descriptions.Item label="禁忌">
+              <Descriptions.Item label={t('drug.contra')}>
                 <span style={{ whiteSpace: 'pre-wrap' }}>{detail.contraindications ?? '-'}</span>
               </Descriptions.Item>
-              <Descriptions.Item label="不良反应">
+              <Descriptions.Item label={t('drug.adverse')}>
                 <span style={{ whiteSpace: 'pre-wrap' }}>{detail.adverseReactions ?? '-'}</span>
               </Descriptions.Item>
-              <Descriptions.Item label="药物相互作用">
+              <Descriptions.Item label={t('drug.interactions')}>
                 <span style={{ whiteSpace: 'pre-wrap' }}>{detail.interactions ?? '-'}</span>
               </Descriptions.Item>
-              <Descriptions.Item label="贮藏条件">{detail.storageCondition ?? '-'}</Descriptions.Item>
+              <Descriptions.Item label={t('drug.storage')}>{detail.storageCondition ?? '-'}</Descriptions.Item>
             </Descriptions>
           </>
         )}
       </Drawer>
 
       <ModalForm<{ stage: 'review' | 'verify'; decision: 'approved' | 'rejected'; comment?: string }>
-        title={reviewTarget ? `药品核验 · ${reviewTarget.genericName}` : '药品核验'}
+        title={reviewTarget ? t('drug.reviewTitle', { name: reviewTarget.genericName }) : t('drug.reviewTitlePlain')}
         open={!!reviewTarget}
         onOpenChange={(open) => {
           if (!open) setReviewTarget(null);
@@ -328,16 +329,16 @@ export default function DrugsPage() {
         onFinish={async (values) => {
           if (!reviewTarget) return false;
           if (values.decision === 'rejected' && !values.comment?.trim()) {
-            message.error('驳回时必须填写核验意见');
+            message.error(t('drug.rejectNeedsComment'));
             return false;
           }
           const updated = await reviewDrug(reviewTarget.id, values);
           message.success(
             values.decision === 'approved'
               ? values.stage === 'verify'
-                ? '复核通过，药品已发布'
-                : '初核通过，等待第二位管理员复核'
-              : '已驳回该药品',
+                ? t('drug.verifyApproved')
+                : t('drug.reviewApproved')
+              : t('drug.rejectedDone'),
           );
           setReviewTarget(null);
           actionRef.current?.reload();
@@ -349,29 +350,29 @@ export default function DrugsPage() {
           type="info"
           showIcon
           style={{ marginBottom: 16 }}
-          message="双人核验：初核与复核必须由两名不同管理员完成，任一段驳回即退回修正。"
+          message={t('drug.dualNote')}
         />
         <ProFormSelect
           name="stage"
-          label="核验阶段"
+          label={t('drug.stage')}
           options={[
-            { label: '初核（reviewer）', value: 'review' },
-            { label: '复核（verifier）', value: 'verify' },
+            { label: t('drug.stageReviewOpt'), value: 'review' },
+            { label: t('drug.stageVerifyOpt'), value: 'verify' },
           ]}
           rules={[{ required: true }]}
         />
         <ProFormSelect
           name="decision"
-          label="核验结论"
+          label={t('drug.decision')}
           options={[
-            { label: '通过', value: 'approved', icon: <CheckOutlined /> },
-            { label: '驳回', value: 'rejected', icon: <CloseOutlined /> },
+            { label: t('drug.approved'), value: 'approved', icon: <CheckOutlined /> },
+            { label: t('drug.rejected'), value: 'rejected', icon: <CloseOutlined /> },
           ]}
           rules={[{ required: true }]}
         />
         <ProFormTextArea
           name="comment"
-          label="核验意见（驳回时必填）"
+          label={t('drug.comment')}
           fieldProps={{ rows: 3, maxLength: 500 }}
         />
       </ModalForm>

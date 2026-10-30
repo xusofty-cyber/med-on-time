@@ -1,5 +1,5 @@
 /**
- * 枚举 → 中文标签 / 状态色字典。
+ * 枚举 → 标签 / 状态色字典（i18n 化：全部改为函数，调用时按当前语言现取）。
  * 取值口径优先取自 packages/shared（与 DB 附录 B 对齐）；
  * shared 未收录的后台域枚举（药品核验、文章/协议状态、工单裁决、审计、应用版本）
  * 按 services/api/prisma/schema.prisma 字段注释登记于此，禁止自创取值。
@@ -14,6 +14,7 @@ import {
   PlanStatus,
   PlanType,
 } from '@med-on-time/shared';
+import { tr } from '../i18n';
 
 export interface StatusMeta {
   text: string;
@@ -41,222 +42,268 @@ function enumOf(map: Record<string, StatusMeta>): Record<string, { text: string 
 /* ---------------- 账号 / 成员 ---------------- */
 
 /** user_account.status（shared AccountStatus） */
-export const accountStatusMap: Record<string, StatusMeta> = {
-  [AccountStatus.Active]: { text: '正常', color: 'green' },
-  [AccountStatus.Frozen]: { text: '已冻结', color: 'red' },
-  [AccountStatus.Cancelling]: { text: '注销冷静期', color: 'orange' },
-  [AccountStatus.Cancelled]: { text: '已注销', color: 'default' },
-};
-export const accountStatusMeta = meta(accountStatusMap);
-export const accountStatusEnum = enumOf(accountStatusMap);
+export function accountStatusMap(): Record<string, StatusMeta> {
+  return {
+    [AccountStatus.Active]: { text: tr('enum.accountStatus.active'), color: 'green' },
+    [AccountStatus.Frozen]: { text: tr('enum.accountStatus.frozen'), color: 'red' },
+    [AccountStatus.Cancelling]: { text: tr('enum.accountStatus.cancelling'), color: 'orange' },
+    [AccountStatus.Cancelled]: { text: tr('enum.accountStatus.cancelled'), color: 'default' },
+  };
+}
+export const accountStatusMeta = (value?: string | null): StatusMeta => meta(accountStatusMap())(value);
+export const accountStatusEnum = (): Record<string, { text: string }> => enumOf(accountStatusMap());
 
 /** user_account.register_channel */
-export const registerChannelText = text({
-  wechat_miniapp: '微信小程序',
-  android: 'Android',
-  ios: 'iOS',
-  web: 'Web',
-  pc: 'PC 桌面端',
-});
+export const registerChannelText = (value?: string | null): string =>
+  text({
+    wechat_miniapp: tr('enum.registerChannel.wechat_miniapp'),
+    android: tr('enum.registerChannel.android'),
+    ios: tr('enum.registerChannel.ios'),
+    web: tr('enum.registerChannel.web'),
+    pc: tr('enum.registerChannel.pc'),
+  })(value);
 
 /** member.status */
-export const memberStatusMap: Record<string, StatusMeta> = {
-  active: { text: '正常', color: 'green' },
-  archived: { text: '已归档', color: 'orange' },
-  removed: { text: '已移除', color: 'default' },
-};
-export const memberStatusMeta = meta(memberStatusMap);
-export const memberStatusEnum = enumOf(memberStatusMap);
+export function memberStatusMap(): Record<string, StatusMeta> {
+  return {
+    active: { text: tr('enum.memberStatus.active'), color: 'green' },
+    archived: { text: tr('enum.memberStatus.archived'), color: 'orange' },
+    removed: { text: tr('enum.memberStatus.removed'), color: 'default' },
+  };
+}
+export const memberStatusMeta = (value?: string | null): StatusMeta => meta(memberStatusMap())(value);
+export const memberStatusEnum = (): Record<string, { text: string }> => enumOf(memberStatusMap());
 
 /** member.relationship */
-export const relationshipText = text({
-  self: '本人',
-  father: '父亲',
-  mother: '母亲',
-  spouse: '配偶',
-  child: '子女',
-  grandparent: '祖辈',
-  other_family: '其他家人',
-  employer: '雇主',
-  other: '其他',
-});
+export const relationshipText = (value?: string | null): string =>
+  text({
+    self: tr('enum.relationship.self'),
+    father: tr('enum.relationship.father'),
+    mother: tr('enum.relationship.mother'),
+    spouse: tr('enum.relationship.spouse'),
+    child: tr('enum.relationship.child'),
+    grandparent: tr('enum.relationship.grandparent'),
+    other_family: tr('enum.relationship.other_family'),
+    employer: tr('enum.relationship.employer'),
+    other: tr('enum.relationship.other'),
+  })(value);
 
-export const genderText = text({ male: '男', female: '女', unknown: '未知' });
+export const genderText = (value?: string | null): string =>
+  text({
+    male: tr('enum.gender.male'),
+    female: tr('enum.gender.female'),
+    unknown: tr('enum.gender.unknown'),
+  })(value);
 
 /* ---------------- 授权 ---------------- */
 
 /** caregiver_authorization.status（shared AuthorizationStatus） */
-export const authorizationStatusMap: Record<string, StatusMeta> = {
-  [AuthorizationStatus.PendingAccept]: { text: '待接受', color: 'orange' },
-  [AuthorizationStatus.Active]: { text: '生效中', color: 'green' },
-  [AuthorizationStatus.Suspended]: { text: '已暂停', color: 'gold' },
-  [AuthorizationStatus.Revoked]: { text: '已撤销', color: 'red' },
-  [AuthorizationStatus.Expired]: { text: '已过期', color: 'default' },
-  [AuthorizationStatus.Rejected]: { text: '已拒绝', color: 'default' },
-};
-export const authorizationStatusMeta = meta(authorizationStatusMap);
+export function authorizationStatusMap(): Record<string, StatusMeta> {
+  return {
+    [AuthorizationStatus.PendingAccept]: { text: tr('enum.authStatus.pending_accept'), color: 'orange' },
+    [AuthorizationStatus.Active]: { text: tr('enum.authStatus.active'), color: 'green' },
+    [AuthorizationStatus.Suspended]: { text: tr('enum.authStatus.suspended'), color: 'gold' },
+    [AuthorizationStatus.Revoked]: { text: tr('enum.authStatus.revoked'), color: 'red' },
+    [AuthorizationStatus.Expired]: { text: tr('enum.authStatus.expired'), color: 'default' },
+    [AuthorizationStatus.Rejected]: { text: tr('enum.authStatus.rejected'), color: 'default' },
+  };
+}
+export const authorizationStatusMeta = (value?: string | null): StatusMeta =>
+  meta(authorizationStatusMap())(value);
 
 /** caregiver_authorization.level（shared CaregiverLevel） */
-export const authLevelText = text({
-  [CaregiverLevel.L1]: 'L1 仅查看',
-  [CaregiverLevel.L2]: 'L2 可协助',
-  [CaregiverLevel.L3]: 'L3 可配置',
-});
+export const authLevelText = (value?: string | null): string =>
+  text({
+    [CaregiverLevel.L1]: tr('enum.authLevel.L1'),
+    [CaregiverLevel.L2]: tr('enum.authLevel.L2'),
+    [CaregiverLevel.L3]: tr('enum.authLevel.L3'),
+  })(value);
 
 /* ---------------- 药品 ---------------- */
 
 /** drug.review_status（schema 注释：draft / pending_review / approved / rejected / off_shelf） */
-export const drugReviewStatusMap: Record<string, StatusMeta> = {
-  draft: { text: '草稿', color: 'default' },
-  pending_review: { text: '待核验', color: 'orange' },
-  approved: { text: '已发布', color: 'green' },
-  rejected: { text: '已驳回', color: 'red' },
-  off_shelf: { text: '已下架', color: 'default' },
-};
-export const drugReviewMeta = meta(drugReviewStatusMap);
-export const drugReviewEnum = enumOf(drugReviewStatusMap);
+export function drugReviewStatusMap(): Record<string, StatusMeta> {
+  return {
+    draft: { text: tr('enum.drugReview.draft'), color: 'default' },
+    pending_review: { text: tr('enum.drugReview.pending_review'), color: 'orange' },
+    approved: { text: tr('enum.drugReview.approved'), color: 'green' },
+    rejected: { text: tr('enum.drugReview.rejected'), color: 'red' },
+    off_shelf: { text: tr('enum.drugReview.off_shelf'), color: 'default' },
+  };
+}
+export const drugReviewMeta = (value?: string | null): StatusMeta => meta(drugReviewStatusMap())(value);
+export const drugReviewEnum = (): Record<string, { text: string }> => enumOf(drugReviewStatusMap());
 
 /** drug.dosage_form */
-export const dosageFormText = text({
-  tablet: '片剂',
-  capsule: '胶囊剂',
-  granule: '颗粒剂',
-  oral_liquid: '口服液',
-  injection: '注射剂',
-  external: '外用',
-  other: '其他',
-});
+export const dosageFormText = (value?: string | null): string =>
+  text({
+    tablet: tr('enum.dosageForm.tablet'),
+    capsule: tr('enum.dosageForm.capsule'),
+    granule: tr('enum.dosageForm.granule'),
+    oral_liquid: tr('enum.dosageForm.oral_liquid'),
+    injection: tr('enum.dosageForm.injection'),
+    external: tr('enum.dosageForm.external'),
+    other: tr('enum.dosageForm.other'),
+  })(value);
 
 /** drug.source_type */
-export const drugSourceText = text({ platform: '平台药品库', user_custom: '用户自建' });
+export const drugSourceText = (value?: string | null): string =>
+  text({
+    platform: tr('enum.drugSource.platform'),
+    user_custom: tr('enum.drugSource.user_custom'),
+  })(value);
 
 /* ---------------- 计划 ---------------- */
 
 /** medication_plan.status（shared PlanStatus） */
-export const planStatusMap: Record<string, StatusMeta> = {
-  [PlanStatus.Active]: { text: '进行中', color: 'green' },
-  [PlanStatus.Paused]: { text: '已暂停', color: 'orange' },
-  [PlanStatus.Finished]: { text: '已完成', color: 'blue' },
-  [PlanStatus.Stopped]: { text: '已停止', color: 'default' },
-};
-export const planStatusMeta = meta(planStatusMap);
-export const planStatusEnum = enumOf(planStatusMap);
+export function planStatusMap(): Record<string, StatusMeta> {
+  return {
+    [PlanStatus.Active]: { text: tr('enum.planStatus.active'), color: 'green' },
+    [PlanStatus.Paused]: { text: tr('enum.planStatus.paused'), color: 'orange' },
+    [PlanStatus.Finished]: { text: tr('enum.planStatus.finished'), color: 'blue' },
+    [PlanStatus.Stopped]: { text: tr('enum.planStatus.stopped'), color: 'default' },
+  };
+}
+export const planStatusMeta = (value?: string | null): StatusMeta => meta(planStatusMap())(value);
+export const planStatusEnum = (): Record<string, { text: string }> => enumOf(planStatusMap());
 
 /** medication_plan.plan_type（shared PlanType） */
-export const planTypeText = text({
-  [PlanType.Scheduled]: '常规计划',
-  [PlanType.Prn]: '按需（PRN）',
-});
+export const planTypeText = (value?: string | null): string =>
+  text({
+    [PlanType.Scheduled]: tr('enum.planType.scheduled'),
+    [PlanType.Prn]: tr('enum.planType.prn'),
+  })(value);
 
 /** plan_change_history.operator_type（shared OperatorType） */
-export const operatorTypeMap: Record<string, StatusMeta> = {
-  [OperatorType.MemberSelf]: { text: '成员本人', color: 'green' },
-  [OperatorType.Caregiver]: { text: '照护人代操作', color: 'purple' },
-  [OperatorType.AdminCs]: { text: '客服裁决', color: 'red' },
-  [OperatorType.System]: { text: '系统', color: 'default' },
-};
-export const operatorTypeMeta = meta(operatorTypeMap);
+export function operatorTypeMap(): Record<string, StatusMeta> {
+  return {
+    [OperatorType.MemberSelf]: { text: tr('enum.operatorType.member_self'), color: 'green' },
+    [OperatorType.Caregiver]: { text: tr('enum.operatorType.caregiver'), color: 'purple' },
+    [OperatorType.AdminCs]: { text: tr('enum.operatorType.admin_cs'), color: 'red' },
+    [OperatorType.System]: { text: tr('enum.operatorType.system'), color: 'default' },
+  };
+}
+export const operatorTypeMeta = (value?: string | null): StatusMeta => meta(operatorTypeMap())(value);
 
 /* ---------------- 内容 ---------------- */
 
 /** content_article.status */
-export const articleStatusMap: Record<string, StatusMeta> = {
-  draft: { text: '草稿', color: 'default' },
-  published: { text: '已发布', color: 'green' },
-  offline: { text: '已下线', color: 'orange' },
-};
-export const articleStatusMeta = meta(articleStatusMap);
-export const articleStatusEnum = enumOf(articleStatusMap);
+export function articleStatusMap(): Record<string, StatusMeta> {
+  return {
+    draft: { text: tr('enum.articleStatus.draft'), color: 'default' },
+    published: { text: tr('enum.articleStatus.published'), color: 'green' },
+    offline: { text: tr('enum.articleStatus.offline'), color: 'orange' },
+  };
+}
+export const articleStatusMeta = (value?: string | null): StatusMeta => meta(articleStatusMap())(value);
+export const articleStatusEnum = (): Record<string, { text: string }> => enumOf(articleStatusMap());
 
 /** 语言（shared AppLocale） */
-export const localeText = text({
-  [AppLocale.ZhCN]: '简体中文',
-  [AppLocale.ZhTW]: '繁體中文',
-  [AppLocale.En]: 'English',
-});
+export const localeText = (value?: string | null): string =>
+  text({
+    [AppLocale.ZhCN]: tr('common.langZhCN'),
+    [AppLocale.ZhTW]: tr('common.langZhTW'),
+    [AppLocale.En]: tr('common.langEn'),
+  })(value);
 export const LOCALES = [AppLocale.ZhCN, AppLocale.ZhTW, AppLocale.En] as const;
 
 /** consent_document.doc_type（shared ConsentDocType） */
-export const consentDocTypeText = text({
-  [ConsentDocType.UserAgreement]: '用户协议',
-  [ConsentDocType.PrivacyPolicy]: '隐私政策',
-  [ConsentDocType.AiDataUse]: 'AI 数据使用',
-  [ConsentDocType.HealthDataProcessing]: '健康数据处理',
+export const consentDocTypeText = (value?: string | null): string =>
+  text({
+    [ConsentDocType.UserAgreement]: tr('enum.consentDocType.user_agreement'),
+    [ConsentDocType.PrivacyPolicy]: tr('enum.consentDocType.privacy_policy'),
+    [ConsentDocType.AiDataUse]: tr('enum.consentDocType.ai_data_use'),
+    [ConsentDocType.HealthDataProcessing]: tr('enum.consentDocType.health_data_processing'),
+  })(value);
+export const consentDocTypeEnum = (): Record<string, { text: string }> => ({
+  [ConsentDocType.UserAgreement]: { text: tr('enum.consentDocType.user_agreement') },
+  [ConsentDocType.PrivacyPolicy]: { text: tr('enum.consentDocType.privacy_policy') },
+  [ConsentDocType.AiDataUse]: { text: tr('enum.consentDocType.ai_data_use') },
+  [ConsentDocType.HealthDataProcessing]: { text: tr('enum.consentDocType.health_data_processing') },
 });
-export const consentDocTypeEnum: Record<string, { text: string }> = {
-  [ConsentDocType.UserAgreement]: { text: '用户协议' },
-  [ConsentDocType.PrivacyPolicy]: { text: '隐私政策' },
-  [ConsentDocType.AiDataUse]: { text: 'AI 数据使用' },
-  [ConsentDocType.HealthDataProcessing]: { text: '健康数据处理' },
-};
 
 /** consent_document.status */
-export const consentStatusMap: Record<string, StatusMeta> = {
-  draft: { text: '草稿', color: 'default' },
-  effective: { text: '已生效', color: 'green' },
-  superseded: { text: '已被替代', color: 'orange' },
-};
-export const consentStatusMeta = meta(consentStatusMap);
-export const consentStatusEnum = enumOf(consentStatusMap);
+export function consentStatusMap(): Record<string, StatusMeta> {
+  return {
+    draft: { text: tr('enum.consentStatus.draft'), color: 'default' },
+    effective: { text: tr('enum.consentStatus.effective'), color: 'green' },
+    superseded: { text: tr('enum.consentStatus.superseded'), color: 'orange' },
+  };
+}
+export const consentStatusMeta = (value?: string | null): StatusMeta => meta(consentStatusMap())(value);
+export const consentStatusEnum = (): Record<string, { text: string }> => enumOf(consentStatusMap());
 
 /* ---------------- 客服裁决（disputes） ---------------- */
 
-export const disputeStatusMap: Record<string, StatusMeta> = {
-  pending: { text: '待裁决', color: 'orange' },
-  processing: { text: '处理中', color: 'blue' },
-  resolved: { text: '已裁决', color: 'green' },
-  closed: { text: '已关闭', color: 'default' },
-};
-export const disputeStatusMeta = meta(disputeStatusMap);
-export const disputeStatusEnum = enumOf(disputeStatusMap);
+export function disputeStatusMap(): Record<string, StatusMeta> {
+  return {
+    pending: { text: tr('enum.disputeStatus.pending'), color: 'orange' },
+    processing: { text: tr('enum.disputeStatus.processing'), color: 'blue' },
+    resolved: { text: tr('enum.disputeStatus.resolved'), color: 'green' },
+    closed: { text: tr('enum.disputeStatus.closed'), color: 'default' },
+  };
+}
+export const disputeStatusMeta = (value?: string | null): StatusMeta => meta(disputeStatusMap())(value);
+export const disputeStatusEnum = (): Record<string, { text: string }> => enumOf(disputeStatusMap());
 
 /** 裁决结论选项（提交给 POST /admin/disputes/:id/resolve 的 decision） */
-export const disputeDecisionOptions = [
-  { label: '维持变更前值（申诉方成立）', value: 'uphold_before' },
-  { label: '维持变更后值（被申诉方成立）', value: 'uphold_after' },
-  { label: '自定义裁定值', value: 'custom' },
+export const disputeDecisionOptions = (): { label: string; value: string }[] => [
+  { label: tr('enum.disputeDecision.uphold_before'), value: 'uphold_before' },
+  { label: tr('enum.disputeDecision.uphold_after'), value: 'uphold_after' },
+  { label: tr('enum.disputeDecision.custom'), value: 'custom' },
 ];
 
 /* ---------------- 审计 ---------------- */
 
 /** audit_log.actor_type */
-export const actorTypeText = text({ admin: '管理员', account: '用户账号', system: '系统' });
+export const actorTypeText = (value?: string | null): string =>
+  text({
+    admin: tr('enum.actorType.admin'),
+    account: tr('enum.actorType.account'),
+    system: tr('enum.actorType.system'),
+  })(value);
 
 /** audit_log.result */
-export const auditResultMap: Record<string, StatusMeta> = {
-  success: { text: '成功', color: 'green' },
-  denied: { text: '被拒绝', color: 'orange' },
-  failed: { text: '失败', color: 'red' },
-};
-export const auditResultMeta = meta(auditResultMap);
-export const auditResultEnum = enumOf(auditResultMap);
+export function auditResultMap(): Record<string, StatusMeta> {
+  return {
+    success: { text: tr('enum.auditResult.success'), color: 'green' },
+    denied: { text: tr('enum.auditResult.denied'), color: 'orange' },
+    failed: { text: tr('enum.auditResult.failed'), color: 'red' },
+  };
+}
+export const auditResultMeta = (value?: string | null): StatusMeta => meta(auditResultMap())(value);
+export const auditResultEnum = (): Record<string, { text: string }> => enumOf(auditResultMap());
 
 /* ---------------- 应用版本 ---------------- */
 
 /** app_version.platform */
-export const platformText = text({
-  wechat_miniapp: '微信小程序',
-  android: 'Android',
-  ios: 'iOS',
-  windows: 'Windows',
-  linux: 'Linux',
-  macos: 'macOS',
-  web: 'Web',
+export const platformText = (value?: string | null): string =>
+  text({
+    wechat_miniapp: tr('enum.platform.wechat_miniapp'),
+    android: tr('enum.platform.android'),
+    ios: tr('enum.platform.ios'),
+    windows: tr('enum.platform.windows'),
+    linux: tr('enum.platform.linux'),
+    macos: tr('enum.platform.macos'),
+    web: tr('enum.platform.web'),
+  })(value);
+export const platformEnum = (): Record<string, { text: string }> => ({
+  wechat_miniapp: { text: tr('enum.platform.wechat_miniapp') },
+  android: { text: tr('enum.platform.android') },
+  ios: { text: tr('enum.platform.ios') },
+  windows: { text: tr('enum.platform.windows') },
+  linux: { text: tr('enum.platform.linux') },
+  macos: { text: tr('enum.platform.macos') },
+  web: { text: tr('enum.platform.web') },
 });
-export const platformEnum: Record<string, { text: string }> = {
-  wechat_miniapp: { text: '微信小程序' },
-  android: { text: 'Android' },
-  ios: { text: 'iOS' },
-  windows: { text: 'Windows' },
-  linux: { text: 'Linux' },
-  macos: { text: 'macOS' },
-  web: { text: 'Web' },
-};
 
 /** app_version.status */
-export const appVersionStatusMap: Record<string, StatusMeta> = {
-  active: { text: '生效中', color: 'green' },
-  deprecated: { text: '已弃用', color: 'default' },
-};
-export const appVersionStatusMeta = meta(appVersionStatusMap);
-export const appVersionStatusEnum = enumOf(appVersionStatusMap);
+export function appVersionStatusMap(): Record<string, StatusMeta> {
+  return {
+    active: { text: tr('enum.appVersionStatus.active'), color: 'green' },
+    deprecated: { text: tr('enum.appVersionStatus.deprecated'), color: 'default' },
+  };
+}
+export const appVersionStatusMeta = (value?: string | null): StatusMeta =>
+  meta(appVersionStatusMap())(value);
+export const appVersionStatusEnum = (): Record<string, { text: string }> => enumOf(appVersionStatusMap());

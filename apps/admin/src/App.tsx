@@ -10,6 +10,7 @@ import DashboardPage from './pages/dashboard';
 import DisputesPage from './pages/disputes';
 import DrugsPage from './pages/drugs';
 import LoginPage from './pages/login';
+import { tr } from './i18n';
 import MembersPage from './pages/members';
 import PlansPage from './pages/plans';
 import AppVersionsPage from './pages/system';
@@ -28,8 +29,8 @@ class RootErrorBoundary extends Component<{ children: ReactNode }, { error: Erro
       return (
         <Result
           status="error"
-          title="页面加载异常"
-          subTitle={this.state.error.message || '发生了未预期的渲染错误'}
+          title={tr('app.errorTitle')}
+          subTitle={this.state.error.message || tr('app.errorFallback')}
           extra={
             <Button
               type="primary"
@@ -38,7 +39,7 @@ class RootErrorBoundary extends Component<{ children: ReactNode }, { error: Erro
                 window.location.href = '/dashboard';
               }}
             >
-              返回仪表盘
+              {tr('app.backDashboard')}
             </Button>
           }
         />

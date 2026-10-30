@@ -3,17 +3,19 @@ import { Tabs } from 'antd';
 import ArticlesTab from './ArticlesTab';
 import ConsentsTab from './ConsentsTab';
 import OaArticlesTab from './OaArticlesTab';
+import { useT } from '../../i18n';
 
 /** 内容管理：文章多语言组 + 协议文档版本 */
 export default function ContentPage() {
+  const t = useT();
   return (
-    <PageContainer title="内容管理" subTitle="文章内容组（多语言）与协议文档版本（consent versioning）">
+    <PageContainer title={t('cnt.title')} subTitle={t('cnt.subTitle')}>
       <Tabs
         defaultActiveKey="articles"
         items={[
-          { key: 'articles', label: '文章内容组', children: <ArticlesTab /> },
-          { key: 'oa', label: '公众号文章', children: <OaArticlesTab /> },
-          { key: 'consents', label: '协议文档版本', children: <ConsentsTab /> },
+          { key: 'articles', label: t('cnt.tabArticles'), children: <ArticlesTab /> },
+          { key: 'oa', label: t('cnt.tabOa'), children: <OaArticlesTab /> },
+          { key: 'consents', label: t('cnt.tabConsents'), children: <ConsentsTab /> },
         ]}
       />
     </PageContainer>

@@ -28,15 +28,19 @@ import {
 } from '../../constants/labels';
 import { toProTable } from '../../services/request';
 import { fmtDate } from '../../utils/format';
+import { tr, useT } from '../../i18n';
 
-const LOCALE_OPTIONS = [
-  { label: '简体中文', value: 'zh-CN' },
-  { label: '繁體中文', value: 'zh-TW' },
-  { label: 'English', value: 'en' },
-];
+function localeOptions(): { label: string; value: string }[] {
+  return [
+    { label: tr('common.langZhCN'), value: 'zh-CN' },
+    { label: tr('common.langZhTW'), value: 'zh-TW' },
+    { label: tr('common.langEn'), value: 'en' },
+  ];
+}
 
 /** 协议文档版本管理（consent_document）：按 (doc_type, locale, version) 唯一，版本化发布 */
 export default function ConsentsTab() {
+  const t = useT();
   const actionRef = useRef<ActionType>();
   const [editing, setEditing] = useState<ConsentItem | 'new' | null>(null);
   /* 阶段 2：色值一律读 AntD token。 */
@@ -44,79 +48,79 @@ export default function ConsentsTab() {
 
   const columns: ProColumns<ConsentItem>[] = [
     {
-      title: '关键字',
+      title: t('cons.keyword'),
       dataIndex: 'keyword',
       hideInTable: true,
-      fieldProps: { placeholder: '标题 / 版本号 / 内容引用' },
+      fieldProps: { placeholder: t('cons.keywordPlaceholder') },
     },
     {
-      title: '文档类型',
+      title: t('cons.docType'),
       dataIndex: 'docType',
       width: 130,
-      valueEnum: consentDocTypeEnum,
+      valueEnum: consentDocTypeEnum(),
       render: (_, r) => consentDocTypeText(r.docType),
     },
-    { title: '版本', dataIndex: 'docVersion', hideInSearch: true, width: 90 },
+    { title: t('cons.version'), dataIndex: 'docVersion', hideInSearch: true, width: 90 },
     {
-      title: '语言',
+      title: t('cons.language'),
       dataIndex: 'locale',
       hideInSearch: true,
       width: 100,
       render: (_, r) => localeText(r.locale),
     },
-    { title: '标题', dataIndex: 'title', hideInSearch: true, ellipsis: true },
-    { title: '内容引用', dataIndex: 'contentRef', hideInSearch: true, ellipsis: true },
+    { title: t('cons.title'), dataIndex: 'title', hideInSearch: true, ellipsis: true },
+    { title: t('cons.contentRef'), dataIndex: 'contentRef', hideInSearch: true, ellipsis: true },
     {
-      title: '生效日期',
+      title: t('cons.effectiveDate'),
       dataIndex: 'effectiveDate',
       hideInSearch: true,
       width: 110,
       render: (_, r) => fmtDate(r.effectiveDate),
     },
     {
-      title: '实质变更',
+      title: t('cons.material'),
       dataIndex: 'isMaterialChange',
       hideInSearch: true,
       width: 90,
       render: (_, r) =>
-        r.isMaterialChange ? <Tag color="red">需重新确认</Tag> : <span style={{ color: token.colorTextSecondary }}>否</span>,
+        r.isMaterialChange ? <Tag color="red">{t('cons.needReconfirm')}</Tag> : <span style={{ color: token.colorTextSecondary }}>{t('common.no')}</span>,
     },
     {
-      title: '状态',
+      title: t('common.status'),
       dataIndex: 'status',
       width: 100,
-      valueEnum: consentStatusEnum,
+      valueEnum: consentStatusEnum(),
       render: (_, r) => {
         const m = consentStatusMeta(r.status);
         return <Tag color={m.color}>{m.text}</Tag>;
       },
     },
     {
-      title: '发布人',
+      title: t('cons.publisher'),
       dataIndex: 'publisherName',
       hideInSearch: true,
       width: 110,
       render: (_, r) => r.publisherName ?? '-',
     },
     {
-      title: '操作',
+      title: t('common.actions'),
       valueType: 'option',
       width: 140,
       render: (_, record) => (
         <Space>
           <Button type="link" size="small" icon={<EditOutlined />} onClick={() => setEditing(record)}>
-            编辑
+            {t('cnt.edit')}
           </Button>
           <Popconfirm
-            title="确认删除该协议版本？"
+            title={t('cons.deleteConfirm')}
             onConfirm={async () => {
               await deleteConsent(record.id);
-              message.success('已删除');
+              message.success(t('cons.deleted'));
               actionRef.current?.reload();
             }}
           >
             <Button type="link" size="small" danger icon={<DeleteOutlined />}>
-              删除
+              {t('common.delete')}
             </Button>
           </Popconfirm>
         </Space>
@@ -150,13 +154,13 @@ export default function ConsentsTab() {
         pagination={{ defaultPageSize: 20, showSizeChanger: true }}
         toolBarRender={() => [
           <Button key="new" type="primary" icon={<PlusOutlined />} onClick={() => setEditing('new')}>
-            新建协议版本
+            {t('cons.newVersion')}
           </Button>,
         ]}
       />
 
       <ModalForm<ConsentUpsertPayload>
-        title={editing === 'new' ? '新建协议版本' : '编辑协议版本'}
+        title={editing === 'new' ? t('cons.newTitle') : t('cons.editTitle')}
         open={!!editing}
         onOpenChange={(open) => {
           if (!open) setEditing(null);
@@ -171,10 +175,10 @@ export default function ConsentsTab() {
           };
           if (editing === 'new') {
             await createConsent(payload);
-            message.success('协议版本已创建');
+            message.success(t('cons.created'));
           } else if (editing) {
             await updateConsent(editing.id, payload);
-            message.success('协议版本已更新');
+            message.success(t('cons.updated'));
           }
           setEditing(null);
           actionRef.current?.reload();
@@ -183,30 +187,30 @@ export default function ConsentsTab() {
       >
         <ProFormSelect
           name="docType"
-          label="文档类型"
-          options={Object.entries(consentDocTypeEnum).map(([value, v]) => ({ value, label: v.text }))}
+          label={t('cons.docType')}
+          options={Object.entries(consentDocTypeEnum()).map(([value, v]) => ({ value, label: v.text }))}
           rules={[{ required: true }]}
         />
-        <ProFormText name="docVersion" label="版本号" placeholder="如 1.2.0" rules={[{ required: true }]} />
-        <ProFormSelect name="locale" label="语言" options={LOCALE_OPTIONS} rules={[{ required: true }]} />
-        <ProFormText name="title" label="标题" rules={[{ required: true }]} />
+        <ProFormText name="docVersion" label={t('cons.version')} placeholder={t('cons.versionPlaceholder')} rules={[{ required: true }]} />
+        <ProFormSelect name="locale" label={t('cons.language')} options={localeOptions()} rules={[{ required: true }]} />
+        <ProFormText name="title" label={t('cons.title')} rules={[{ required: true }]} />
         <ProFormText
           name="contentRef"
-          label="内容引用（对象存储键 / 内容 ID）"
+          label={t('cons.contentRefLabel')}
           rules={[{ required: true }]}
-          extra="正文不存数据库主表，此处登记引用与 SHA-256 指纹"
+          extra={t('cons.contentRefExtra')}
         />
-        <ProFormText name="contentSha256" label="内容 SHA-256" fieldProps={{ maxLength: 64 }} />
-        <ProFormDatePicker name="effectiveDate" label="生效日期" rules={[{ required: true }]} />
+        <ProFormText name="contentSha256" label={t('cons.contentSha256')} fieldProps={{ maxLength: 64 }} />
+        <ProFormDatePicker name="effectiveDate" label={t('cons.effectiveDate')} rules={[{ required: true }]} />
         <ProFormSelect
           name="status"
-          label="状态"
-          options={Object.entries(consentStatusEnum).map(([value, v]) => ({ value, label: v.text }))}
+          label={t('common.status')}
+          options={Object.entries(consentStatusEnum()).map(([value, v]) => ({ value, label: v.text }))}
           rules={[{ required: true }]}
         />
         <ProFormSwitch
           name="isMaterialChange"
-          label="实质变更（须用户重新确认）"
+          label={t('cons.materialLabel')}
         />
       </ModalForm>
     </>

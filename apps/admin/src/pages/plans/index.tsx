@@ -24,9 +24,11 @@ import {
 } from '../../constants/labels';
 import { asList, toProTable } from '../../services/request';
 import { fmtDateTime, shortId } from '../../utils/format';
+import { tr, useT } from '../../i18n';
 
 /** 计划监管：按成员查计划列表 + 字段级变更史时间线（plan_change_history） */
 export default function PlansPage() {
+  const t = useT();
   const [memberId, setMemberId] = useState('');
   const [queriedMemberId, setQueriedMemberId] = useState('');
   const [historyPlan, setHistoryPlan] = useState<PlanItemRow | null>(null);
@@ -46,16 +48,16 @@ export default function PlansPage() {
   };
 
   const columns: ProColumns<PlanItemRow>[] = [
-    { title: '计划名', dataIndex: 'name', hideInSearch: true, ellipsis: true },
+    { title: t('plan.name'), dataIndex: 'name', hideInSearch: true, ellipsis: true },
     {
-      title: '类型',
+      title: t('plan.type'),
       dataIndex: 'planType',
       hideInSearch: true,
       width: 110,
       render: (_, r) => planTypeText(r.planType),
     },
     {
-      title: '状态',
+      title: t('common.status'),
       dataIndex: 'status',
       hideInSearch: true,
       width: 100,
@@ -65,86 +67,86 @@ export default function PlansPage() {
       },
     },
     {
-      title: '疗程',
+      title: t('plan.course'),
       dataIndex: 'startDate',
       hideInSearch: true,
       width: 200,
-      render: (_, r) => `${r.startDate?.slice(0, 10) ?? '-'} ~ ${r.endDate ? r.endDate.slice(0, 10) : '长期'}`,
+      render: (_, r) => t('plan.courseRange', { start: r.startDate?.slice(0, 10) ?? '-', end: r.endDate ? r.endDate.slice(0, 10) : t('plan.longTerm') }),
     },
     {
-      title: '存放位置',
+      title: t('plan.storage'),
       dataIndex: 'storageLocation',
       hideInSearch: true,
       ellipsis: true,
       render: (_, r) => r.storageLocation ?? '-',
     },
     {
-      title: '药品明细',
+      title: t('plan.items'),
       dataIndex: 'items',
       hideInSearch: true,
       ellipsis: true,
       render: (_, r) =>
         r.items && r.items.length > 0
-          ? r.items.map((i) => `${i.drugNameSnapshot} ${i.doseAmount}${i.doseUnit}`).join('；')
+          ? r.items.map((i) => `${i.drugNameSnapshot} ${i.doseAmount}${i.doseUnit}`).join(t('plan.itemJoin'))
           : '-',
     },
     {
-      title: '创建人',
+      title: t('plan.createdBy'),
       dataIndex: 'createdByNickname',
       hideInSearch: true,
       width: 120,
       render: (_, r) => r.createdByNickname ?? shortId(r.createdByAccountId),
     },
     {
-      title: '更新时间',
+      title: t('common.updatedAt'),
       dataIndex: 'updatedAt',
       hideInSearch: true,
       width: 150,
       render: (_, r) => fmtDateTime(r.updatedAt),
     },
     {
-      title: '操作',
+      title: t('common.actions'),
       valueType: 'option',
       width: 110,
       render: (_, record) => (
         <Button type="link" size="small" icon={<HistoryOutlined />} onClick={() => openHistory(record)}>
-          变更史
+          {t('plan.history')}
         </Button>
       ),
     },
   ];
 
   return (
-    <PageContainer title="计划监管" subTitle="按成员维度查看用药计划与全部字段级变更记录">
+    <PageContainer title={t('plan.title')} subTitle={t('plan.subTitle')}>
       <Card style={{ marginBottom: 16 }}>
         <Form
           layout="inline"
           onFinish={() => {
             const id = memberId.trim();
             if (!id) {
-              message.warning('请输入成员 ID');
+              message.warning(t('plan.inputMemberId'));
               return;
             }
             setQueriedMemberId(id);
           }}
         >
-          <Form.Item label="成员 ID" required>
+          <Form.Item label={t('plan.memberId')} required>
             <Input
               value={memberId}
               onChange={(e) => setMemberId(e.target.value)}
-              placeholder="成员 UUID（可从成员管理复制）"
+              placeholder={t('plan.memberIdPlaceholder')}
               style={{ width: 360 }}
               allowClear
             />
           </Form.Item>
           <Form.Item>
             <Button type="primary" htmlType="submit" icon={<SearchOutlined />}>
-              查询计划
+              {t('plan.query')}
             </Button>
           </Form.Item>
           <Form.Item>
             <span style={{ color: token.colorTextSecondary }}>
-              成员数据隔离：仅返回该成员的计划，变更史含代操作双记录（操作人 + 操作类型）。
+              {t('plan.isolationNote')}
             </span>
           </Form.Item>
         </Form>
@@ -164,19 +166,19 @@ export default function PlansPage() {
         />
       ) : (
         <Card>
-          <Empty description="输入成员 ID 后查询其用药计划" />
+          <Empty description={t('plan.emptyQuery')} />
         </Card>
       )}
 
       <Drawer
-        title={historyPlan ? `变更史 · ${historyPlan.name}` : '变更史'}
+        title={historyPlan ? t('plan.historyTitle', { name: historyPlan.name }) : t('plan.history')}
         width={620}
         open={!!historyPlan}
         onClose={() => setHistoryPlan(null)}
       >
         <Spin spinning={historyLoading}>
           {history.length === 0 && !historyLoading ? (
-            <Empty description="暂无变更记录" />
+            <Empty description={t('plan.noHistory')} />
           ) : (
             <Timeline
               items={history.map((h) => {
@@ -195,14 +197,14 @@ export default function PlansPage() {
                       </div>
                       <div style={{ marginTop: 4 }}>
                         <Space size={6} wrap>
-                          <Tag>{h.oldValue ?? '（空）'}</Tag>
+                          <Tag>{h.oldValue ?? t('plan.emptyValue')}</Tag>
                           <span>→</span>
-                          <Tag color="green">{h.newValue ?? '（空）'}</Tag>
+                          <Tag color="green">{h.newValue ?? t('plan.emptyValue')}</Tag>
                         </Space>
                       </div>
                       <div style={{ color: token.colorTextSecondary, fontSize: 12, marginTop: 2 }}>
-                        操作人：{h.operatorName ?? h.operatorAccountId ?? '系统'}
-                        {h.planItemId ? ` · 明细 ${shortId(h.planItemId)}` : ''}
+                        {t('plan.operator', { name: h.operatorName ?? h.operatorAccountId ?? t('plan.systemName') })}
+                        {h.planItemId ? t('plan.itemRef', { id: shortId(h.planItemId) }) : ''}
                       </div>
                     </div>
                   ),
@@ -212,8 +214,7 @@ export default function PlansPage() {
           )}
         </Spin>
         <p style={{ color: token.colorTextSecondary }}>
-          说明：变更史为字段级双记录（old_value → new_value），与计划变更日志在同一次变更事务内双写；
-          客服裁决产生的变更以「客服裁决」类型出现在此处。
+          {t('plan.historyNote')}
         </p>
       </Drawer>
     </PageContainer>

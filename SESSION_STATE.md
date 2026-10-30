@@ -289,8 +289,3 @@
 - 与 Web 同构的类型化字典（apps/admin/src/i18n/，zh-CN 事实源、键集合类型约束）；theme.tsx 的 ConfigProvider 按语言下发 antd 官方 locale（zh_CN/zh_TW/en_US）并同步 dayjs locale；顶栏新增语言切换 Select（与主题切换并列），语言存 localStorage mot.locale（Admin 独立源）。
 - constants/labels.ts 全部枚举字典改函数式现取（*Meta/*Text 签名不变，*Map/*Enum 改函数、调用点已同步）；AdminLayout 菜单/顶栏/主题名、登录、仪表盘、账号、成员、计划监管、药品库（含双人核验与 seed 导入文案）、审计、客服裁决、内容管理三页签（文章组/公众号文章/协议版本）、应用版本、大模型配置、request 层兜底文案全部词条化。typecheck + vite build 全过。
 - Web 端 i18n 已推送 develop（8a5563f，经 commits 列表核实；首次推送被审批超时 SIGTERM 未落地、后台重推成功——推送后必须核 HEAD）。
-
-## 2026-10-30 续批三（3）：i18n 三语落地·小程序端
-- 与 Web/Admin 同构的类型化字典（apps/miniprogram/src/lib/i18n/，zh-CN 事实源 570+ 键、键集合类型约束，漏译编译期报错）；语言存 Taro storage mot.locale、默认 zh-CN；设置页新增「界面语言」SegTabs 切换卡；app.tsx 启动与语言变更时同步 tabBar 文案（setTabBarItem），各页 useNavTitle 同步导航栏标题（index.config.ts 保留简中默认）。
-- lib/dict.ts 17 组枚举标签与 lib/types.ts 强提醒/周期预设、lib/theme.ts 主题清单全部改函数式现取；lib/notify.ts 订阅授权文案、lib/api.ts 兜底文案、components（ui/MemberBar/PlanForm/DrugPicker/EmailCodeButton/SmsCodeButton）与全部页面（登录/注册/今日/计划/计划编辑/成员/授权/依从/消息中心/我的/扫码登录/绑定确认/设置）文案全部词条化。全 src 汉字扫描残留仅注释、分隔符与 app.config 默认值（运行时被覆盖）。
-- 验证：tsc --noEmit 全过；taro build --type weapp 构建成功（16.8s）。注意：字典追加时 auth.wxNoCode 与既有键重名过一次（TS1117），已去重——后续追加块先查键名冲突。

@@ -14,6 +14,12 @@
 import { ConfigProvider } from 'antd';
 import type { ThemeConfig } from 'antd';
 import zhCN from 'antd/locale/zh_CN';
+import zhTW from 'antd/locale/zh_TW';
+import enUS from 'antd/locale/en_US';
+import dayjs from 'dayjs';
+import 'dayjs/locale/zh-cn';
+import 'dayjs/locale/zh-tw';
+import { getLocale, subscribeLocale, tr, type Locale } from './i18n';
 import {
   createContext,
   useContext,
@@ -27,11 +33,17 @@ export type ThemeId = '0' | 'a' | 'b';
 
 export const THEME_STORAGE_KEY = 'medontime-theme';
 
-export const THEMES: { id: ThemeId; label: string; description: string }[] = [
-  { id: '0', label: '现行绿白', description: '默认主题' },
-  { id: 'a', label: '暖阳关怀', description: '暖白护眼底色' },
-  { id: 'b', label: '临床极简', description: '冷白底 · 直角 · 紧凑' },
-];
+/** 主题清单（i18n 化：名称/说明按当前语言现取）。 */
+export function themes(): { id: ThemeId; label: string; description: string }[] {
+  return [
+    { id: '0', label: tr('theme.0Label'), description: tr('theme.0Desc') },
+    { id: 'a', label: tr('theme.aLabel'), description: tr('theme.aDesc') },
+    { id: 'b', label: tr('theme.bLabel'), description: tr('theme.bDesc') },
+  ];
+}
+
+const ANTD_LOCALES = { 'zh-CN': zhCN, 'zh-TW': zhTW, en: enUS } as const;
+const DAYJS_LOCALES: Record<Locale, string> = { 'zh-CN': 'zh-cn', 'zh-TW': 'zh-tw', en: 'en' };
 
 /** 系统字体栈（tokens.json primitive.font.family.sans，已定义）。 */
 const SYSTEM_FONT =
@@ -184,9 +196,15 @@ export function useAdminTheme(): { themeId: ThemeId; setThemeId: (id: ThemeId) =
   return useContext(ThemeContext);
 }
 
-/** 主题 Provider：持有当前主题，切换时重下发 ConfigProvider token 并写根属性。 */
+/** 主题 Provider：持有当前主题，切换时重下发 ConfigProvider token 并写根属性。
+ * 同时持有界面语言：语言变化时重下发 antd 官方 locale 并同步 dayjs。 */
 export function AdminThemeProvider({ children }: { children: ReactNode }) {
   const [themeId, setThemeIdState] = useState<ThemeId>(() => getStoredThemeId());
+  const [locale, setLocale] = useState<Locale>(() => getLocale());
+  useEffect(() => subscribeLocale(() => setLocale(getLocale())), []);
+  useEffect(() => {
+    dayjs.locale(DAYJS_LOCALES[locale]);
+  }, [locale]);
   const setThemeId = (id: ThemeId) => {
     applyThemeId(id);
     setThemeIdState(id);
@@ -197,7 +215,7 @@ export function AdminThemeProvider({ children }: { children: ReactNode }) {
   const config = useMemo(() => ADMIN_THEMES[themeId].config, [themeId]);
   return (
     <ThemeContext.Provider value={{ themeId, setThemeId }}>
-      <ConfigProvider locale={zhCN} theme={config}>
+      <ConfigProvider locale={ANTD_LOCALES[locale]} theme={config}>
         {children}
       </ConfigProvider>
     </ThemeContext.Provider>

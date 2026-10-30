@@ -32,9 +32,11 @@ import {
 } from '../../constants/labels';
 import { toProTable } from '../../services/request';
 import { fmtDateTime, prettyJson, shortId } from '../../utils/format';
+import { tr, useT } from '../../i18n';
 
 /** 前后值双记录对比：对象走字段级对照表，其他类型走并排 JSON */
 function ValueCompare({ before, after }: { before: unknown; after: unknown }) {
+  const t = useT();
   /* 阶段 2：色值一律读 AntD token。 */
   const { token } = antdTheme.useToken();
   const isPlainObject = (v: unknown): v is Record<string, unknown> =>
@@ -58,14 +60,14 @@ function ValueCompare({ before, after }: { before: unknown; after: unknown }) {
           after: isPlainObject(after) ? after[key] : undefined,
         }))}
         columns={[
-          { title: '字段', dataIndex: 'key', width: 160 },
+          { title: t('disp.field'), dataIndex: 'key', width: 160 },
           {
-            title: '变更前值',
+            title: t('disp.before'),
             dataIndex: 'before',
             render: (v: unknown) => <span style={{ whiteSpace: 'pre-wrap' }}>{prettyJson(v)}</span>,
           },
           {
-            title: '变更后值',
+            title: t('disp.after'),
             dataIndex: 'after',
             render: (v: unknown) => (
               <span style={{ whiteSpace: 'pre-wrap', color: token.colorPrimary }}>{prettyJson(v)}</span>
@@ -79,12 +81,12 @@ function ValueCompare({ before, after }: { before: unknown; after: unknown }) {
   return (
     <Row gutter={16}>
       <Col span={12}>
-        <Card size="small" title="变更前值">
+        <Card size="small" title={t('disp.before')}>
           <pre style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{prettyJson(before)}</pre>
         </Card>
       </Col>
       <Col span={12}>
-        <Card size="small" title="变更后值">
+        <Card size="small" title={t('disp.after')}>
           <pre style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{prettyJson(after)}</pre>
         </Card>
       </Col>
@@ -94,6 +96,7 @@ function ValueCompare({ before, after }: { before: unknown; after: unknown }) {
 
 /** 客服裁决：纠纷（授权/代操作争议）列表 + 前后值双记录 + 全权裁决提交 */
 export default function DisputesPage() {
+  const t = useT();
   /* 阶段 2：色值一律读 AntD token。 */
   const { token } = antdTheme.useToken();
   const actionRef = useRef<ActionType>();
@@ -102,54 +105,54 @@ export default function DisputesPage() {
 
   const columns: ProColumns<DisputeItem>[] = [
     {
-      title: '关键字',
+      title: t('disp.keyword'),
       dataIndex: 'keyword',
       hideInTable: true,
-      fieldProps: { placeholder: '主题 / 账号 / 成员' },
+      fieldProps: { placeholder: t('disp.keywordPlaceholder') },
     },
-    { title: '纠纷 ID', dataIndex: 'id', hideInSearch: true, width: 110, render: (_, r) => <span title={r.id}>{shortId(r.id)}</span> },
-    { title: '类型', dataIndex: 'category', hideInSearch: true, width: 120, render: (_, r) => r.category || '-' },
-    { title: '主题', dataIndex: 'subject', hideInSearch: true, ellipsis: true },
+    { title: t('disp.id'), dataIndex: 'id', hideInSearch: true, width: 110, render: (_, r) => <span title={r.id}>{shortId(r.id)}</span> },
+    { title: t('disp.category'), dataIndex: 'category', hideInSearch: true, width: 120, render: (_, r) => r.category || '-' },
+    { title: t('disp.subject'), dataIndex: 'subject', hideInSearch: true, ellipsis: true },
     {
-      title: '关联账号 / 成员',
+      title: t('disp.related'),
       dataIndex: 'accountNickname',
       hideInSearch: true,
       ellipsis: true,
       render: (_, r) =>
-        `${r.accountNickname ?? shortId(r.accountId)}${r.memberName ? ` · 成员 ${r.memberName}` : ''}`,
+        `${r.accountNickname ?? shortId(r.accountId)}${r.memberName ? t('disp.memberSuffix', { name: r.memberName }) : ''}`,
     },
     {
-      title: '状态',
+      title: t('common.status'),
       dataIndex: 'status',
       width: 100,
-      valueEnum: disputeStatusEnum,
+      valueEnum: disputeStatusEnum(),
       render: (_, r) => {
         const m = disputeStatusMeta(r.status);
         return <Tag color={m.color}>{m.text}</Tag>;
       },
     },
     {
-      title: '提交时间',
+      title: t('disp.submittedAt'),
       dataIndex: 'createdAt',
       hideInSearch: true,
       width: 150,
       render: (_, r) => fmtDateTime(r.createdAt),
     },
     {
-      title: '裁决人',
+      title: t('disp.resolver'),
       dataIndex: 'resolvedByName',
       hideInSearch: true,
       width: 110,
       render: (_, r) => r.resolvedByName ?? '-',
     },
     {
-      title: '操作',
+      title: t('common.actions'),
       valueType: 'option',
       width: 170,
       render: (_, record) => (
         <Space>
           <Button type="link" size="small" icon={<EyeOutlined />} onClick={() => setDetail(record)}>
-            详情
+            {t('disp.detailBtn')}
           </Button>
           {(record.status === 'pending' || record.status === 'processing') && (
             <Button
@@ -161,7 +164,7 @@ export default function DisputesPage() {
                 setResolveTarget(record);
               }}
             >
-              裁决
+              {t('disp.resolve')}
             </Button>
           )}
         </Space>
@@ -170,7 +173,7 @@ export default function DisputesPage() {
   ];
 
   return (
-    <PageContainer title="客服裁决" subTitle="授权与代操作纠纷：客服全权裁决，裁决结果与前后值双记录留痕">
+    <PageContainer title={t('disp.title')} subTitle={t('disp.subTitle')}>
       <ProTable<DisputeItem>
         rowKey="id"
         actionRef={actionRef}
@@ -181,7 +184,7 @@ export default function DisputesPage() {
       />
 
       <Drawer
-        title={detail ? `纠纷详情 · ${detail.subject}` : '纠纷详情'}
+        title={detail ? t('disp.detailTitle', { subject: detail.subject }) : t('disp.detailTitlePlain')}
         width={720}
         open={!!detail}
         onClose={() => setDetail(null)}
@@ -195,7 +198,7 @@ export default function DisputesPage() {
                 setDetail(null);
               }}
             >
-              执行裁决
+              {t('disp.doResolve')}
             </Button>
           ) : undefined
         }
@@ -203,43 +206,43 @@ export default function DisputesPage() {
         {detail && (
           <>
             <Descriptions column={1} bordered size="small">
-              <Descriptions.Item label="纠纷 ID">{detail.id}</Descriptions.Item>
-              <Descriptions.Item label="类型">{detail.category || '-'}</Descriptions.Item>
-              <Descriptions.Item label="主题">{detail.subject}</Descriptions.Item>
-              <Descriptions.Item label="说明">
+              <Descriptions.Item label={t('disp.id')}>{detail.id}</Descriptions.Item>
+              <Descriptions.Item label={t('disp.category')}>{detail.category || '-'}</Descriptions.Item>
+              <Descriptions.Item label={t('disp.subject')}>{detail.subject}</Descriptions.Item>
+              <Descriptions.Item label={t('disp.description')}>
                 <span style={{ whiteSpace: 'pre-wrap' }}>{detail.description ?? '-'}</span>
               </Descriptions.Item>
-              <Descriptions.Item label="关联账号">
+              <Descriptions.Item label={t('disp.account')}>
                 {detail.accountNickname ?? detail.accountId}
               </Descriptions.Item>
-              <Descriptions.Item label="关联成员">{detail.memberName ?? detail.memberId ?? '-'}</Descriptions.Item>
-              <Descriptions.Item label="争议对象">
+              <Descriptions.Item label={t('disp.member')}>{detail.memberName ?? detail.memberId ?? '-'}</Descriptions.Item>
+              <Descriptions.Item label={t('disp.target')}>
                 {detail.targetType ? `${detail.targetType} · ${detail.targetId ?? ''}` : '-'}
               </Descriptions.Item>
-              <Descriptions.Item label="状态">
+              <Descriptions.Item label={t('common.status')}>
                 <Tag color={disputeStatusMeta(detail.status).color}>
                   {disputeStatusMeta(detail.status).text}
                 </Tag>
               </Descriptions.Item>
-              <Descriptions.Item label="提交时间">{fmtDateTime(detail.createdAt)}</Descriptions.Item>
+              <Descriptions.Item label={t('disp.submittedAt')}>{fmtDateTime(detail.createdAt)}</Descriptions.Item>
               {detail.resolvedAt && (
                 <>
-                  <Descriptions.Item label="裁决结论">{detail.decision ?? '-'}</Descriptions.Item>
-                  <Descriptions.Item label="裁决说明">
+                  <Descriptions.Item label={t('disp.decision')}>{detail.decision ?? '-'}</Descriptions.Item>
+                  <Descriptions.Item label={t('disp.resolution')}>
                     <span style={{ whiteSpace: 'pre-wrap' }}>{detail.resolution ?? '-'}</span>
                   </Descriptions.Item>
-                  <Descriptions.Item label="裁决人 / 时间">
+                  <Descriptions.Item label={t('disp.resolvedBy')}>
                     {detail.resolvedByName ?? '-'} · {fmtDateTime(detail.resolvedAt)}
                   </Descriptions.Item>
                 </>
               )}
             </Descriptions>
 
-            <h4 style={{ margin: '20px 0 8px' }}>争议变更双记录（裁决依据，裁决后保留）</h4>
+            <h4 style={{ margin: '20px 0 8px' }}>{t('disp.compareHead')}</h4>
             <ValueCompare before={detail.beforeValue} after={detail.afterValue} />
             {detail.finalValue !== undefined && detail.finalValue !== null && (
               <>
-                <h4 style={{ margin: '20px 0 8px' }}>裁定值</h4>
+                <h4 style={{ margin: '20px 0 8px' }}>{t('disp.finalValue')}</h4>
                 <pre style={{ whiteSpace: 'pre-wrap', background: token.colorSuccessBg, padding: 12 }}>
                   {prettyJson(detail.finalValue)}
                 </pre>
@@ -250,7 +253,7 @@ export default function DisputesPage() {
       </Drawer>
 
       <ModalForm<ResolveDisputePayload & { decision: string }>
-        title={resolveTarget ? `执行裁决 · ${resolveTarget.subject}` : '执行裁决'}
+        title={resolveTarget ? t('disp.resolveTitle', { subject: resolveTarget.subject }) : t('disp.resolveTitlePlain')}
         open={!!resolveTarget}
         onOpenChange={(open) => {
           if (!open) setResolveTarget(null);
@@ -264,7 +267,7 @@ export default function DisputesPage() {
             resolution: values.resolution,
             finalValue: values.finalValue,
           });
-          message.success('裁决已提交，前后值与裁决结果已双记录留痕');
+          message.success(t('disp.resolvedToast'));
           setResolveTarget(null);
           actionRef.current?.reload();
           return true;
@@ -274,7 +277,7 @@ export default function DisputesPage() {
           type="warning"
           showIcon
           style={{ marginBottom: 16 }}
-          message="客服全权裁决：裁决生效后，对应数据将按裁定值回写并以「客服裁决（admin_cs）」记入变更史，前后值永久保留。"
+          message={t('disp.authorityNote')}
         />
         {resolveTarget && (
           <div style={{ marginBottom: 16 }}>
@@ -283,21 +286,21 @@ export default function DisputesPage() {
         )}
         <ProFormRadio.Group
           name="decision"
-          label="裁决结论"
-          options={disputeDecisionOptions}
-          rules={[{ required: true, message: '请选择裁决结论' }]}
+          label={t('disp.decision')}
+          options={disputeDecisionOptions()}
+          rules={[{ required: true, message: t('disp.decisionRequired') }]}
         />
         <ProFormTextArea
           name="finalValue"
-          label="裁定值（结论为自定义裁定时填写）"
+          label={t('disp.finalValueLabel')}
           fieldProps={{ rows: 3 }}
-          extra="文本或 JSON；选择维持前/后值时可留空"
+          extra={t('disp.finalValueExtra')}
         />
         <ProFormTextArea
           name="resolution"
-          label="裁决说明"
+          label={t('disp.resolution')}
           fieldProps={{ rows: 4, maxLength: 1000 }}
-          rules={[{ required: true, message: '裁决说明必填，将随双记录一并留痕' }]}
+          rules={[{ required: true, message: t('disp.resolutionRequired') }]}
         />
       </ModalForm>
     </PageContainer>

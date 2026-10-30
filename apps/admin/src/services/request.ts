@@ -1,5 +1,6 @@
 import { message } from 'antd';
 import { clearSession, getAccessToken } from './session';
+import { tr } from '../i18n';
 
 /**
  * 统一 request 封装（后台专用）。
@@ -86,8 +87,8 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
       body: body === undefined ? undefined : JSON.stringify(body),
     });
   } catch {
-    if (!silent) message.error('网络异常，请检查网络连接后重试');
-    throw new ApiError(-1, '网络异常', 0);
+    if (!silent) message.error(tr('req.network'));
+    throw new ApiError(-1, tr('req.networkShort'), 0);
   }
 
   let envelope: ApiEnvelope<T> | null = null;
@@ -105,19 +106,19 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
        * 2026-10-26 修复：此前这里无条件抛“登录已过期”，密码错也显示过期。 */
       throw new ApiError(
         envelope?.code ?? 40100,
-        envelope?.message || '登录失败',
+        envelope?.message || tr('req.loginFailed'),
         401,
         envelope?.traceId,
       );
     }
     // 管理员侧无 refresh 机制：401 即会话结束，直接清会话跳登录（死刷新分支已删）
-    if (!silent) message.error('登录已过期，请重新登录');
+    if (!silent) message.error(tr('req.sessionExpired'));
     redirectToLogin();
-    throw new ApiError(40100, '登录已过期', 401, envelope?.traceId);
+    throw new ApiError(40100, tr('req.sessionExpiredShort'), 401, envelope?.traceId);
   }
 
   if (!response.ok || !envelope || envelope.code !== 0) {
-    const msg = envelope?.message ?? `请求失败（HTTP ${response.status}）`;
+    const msg = envelope?.message ?? tr('req.failedHttp', { status: response.status });
     if (!silent) message.error(msg);
     throw new ApiError(envelope?.code ?? response.status * 100, msg, response.status, envelope?.traceId);
   }

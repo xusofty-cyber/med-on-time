@@ -12,16 +12,18 @@ import {
 } from '../../constants/labels';
 import { toProTable } from '../../services/request';
 import { fmtDateTimeFull, prettyJson, shortId } from '../../utils/format';
+import { tr, useT } from '../../i18n';
 
 /** 审计日志（audit_log 分区表）：时间 / 操作者 / 对象过滤查询，只读 */
 export default function AuditPage() {
+  const t = useT();
   const [detail, setDetail] = useState<AuditLogItem | null>(null);
   /* 阶段 2：色值一律读 AntD token。 */
   const { token } = antdTheme.useToken();
 
   const columns: ProColumns<AuditLogItem>[] = [
     {
-      title: '时间范围',
+      title: t('audit.timeRange'),
       dataIndex: 'createdAtRange',
       hideInTable: true,
       valueType: 'dateTimeRange',
@@ -33,48 +35,48 @@ export default function AuditPage() {
       },
     },
     {
-      title: '操作者类型',
+      title: t('audit.actorType'),
       dataIndex: 'actorType',
       hideInTable: true,
       valueEnum: {
-        admin: { text: '管理员' },
-        account: { text: '用户账号' },
-        system: { text: '系统' },
+        admin: { text: tr('enum.actorType.admin') },
+        account: { text: tr('enum.actorType.account') },
+        system: { text: tr('enum.actorType.system') },
       },
     },
     {
-      title: '操作者 ID',
+      title: t('audit.actorId'),
       dataIndex: 'actorId',
       hideInTable: true,
-      fieldProps: { placeholder: '管理员 / 账号 UUID' },
+      fieldProps: { placeholder: t('audit.actorIdPlaceholder') },
     },
     {
-      title: '动作',
+      title: t('audit.action'),
       dataIndex: 'action',
       hideInTable: true,
-      fieldProps: { placeholder: '如 drug:review / account:freeze' },
+      fieldProps: { placeholder: t('audit.actionPlaceholder') },
     },
     {
-      title: '对象类型',
+      title: t('audit.targetType'),
       dataIndex: 'targetType',
       hideInTable: true,
-      fieldProps: { placeholder: '如 drug / user_account / member' },
+      fieldProps: { placeholder: t('audit.targetTypePlaceholder') },
     },
     {
-      title: '结果',
+      title: t('audit.result'),
       dataIndex: 'result',
       hideInTable: true,
-      valueEnum: auditResultEnum,
+      valueEnum: auditResultEnum(),
     },
     {
-      title: '时间',
+      title: t('audit.time'),
       dataIndex: 'createdAt',
       hideInSearch: true,
       width: 170,
       render: (_, r) => fmtDateTimeFull(r.createdAt),
     },
     {
-      title: '操作者',
+      title: t('audit.actor'),
       dataIndex: 'actor',
       hideInSearch: true,
       width: 170,
@@ -85,9 +87,9 @@ export default function AuditPage() {
         </span>
       ),
     },
-    { title: '动作', dataIndex: 'action', hideInSearch: true, width: 180, ellipsis: true },
+    { title: t('audit.action'), dataIndex: 'action', hideInSearch: true, width: 180, ellipsis: true },
     {
-      title: '对象',
+      title: t('audit.target'),
       dataIndex: 'target',
       hideInSearch: true,
       width: 180,
@@ -95,14 +97,14 @@ export default function AuditPage() {
       render: (_, r) => `${r.targetType}${r.targetId ? ` · ${shortId(r.targetId)}` : ''}`,
     },
     {
-      title: '关联成员',
+      title: t('audit.member'),
       dataIndex: 'memberId',
       hideInSearch: true,
       width: 110,
       render: (_, r) => (r.memberId ? <span title={r.memberId}>{shortId(r.memberId)}</span> : '-'),
     },
     {
-      title: '结果',
+      title: t('audit.result'),
       dataIndex: 'result',
       hideInSearch: true,
       width: 90,
@@ -111,21 +113,21 @@ export default function AuditPage() {
         return <Tag color={m.color}>{m.text}</Tag>;
       },
     },
-    { title: 'IP', dataIndex: 'ipAddress', hideInSearch: true, width: 120, render: (_, r) => r.ipAddress ?? '-' },
+    { title: t('audit.ip'), dataIndex: 'ipAddress', hideInSearch: true, width: 120, render: (_, r) => r.ipAddress ?? '-' },
     {
-      title: '操作',
+      title: t('common.actions'),
       valueType: 'option',
       width: 90,
       render: (_, record) => (
         <Button type="link" size="small" icon={<EyeOutlined />} onClick={() => setDetail(record)}>
-          详情
+          {t('audit.detailBtn')}
         </Button>
       ),
     },
   ];
 
   return (
-    <PageContainer title="审计日志" subTitle="全量操作审计（只追加、不可改删）：按时间 / 操作者 / 对象 / 结果过滤">
+    <PageContainer title={t('audit.title')} subTitle={t('audit.subTitle')}>
       <ProTable<AuditLogItem>
         rowKey="id"
         columns={columns}
@@ -135,7 +137,7 @@ export default function AuditPage() {
       />
 
       <Drawer
-        title="审计详情"
+        title={t('audit.detailTitle')}
         width={640}
         open={!!detail}
         onClose={() => setDetail(null)}
@@ -143,26 +145,26 @@ export default function AuditPage() {
         {detail && (
           <>
             <Descriptions column={1} bordered size="small">
-              <Descriptions.Item label="日志 ID">{detail.id}</Descriptions.Item>
-              <Descriptions.Item label="时间">{fmtDateTimeFull(detail.createdAt)}</Descriptions.Item>
-              <Descriptions.Item label="操作者">
+              <Descriptions.Item label={t('audit.logId')}>{detail.id}</Descriptions.Item>
+              <Descriptions.Item label={t('audit.time')}>{fmtDateTimeFull(detail.createdAt)}</Descriptions.Item>
+              <Descriptions.Item label={t('audit.actor')}>
                 {actorTypeText(detail.actorType)} · {detail.actorName ?? detail.actorId}
               </Descriptions.Item>
-              <Descriptions.Item label="动作">{detail.action}</Descriptions.Item>
-              <Descriptions.Item label="对象">
+              <Descriptions.Item label={t('audit.action')}>{detail.action}</Descriptions.Item>
+              <Descriptions.Item label={t('audit.target')}>
                 {detail.targetType}
                 {detail.targetId ? ` · ${detail.targetId}` : ''}
               </Descriptions.Item>
-              <Descriptions.Item label="关联成员">{detail.memberId ?? '-'}</Descriptions.Item>
-              <Descriptions.Item label="结果">
+              <Descriptions.Item label={t('audit.member')}>{detail.memberId ?? '-'}</Descriptions.Item>
+              <Descriptions.Item label={t('audit.result')}>
                 <Tag color={auditResultMeta(detail.result).color}>
                   {auditResultMeta(detail.result).text}
                 </Tag>
               </Descriptions.Item>
-              <Descriptions.Item label="IP">{detail.ipAddress ?? '-'}</Descriptions.Item>
+              <Descriptions.Item label={t('audit.ip')}>{detail.ipAddress ?? '-'}</Descriptions.Item>
               <Descriptions.Item label="User-Agent">{detail.userAgent ?? '-'}</Descriptions.Item>
             </Descriptions>
-            <h4 style={{ margin: '20px 0 8px' }}>明细 detail（敏感值已脱敏）</h4>
+            <h4 style={{ margin: '20px 0 8px' }}>{t('audit.detailHead')}</h4>
             <pre
               style={{
                 background: token.colorFillAlter,

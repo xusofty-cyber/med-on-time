@@ -15,23 +15,25 @@ import { ProLayout } from '@ant-design/pro-components';
 import { Dropdown, Select } from 'antd';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { clearSession, getAdminProfile } from '../services/session';
-import { ADMIN_THEMES, THEMES, useAdminTheme } from '../theme';
+import { ADMIN_THEMES, themes, useAdminTheme } from '../theme';
+import { LOCALES, getLocale, setLocaleState, useT, type Locale } from '../i18n';
 
-const MENU_ROUTES = [
-  { path: '/dashboard', name: '仪表盘', icon: <DashboardOutlined /> },
-  { path: '/accounts', name: '账号管理', icon: <UserOutlined /> },
-  { path: '/members', name: '成员管理', icon: <TeamOutlined /> },
-  { path: '/drugs', name: '药品库管理', icon: <MedicineBoxOutlined /> },
-  { path: '/plans', name: '计划监管', icon: <ScheduleOutlined /> },
-  { path: '/content', name: '内容管理', icon: <FileTextOutlined /> },
-  { path: '/disputes', name: '客服裁决', icon: <CustomerServiceOutlined /> },
-  { path: '/audit', name: '审计日志', icon: <AuditOutlined /> },
-  { path: '/system/app-versions', name: '应用版本', icon: <SettingOutlined /> },
-  { path: '/system/ai-providers', name: '大模型配置', icon: <RobotOutlined /> },
-];
+const MENU_DEFS = [
+  { path: '/dashboard', nameKey: 'nav.dashboard', icon: <DashboardOutlined /> },
+  { path: '/accounts', nameKey: 'nav.accounts', icon: <UserOutlined /> },
+  { path: '/members', nameKey: 'nav.members', icon: <TeamOutlined /> },
+  { path: '/drugs', nameKey: 'nav.drugs', icon: <MedicineBoxOutlined /> },
+  { path: '/plans', nameKey: 'nav.plans', icon: <ScheduleOutlined /> },
+  { path: '/content', nameKey: 'nav.content', icon: <FileTextOutlined /> },
+  { path: '/disputes', nameKey: 'nav.disputes', icon: <CustomerServiceOutlined /> },
+  { path: '/audit', nameKey: 'nav.audit', icon: <AuditOutlined /> },
+  { path: '/system/app-versions', nameKey: 'nav.appVersions', icon: <SettingOutlined /> },
+  { path: '/system/ai-providers', nameKey: 'nav.aiProviders', icon: <RobotOutlined /> },
+] as const;
 
 /** 全局布局：ProLayout 侧边菜单 + 顶栏管理员信息/退出 */
 export default function AdminLayout() {
+  const t = useT();
   const location = useLocation();
   const navigate = useNavigate();
   const profile = getAdminProfile();
@@ -44,14 +46,14 @@ export default function AdminLayout() {
 
   return (
     <ProLayout
-      title="药准时 · 后台管理"
+      title={t('nav.appTitle')}
       logo={false}
       layout="mix"
       fixSiderbar
       fixedHeader
       siderWidth={216}
       location={{ pathname: location.pathname }}
-      route={{ path: '/', routes: MENU_ROUTES }}
+      route={{ path: '/', routes: MENU_DEFS.map((m) => ({ path: m.path, name: t(m.nameKey), icon: m.icon })) }}
       menuItemRender={(item, dom) => <Link to={item.path ?? '/dashboard'}>{dom}</Link>}
       token={ADMIN_THEMES[themeId].proLayoutToken}
       /* 主题切换入口（阶段 2）：顶栏选择器，三套主题即时切换、localStorage 持久化。 */
@@ -61,17 +63,25 @@ export default function AdminLayout() {
           value={themeId}
           onChange={setThemeId}
           style={{ width: 212 }}
-          aria-label="界面主题"
-          options={THEMES.map((t) => ({
-            value: t.id,
-            label: t.id === 'a' ? `${t.label}（${t.description}）` : t.label,
+          aria-label={t('nav.themeAria')}
+          options={themes().map((th) => ({
+            value: th.id,
+            label: th.id === 'a' ? t('nav.themeWithDesc', { label: th.label, desc: th.description }) : th.label,
           }))}
+        />,
+        <Select
+          key="locale"
+          value={getLocale()}
+          onChange={(v) => setLocaleState(v as Locale)}
+          style={{ width: 130 }}
+          aria-label={t('common.language')}
+          options={LOCALES.map((l) => ({ value: l.value, label: t(l.labelKey) }))}
         />,
       ]}
       avatarProps={{
         icon: <UserOutlined />,
         size: 'small',
-        title: profile ? `${profile.realName}（${profile.username}）` : '管理员',
+        title: profile ? t('nav.profileTitle', { name: profile.realName, username: profile.username }) : t('nav.admin'),
         render: (_props, dom) => (
           <Dropdown
             menu={{
@@ -79,15 +89,19 @@ export default function AdminLayout() {
                 {
                   key: 'profile',
                   label: profile
-                    ? `角色：${profile.roles?.length ? profile.roles.join('、') : '管理员'}`
-                    : '管理员',
+                    ? t('nav.roleLabel', {
+                        roles: profile.roles?.length
+                          ? profile.roles.join(t('nav.roleSeparator'))
+                          : t('nav.admin'),
+                      })
+                    : t('nav.admin'),
                   disabled: true,
                 },
                 { type: 'divider' },
                 {
                   key: 'logout',
                   icon: <LogoutOutlined />,
-                  label: '退出登录',
+                  label: t('nav.logout'),
                   onClick: logout,
                 },
               ],

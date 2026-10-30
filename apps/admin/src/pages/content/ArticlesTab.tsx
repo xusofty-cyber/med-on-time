@@ -19,6 +19,7 @@ import { createArticle, deleteArticle, listArticles, updateArticle } from '../..
 import type { ArticleItem } from '../../api/types';
 import { LOCALES, articleStatusMeta, localeText } from '../../constants/labels';
 import { fmtDateTime, shortId } from '../../utils/format';
+import { tr, useT } from '../../i18n';
 
 interface ArticleGroupRow {
   contentGroupId: string;
@@ -38,14 +39,17 @@ interface GroupFormValues {
   locales: Record<string, LocaleFormValues>;
 }
 
-const STATUS_OPTIONS = Object.entries({
-  draft: '草稿',
-  published: '已发布',
-  offline: '已下线',
-}).map(([value, label]) => ({ value, label }));
+function statusOptions(): { value: string; label: string }[] {
+  return [
+    { value: 'draft', label: tr('enum.articleStatus.draft') },
+    { value: 'published', label: tr('enum.articleStatus.published') },
+    { value: 'offline', label: tr('enum.articleStatus.offline') },
+  ];
+}
 
 /** 文章多语言内容组：同一 contentGroupId 下简/繁/英三行，发布状态按语言独立 */
 export default function ArticlesTab() {
+  const t = useT();
   const [rows, setRows] = useState<ArticleItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [editing, setEditing] = useState<ArticleGroupRow | 'new' | null>(null);
@@ -150,7 +154,7 @@ export default function ArticlesTab() {
       if (tasks.length > 0) {
         await Promise.all(tasks.map((fn) => fn()));
       }
-      message.success('内容组已保存');
+      message.success(t('cnt.groupSaved'));
       setEditing(null);
       await reload();
     } catch {
@@ -162,8 +166,8 @@ export default function ArticlesTab() {
 
   const removeGroup = (group: ArticleGroupRow) => {
     Modal.confirm({
-      title: '删除整个内容组？',
-      content: '将删除该内容组下全部语言版本，此操作不可恢复。',
+      title: t('cnt.deleteGroupTitle'),
+      content: t('cnt.deleteGroupContent'),
       okType: 'danger',
       onOk: async () => {
         await Promise.all(
@@ -171,7 +175,7 @@ export default function ArticlesTab() {
             .filter((i): i is ArticleItem => !!i)
             .map((i) => deleteArticle(i.id)),
         );
-        message.success('内容组已删除');
+        message.success(t('cnt.groupDeleted'));
         await reload();
       },
     });
@@ -179,14 +183,14 @@ export default function ArticlesTab() {
 
   const columns: TableColumnsType<ArticleGroupRow> = [
     {
-      title: '内容组',
+      title: t('cnt.group'),
       dataIndex: 'contentGroupId',
       width: 120,
       render: (v: string) => <span title={v}>{shortId(v)}</span>,
     },
-    { title: '分类', dataIndex: 'category', width: 120 },
+    { title: t('cnt.category'), dataIndex: 'category', width: 120 },
     {
-      title: '代表标题',
+      title: t('cnt.repTitle'),
       key: 'title',
       ellipsis: true,
       render: (_, g) =>
@@ -198,25 +202,25 @@ export default function ArticlesTab() {
       width: 120,
       render: (_: unknown, g: ArticleGroupRow) => {
         const item = g.locales[locale];
-        if (!item) return <span style={{ color: token.colorTextSecondary }}>未创建</span>;
+        if (!item) return <span style={{ color: token.colorTextSecondary }}>{t('cnt.notCreated')}</span>;
         const m = articleStatusMeta(item.status);
         return <Tag color={m.color}>{m.text}</Tag>;
       },
     })),
     {
-      title: '更新时间',
+      title: t('common.updatedAt'),
       dataIndex: 'updatedAt',
       width: 150,
       render: (v: string) => fmtDateTime(v),
     },
     {
-      title: '操作',
+      title: t('common.actions'),
       key: 'actions',
       width: 150,
       render: (_, g) => (
         <Space>
           <Button type="link" size="small" icon={<EditOutlined />} onClick={() => openEdit(g)}>
-            编辑
+            {t('cnt.edit')}
           </Button>
           <Button
             type="link"
@@ -225,7 +229,7 @@ export default function ArticlesTab() {
             icon={<DeleteOutlined />}
             onClick={() => removeGroup(g)}
           >
-            删除
+            {t('common.delete')}
           </Button>
         </Space>
       ),
@@ -236,7 +240,7 @@ export default function ArticlesTab() {
     <Spin spinning={loading}>
       <div style={{ marginBottom: 16, textAlign: 'right' }}>
         <Button type="primary" icon={<PlusOutlined />} onClick={() => openEdit('new')}>
-          新建内容组
+          {t('cnt.newGroup')}
         </Button>
       </div>
       <Table<ArticleGroupRow>
@@ -247,7 +251,7 @@ export default function ArticlesTab() {
       />
 
       <Modal
-        title={editing === 'new' ? '新建内容组' : '编辑内容组'}
+        title={editing === 'new' ? t('cnt.newGroupTitle') : t('cnt.editGroupTitle')}
         open={!!editing}
         width={860}
         onCancel={() => setEditing(null)}
@@ -258,10 +262,10 @@ export default function ArticlesTab() {
         <Form form={form} layout="vertical">
           <Form.Item
             name="category"
-            label="分类"
-            rules={[{ required: true, message: '请输入分类（如：用药知识 / 公告 / 帮助）' }]}
+            label={t('cnt.category')}
+            rules={[{ required: true, message: t('cnt.categoryRequired') }]}
           >
-            <Input placeholder="用药知识 / 公告 / 帮助" />
+            <Input placeholder={t('cnt.categoryPlaceholder')} />
           </Form.Item>
           <Tabs
             items={LOCALES.map((locale) => ({
@@ -270,14 +274,14 @@ export default function ArticlesTab() {
               forceRender: true,
               children: (
                 <div>
-                  <Form.Item name={['locales', locale, 'title']} label="标题">
-                    <Input placeholder="该语言暂不创建时留空" maxLength={200} />
+                  <Form.Item name={['locales', locale, 'title']} label={t('cnt.fieldTitle')}>
+                    <Input placeholder={t('cnt.titlePlaceholder')} maxLength={200} />
                   </Form.Item>
-                  <Form.Item name={['locales', locale, 'body']} label="正文（HTML）">
-                    <Input.TextArea rows={10} placeholder="富文本正文（HTML，入库前由后端做 XSS 清洗）" />
+                  <Form.Item name={['locales', locale, 'body']} label={t('cnt.fieldBody')}>
+                    <Input.TextArea rows={10} placeholder={t('cnt.bodyPlaceholder')} />
                   </Form.Item>
-                  <Form.Item name={['locales', locale, 'status']} label="发布状态">
-                    <Select options={STATUS_OPTIONS} style={{ width: 200 }} />
+                  <Form.Item name={['locales', locale, 'status']} label={t('cnt.publishStatus')}>
+                    <Select options={statusOptions()} style={{ width: 200 }} />
                   </Form.Item>
                 </div>
               ),
