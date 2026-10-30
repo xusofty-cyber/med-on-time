@@ -11,6 +11,7 @@
  */
 import Taro from '@tarojs/taro';
 import { SUBSCRIBE_TEMPLATE_IDS } from '../config';
+import { tr } from './i18n';
 
 export type SubscribeResult = 'ok' | 'unconfigured' | 'denied' | 'error';
 
@@ -18,11 +19,10 @@ export type SubscribeResult = 'ok' | 'unconfigured' | 'denied' | 'error';
 export async function requestReminderSubscribe(): Promise<SubscribeResult> {
   if (SUBSCRIBE_TEMPLATE_IDS.length === 0) {
     await Taro.showModal({
-      title: '微信提醒订阅',
-      content:
-        '微信订阅消息模板尚未在公众平台完成申请与配置（模板 ID 待填入 src/config.ts，后端须同步配置）。配置完成后即可在此一键订阅到点提醒；当前请以打开小程序查看今日提醒为准。',
+      title: tr('notify.modalTitle'),
+      content: tr('notify.unconfigured'),
       showCancel: false,
-      confirmText: '知道了',
+      confirmText: tr('notify.gotIt'),
     });
     return 'unconfigured';
   }
@@ -35,13 +35,13 @@ export async function requestReminderSubscribe(): Promise<SubscribeResult> {
     const res = await requestSubscribe({ tmplIds: SUBSCRIBE_TEMPLATE_IDS });
     const accepted = SUBSCRIBE_TEMPLATE_IDS.some((id) => res[id] === 'accept');
     if (!accepted) {
-      Taro.showToast({ title: '未同意订阅，将无法收到微信到点提醒', icon: 'none', duration: 2400 });
+      Taro.showToast({ title: tr('notify.denied'), icon: 'none', duration: 2400 });
       return 'denied';
     }
-    Taro.showToast({ title: '已订阅用药提醒', icon: 'success' });
+    Taro.showToast({ title: tr('notify.subscribed'), icon: 'success' });
     return 'ok';
   } catch {
-    Taro.showToast({ title: '订阅失败，请稍后重试', icon: 'none' });
+    Taro.showToast({ title: tr('notify.failed'), icon: 'none' });
     return 'error';
   }
 }

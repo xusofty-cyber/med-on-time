@@ -9,9 +9,12 @@ import { requestReminderSubscribe } from '../../lib/notify';
 import { fmtDateTime } from '../../lib/time';
 import type { NotificationItem, NotificationPrefs } from '../../lib/types';
 import { Btn, Card, EmptyState, ErrorLine, Loading, PageShell, SwitchRow } from '../../components/ui';
+import { tr, useNavTitle, useT } from '../../lib/i18n';
 
 /** 消息中心：提醒偏好（站内/短信自选/微信占位）+ 站内通知列表（分页、点开即已读）。 */
 export default function Notifications() {
+  const t = useT();
+  useNavTitle('nav.notifications');
   useSessionGuard();
   const [prefs, setPrefs] = useState<NotificationPrefs | null>(null);
   const [items, setItems] = useState<NotificationItem[] | null>(null);
@@ -89,32 +92,32 @@ export default function Notifications() {
         /* 已读回写失败不阻塞阅读 */
       }
     }
-    await Taro.showModal({ title: n.title, content: n.content, showCancel: false, confirmText: '知道了' });
+    await Taro.showModal({ title: n.title, content: n.content, showCancel: false, confirmText: tr('notify.gotIt') });
   };
 
   return (
     <PageShell>
-      <Text className='tx-title'>消息中心</Text>
-      <Card title='提醒偏好'>
+      <Text className='tx-title'>{t('nt.title')}</Text>
+      <Card title={t('nt.prefs')}>
         {prefs === null ? (
           <Loading />
         ) : (
           <View className='col'>
             <SwitchRow
-              label='站内消息'
-              desc='应用内通知中心与角标'
+              label={t('nt.inApp')}
+              desc={t('nt.inAppDesc')}
               checked={prefs.inApp}
               onChange={(v) => void savePrefs({ ...prefs, inApp: v })}
             />
             <SwitchRow
-              label='短信提醒'
-              desc='用户自选开启（MVP 常规渠道）；未打卡的到点提醒可经短信送达'
+              label={t('nt.sms')}
+              desc={t('nt.smsDesc')}
               checked={prefs.sms}
               onChange={(v) => void savePrefs({ ...prefs, sms: v })}
             />
             <SwitchRow
-              label='微信订阅消息'
-              desc='开启时将拉起订阅授权；模板配置完成前为占位通道'
+              label={t('nt.wechat')}
+              desc={t('nt.wechatDesc')}
               checked={prefs.wechat}
               onChange={(v) => void toggleWechat(v)}
             />
@@ -122,11 +125,11 @@ export default function Notifications() {
         )}
       </Card>
       <ErrorLine error={error} />
-      <Card title='站内通知'>
+      <Card title={t('nt.list')}>
         {items === null ? (
           <Loading />
         ) : items.length === 0 ? (
-          <EmptyState text='暂无通知。新的服药提醒与照护动态会显示在这里。' />
+          <EmptyState text={t('nt.empty')} />
         ) : (
           <View className='col'>
             {items.map((n, i) => (
@@ -160,7 +163,7 @@ export default function Notifications() {
             {items.length < totalRef.current && (
               <View style={{ paddingTop: '12rpx' }}>
                 <Btn variant='ghost' block onClick={() => void loadPage(pageRef.current + 1, false)}>
-                  加载更多
+                  {t('nt.loadMore')}
                 </Btn>
               </View>
             )}

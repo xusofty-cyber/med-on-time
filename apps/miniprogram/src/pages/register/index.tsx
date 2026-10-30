@@ -7,11 +7,14 @@ import { actions } from '../../lib/store';
 import { navigateAfterAuth } from '../../lib/hooks';
 import { Btn, Card, ErrorLine, Field, PageShell, SegTabs, TxtInput } from '../../components/ui';
 import { EmailCodeButton } from '../../components/EmailCodeButton';
+import { tr, useNavTitle, useT } from '../../lib/i18n';
 
 /** 注册：邮箱 + 邮箱验证码 + 密码（≥8 位）+ 昵称（选填）。与 Web 端 Register 同逻辑。
  * 验证码通道：邮箱为唯一可用通道（默认）；短信通道暂未开通（个人拿不到腾讯云短信签名/模板），
  * 短信入口保留并标注，发码/提交一律拦截提示并切回邮箱 tab，不调后端接口。 */
 export default function Register() {
+  const t = useT();
+  useNavTitle('nav.register');
   /* 注册通道：默认邮箱（唯一可用通道）；手机号入口保留但暂未开通 */
   const [channel, setChannel] = useState<'phone' | 'email'>('email');
   const [phone, setPhone] = useState('');
@@ -27,20 +30,20 @@ export default function Register() {
   const submit = async () => {
     if (channel === 'phone') {
       /* 短信通道暂未开通：不调接口，提示并切回邮箱 tab */
-      toastError(new Error('短信通道暂未开通，请使用邮箱验证码'));
+      toastError(new Error(t('auth.smsNotOpen')));
       setChannel('email');
       return;
     }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      setError(new Error('请输入正确的邮箱地址'));
+      setError(new Error(t('auth.invalidEmail')));
       return;
     }
     if (!emailCode.trim()) {
-      setError(new Error('请输入邮箱验证码'));
+      setError(new Error(t('auth.enterEmailCode')));
       return;
     }
     if (password.length < 8) {
-      setError(new Error('密码至少 8 位'));
+      setError(new Error(t('reg.passwordTooShort')));
       return;
     }
     setBusy(true);
@@ -67,7 +70,7 @@ export default function Register() {
       } catch {
         /* 同上 */
       }
-      toastOk('注册成功，请先添加要照护的成员');
+      toastOk(t('reg.success'));
       navigateAfterAuth();
     } catch (err) {
       setError(err);
@@ -79,14 +82,14 @@ export default function Register() {
   return (
     <PageShell style={{ paddingTop: '56rpx' }}>
       <Text className='tx-title' style={{ textAlign: 'center' }}>
-        注册药准时账号
+        {t('reg.pageTitle')}
       </Text>
       <Card>
         <View className='col' style={{ gap: '24rpx' }}>
           <SegTabs
             options={[
-              { value: 'phone', label: '手机号（暂未开通）' },
-              { value: 'email', label: '邮箱' },
+              { value: 'phone', label: t('auth.channelPhoneSoon') },
+              { value: 'email', label: t('auth.channelEmail') },
             ]}
             value={channel}
             onChange={(v) => setChannel(v as 'phone' | 'email')}
@@ -94,62 +97,62 @@ export default function Register() {
           {channel === 'phone' ? (
             <>
               <Text className='tx-sm' style={{ color: 'var(--color-status-danger-text)' }}>
-                短信通道暂未开通，请使用邮箱验证码
+                {t('auth.smsNotOpen')}
               </Text>
-              <Field label='手机号'>
-                <TxtInput value={phone} onChange={setPhone} placeholder='11 位手机号' type='number' maxlength={11} />
+              <Field label={t('auth.phone')}>
+                <TxtInput value={phone} onChange={setPhone} placeholder={t('reg.phonePlaceholder')} type='number' maxlength={11} />
               </Field>
-              <Field label='短信验证码'>
+              <Field label={t('auth.smsCode')}>
                 <View className='row' style={{ gap: '12rpx' }}>
                   <View className='grow'>
-                    <TxtInput value={code} onChange={setCode} placeholder='6 位验证码' type='number' maxlength={6} />
+                    <TxtInput value={code} onChange={setCode} placeholder={t('auth.codePlaceholder')} type='number' maxlength={6} />
                   </View>
                   <Btn
                     variant='soft'
                     onClick={() => {
-                      toastError(new Error('短信通道暂未开通，请使用邮箱验证码'));
+                      toastError(new Error(tr('auth.smsNotOpen')));
                       setChannel('email');
                     }}
                   >
-                    发送验证码
+                    {tr('auth.sendCode')}
                   </Btn>
                 </View>
               </Field>
             </>
           ) : (
             <>
-              <Field label='邮箱'>
-                <TxtInput value={email} onChange={setEmail} placeholder='请输入邮箱地址' maxlength={254} />
+              <Field label={t('auth.email')}>
+                <TxtInput value={email} onChange={setEmail} placeholder={t('auth.emailPlaceholder')} maxlength={254} />
               </Field>
-              <Field label='邮箱验证码'>
+              <Field label={t('auth.emailCode')}>
                 <View className='row' style={{ gap: '12rpx' }}>
                   <View className='grow'>
-                    <TxtInput value={emailCode} onChange={setEmailCode} placeholder='6 位验证码' type='number' maxlength={6} />
+                    <TxtInput value={emailCode} onChange={setEmailCode} placeholder={t('auth.codePlaceholder')} type='number' maxlength={6} />
                   </View>
                   <EmailCodeButton email={email} scene='register' />
                 </View>
               </Field>
             </>
           )}
-          <Field label='设置密码' hint='至少 8 位，用于密码登录'>
-            <TxtInput value={password} onChange={setPassword} placeholder='设置登录密码' password />
+          <Field label={t('reg.setPassword')} hint={t('reg.passwordHint')}>
+            <TxtInput value={password} onChange={setPassword} placeholder={t('reg.passwordPlaceholder')} password />
           </Field>
-          <Field label='昵称（选填）'>
-            <TxtInput value={nickname} onChange={setNickname} placeholder='家人怎么称呼您' />
+          <Field label={t('reg.nickname')}>
+            <TxtInput value={nickname} onChange={setNickname} placeholder={t('reg.nicknamePlaceholder')} />
           </Field>
           {channel === 'email' && (
-            <Field label='手机号（选填）' hint='选填：未验证，暂不能用于短信提醒与找回密码'>
-              <TxtInput value={emailPhone} onChange={setEmailPhone} placeholder='11 位手机号（选填）' type='number' maxlength={11} />
+            <Field label={t('reg.phoneOptional')} hint={t('reg.phoneOptionalHint')}>
+              <TxtInput value={emailPhone} onChange={setEmailPhone} placeholder={t('reg.phoneOptionalPlaceholder')} type='number' maxlength={11} />
             </Field>
           )}
           <ErrorLine error={error} />
           <Btn block disabled={busy} onClick={submit}>
-            {busy ? '注册中…' : '注册并登录'}
+            {busy ? t('reg.registering') : t('reg.registerBtn')}
           </Btn>
           <Text className='tx-md' style={{ textAlign: 'center' }}>
-            已有账号？
+            {t('reg.hasAccount')}
             <Text className='tx-green' onClick={() => Taro.navigateBack()}>
-              去登录
+              {t('reg.goLogin')}
             </Text>
           </Text>
         </View>

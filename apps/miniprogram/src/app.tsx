@@ -7,6 +7,7 @@ import { setSessionExpiredHandler, tokenStore } from './lib/api';
 import { actions, bootstrap, careModeOn, useApp } from './lib/store';
 import { HOME_TAB, LOGIN_PAGE } from './lib/hooks';
 import { Btn } from './components/ui';
+import { subscribeLocale, tr } from './lib/i18n';
 
 /**
  * 小程序入口：
@@ -30,17 +31,17 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | 
     if (this.state.error) {
       return (
         <View className='pg'>
-          <Text className='tx-title'>页面出错了</Text>
+          <Text className='tx-title'>{tr('app.errorTitle')}</Text>
           <Text className='tx-md' style={{ lineHeight: 1.7 }}>
             {String(this.state.error.message ?? this.state.error)}
           </Text>
           <Text className='tx-sm tx-sub' style={{ lineHeight: 1.7 }}>
-            请把这一屏截图发给开发者定位，可点击下方按钮重试或返回首页。
+            {tr('app.errorHint')}
           </Text>
           <View className='row' style={{ gap: '12rpx' }}>
             <View className='grow'>
               <Btn variant='soft' block onClick={() => this.setState({ error: null })}>
-                重试
+                {tr('app.retry')}
               </Btn>
             </View>
             <View className='grow'>
@@ -51,7 +52,7 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | 
                   Taro.switchTab({ url: HOME_TAB });
                 }}
               >
-                返回首页
+                {tr('app.backHome')}
               </Btn>
             </View>
           </View>
@@ -68,6 +69,8 @@ function App({ children }: PropsWithChildren) {
   const themeId = useApp((s) => s.themeId);
 
   useLaunch(() => {
+    syncTabBarLabels();
+    subscribeLocale(syncTabBarLabels);
     setSessionExpiredHandler(() => {
       tokenStore.clear();
       actions.resetSession();
@@ -89,3 +92,16 @@ function App({ children }: PropsWithChildren) {
 }
 
 export default App;
+
+/** tabBar 文案按当前语言同步（app.config.ts 仅为简体默认，语言切换后即时刷新）。 */
+function syncTabBarLabels(): void {
+  const items = [
+    { index: 0, text: tr('nav.today') },
+    { index: 1, text: tr('nav.planTab') },
+    { index: 2, text: tr('nav.adherenceTab') },
+    { index: 3, text: tr('nav.me') },
+  ];
+  items.forEach((item) => {
+    Taro.setTabBarItem(item).catch(() => undefined);
+  });
+}

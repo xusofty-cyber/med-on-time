@@ -6,6 +6,7 @@ import { toastError, toastOk } from '../../lib/api';
 import { fmtDateTime } from '../../lib/time';
 import { useSessionGuard } from '../../lib/hooks';
 import { Card, Loading, PageShell } from '../../components/ui';
+import { tr, useNavTitle, useT } from '../../lib/i18n';
 
 function extractTicket(raw: string | undefined): string | null {
   if (!raw) return null;
@@ -22,6 +23,8 @@ function extractTicket(raw: string | undefined): string | null {
 }
 
 export default function BindConfirm() {
+  const t = useT();
+  useNavTitle('nav.bindConfirm');
   const router = useRouter();
   const ticket = extractTicket(router.params.t);
   const { booted, account } = useSessionGuard();
@@ -40,7 +43,7 @@ export default function BindConfirm() {
       })
       .catch(() => {
         if (!cancelled) {
-          setPreviewError('无法读取目标账号信息，为安全起见已禁用确认，请返回重新扫码。');
+          setPreviewError(tr('bind.previewError'));
         }
       });
     return () => {
@@ -50,7 +53,7 @@ export default function BindConfirm() {
 
   const confirm = async () => {
     if (!ticket) {
-      toastError(new Error('未找到有效的绑定票据，请重新扫码'));
+      toastError(new Error(tr('bind.noTicket')));
       return;
     }
     setBusy(true);
@@ -58,16 +61,16 @@ export default function BindConfirm() {
       let code: string;
       try {
         const res = await Taro.login();
-        if (!res.code) throw new Error('未获取到微信登录凭证');
+        if (!res.code) throw new Error(tr('auth.wxNoCode'));
         code = res.code;
       } catch {
-        toastError(new Error('微信登录失败，请重试'));
+        toastError(new Error(tr('bind.wxFail')));
         return;
       }
 
       await authApi.confirmBindTicket(ticket, code);
       setDone(true);
-      toastOk('微信绑定成功');
+      toastOk(tr('bind.ok'));
       setTimeout(() => {
         Taro.navigateBack();
       }, 1500);
@@ -78,43 +81,43 @@ export default function BindConfirm() {
     }
   };
 
-  if (!booted) return <Loading text='正在恢复会话…' />;
-  if (!account) return <Loading text='正在前往登录…' />;
+  if (!booted) return <Loading text={tr('flow.restoring')} />;
+  if (!account) return <Loading text={tr('flow.toLogin')} />;
 
   return (
     <PageShell>
       <Card>
         <View className='col' style={{ gap: '16rpx' }}>
-          <Text className='tx-h tx-strong'>绑定微信账号</Text>
+          <Text className='tx-h tx-strong'>{t('bind.title')}</Text>
           {done ? (
             <>
-              <Text className='tx-md'>微信已成功绑定到网页账号，即将返回。</Text>
+              <Text className='tx-md'>{t('bind.done')}</Text>
               <Button className='btn btn-primary btn-block' onClick={() => Taro.navigateBack()}>
-                返回
+                {t('common.back')}
               </Button>
             </>
           ) : ticket ? (
             <>
-              <Text className='tx-md'>将当前微信绑定到下方网页账号，请仔细核对：</Text>
+              <Text className='tx-md'>{t('bind.intro')}</Text>
               {preview ? (
                 <View className='col' style={{ gap: '8rpx' }}>
-                  <Text className='tx-md tx-strong'>目标账号：{preview.targetNickname}</Text>
+                  <Text className='tx-md tx-strong'>{t('bind.target', { name: preview.targetNickname })}</Text>
                   {preview.targetPhoneMasked ? (
-                    <Text className='tx-sm'>手机号：{preview.targetPhoneMasked}</Text>
+                    <Text className='tx-sm'>{t('bind.phone', { p: preview.targetPhoneMasked })}</Text>
                   ) : null}
                   {preview.targetEmailMasked ? (
-                    <Text className='tx-sm'>邮箱：{preview.targetEmailMasked}</Text>
+                    <Text className='tx-sm'>{t('bind.email', { e: preview.targetEmailMasked })}</Text>
                   ) : null}
-                  <Text className='tx-sm'>发起时间：{fmtDateTime(preview.createdAt)}</Text>
-                  <Text className='tx-sm'>有效期至：{fmtDateTime(preview.expiresAt)}</Text>
+                  <Text className='tx-sm'>{t('flow.createdAt', { t: fmtDateTime(preview.createdAt) })}</Text>
+                  <Text className='tx-sm'>{t('flow.expiresAt', { t: fmtDateTime(preview.expiresAt) })}</Text>
                 </View>
               ) : previewError ? (
                 <Text className='tx-sm tx-sub'>{previewError}</Text>
               ) : (
-                <Text className='tx-sm tx-sub'>正在读取目标账号信息…</Text>
+                <Text className='tx-sm tx-sub'>{t('bind.loadingPreview')}</Text>
               )}
               <Text className='tx-sm tx-sub'>
-                绑定后，您可以使用当前微信扫码登录药准时网页版，并接收用药提醒通知。若上方账号不是您本人的，请勿确认。
+                {t('bind.note')}
               </Text>
               <Button
                 className='btn btn-primary btn-block'
@@ -122,27 +125,27 @@ export default function BindConfirm() {
                 disabled={!preview}
                 onClick={confirm}
               >
-                确认绑定
+                {t('bind.confirm')}
               </Button>
               <Button
                 className='btn btn-ghost btn-block'
                 onClick={() => Taro.navigateBack()}
               >
-                取消
+                {t('common.cancel')}
               </Button>
             </>
           ) : (
             <>
-              <Text className='tx-md'>未检测到绑定票据，请返回重新扫码。</Text>
+              <Text className='tx-md'>{t('bind.noTicketPage')}</Text>
               <Button className='btn btn-primary btn-block' onClick={() => Taro.navigateBack()}>
-                返回
+                {t('common.back')}
               </Button>
             </>
           )}
         </View>
       </Card>
       <Text className='tx-sm tx-sub'>
-        安全提示：只有您本人在电脑上发起的微信绑定才应确认；他人发来的二维码请勿扫描或确认。
+        {t('bind.security')}
       </Text>
     </PageShell>
   );

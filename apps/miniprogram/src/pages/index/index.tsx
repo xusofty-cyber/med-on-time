@@ -6,11 +6,12 @@ import { toastError, toastOk } from '../../lib/api';
 import { getState, useApp } from '../../lib/store';
 import { useSessionGuard } from '../../lib/hooks';
 import { requestReminderSubscribe } from '../../lib/notify';
-import { INSTANCE_STATUS_LABELS, MEAL_LABELS } from '../../lib/dict';
+import { instanceStatusLabels, mealLabels } from '../../lib/dict';
 import { fmtTime, wallTime } from '../../lib/time';
 import type { ReminderInstance } from '../../lib/types';
 import { Badge, Btn, Card, EmptyState, ErrorLine, Field, Loading, PageShell, Sheet, TxtInput } from '../../components/ui';
 import { MemberBar } from '../../components/MemberBar';
+import { tr, useNavTitle, useT } from '../../lib/i18n';
 
 const DONE = new Set(['taken', 'skipped', 'cancelled']);
 
@@ -44,6 +45,8 @@ function dotColor(status: string, isDue: boolean): string {
  * 见 lib/notify.ts 与「我的 → 设置」订阅入口）。
  */
 export default function Index() {
+  const t = useT();
+  useNavTitle('nav.today');
   const { booted, account } = useSessionGuard();
   const memberId = useApp((s) => s.currentMemberId);
   const members = useApp((s) => s.members);
@@ -126,8 +129,8 @@ export default function Index() {
     }
   };
 
-  if (!booted) return <Loading text='正在恢复会话…' />;
-  if (!account) return <Loading text='正在前往登录…' />;
+  if (!booted) return <Loading text={t('today.restoring')} />;
+  if (!account) return <Loading text={t('today.goingLogin')} />;
 
   const takenCount = (items ?? []).filter((i) => i.status === 'taken').length;
   const totalCount = (items ?? []).filter((i) => i.status !== 'cancelled').length;
@@ -137,28 +140,28 @@ export default function Index() {
       <MemberBar />
       <View className='row-between'>
         <View className='col' style={{ gap: '6rpx' }}>
-          <Text className='tx-title'>{member?.displayName ?? ''} · 今日提醒</Text>
+          <Text className='tx-title'>{member?.displayName ?? ''}{t('today.titleSuffix')}</Text>
           <Text className='tx-md tx-sub'>
-            今天共 {totalCount} 次服药，已完成 {takenCount} 次
+            {t('today.summary', { total: totalCount, taken: takenCount })}
           </Text>
         </View>
       </View>
       <Btn variant='soft' onClick={() => void requestReminderSubscribe()}>
-        订阅微信到点提醒
+        {t('today.subscribe')}
       </Btn>
       <ErrorLine error={error} />
 
       {due.length > 0 && (
         <View className='due-banner'>
           <Text className='tx-h' style={{ color: 'var(--color-status-warning-text)' }}>
-            ⏰ 到吃药的时间了
+            {t('today.dueTitle')}
           </Text>
           <View className='col' style={{ gap: '6rpx', marginTop: '10rpx' }}>
             {due.map((i) => (
               <Text key={i.id} className='tx-md' style={{ color: 'var(--color-status-warning-text-deep)' }}>
                 {wallTime(i.localTime)} · {i.drugNameSnapshot} {i.doseAmount}
                 {i.doseUnit}
-                {care?.lockScreenShowDrugDetail && i.storageLocation ? ` · 存放于 ${i.storageLocation}` : ''}
+                {care?.lockScreenShowDrugDetail && i.storageLocation ? t('today.storedAt', { location: i.storageLocation }) : ''}
               </Text>
             ))}
           </View>
@@ -167,17 +170,17 @@ export default function Index() {
 
       {!memberId ? (
         <Card>
-          <EmptyState text='还没有成员。请先添加本人或要照护的家人。' />
+          <EmptyState text={t('today.noMember')} />
           <Btn block onClick={() => Taro.navigateTo({ url: '/pages/members/index' })}>
-            去添加成员
+            {t('today.goAddMember')}
           </Btn>
         </Card>
       ) : (
         <Card>
           {items === null ? (
-            <Loading text='正在加载今日提醒…' />
+            <Loading text={t('today.loading')} />
           ) : items.length === 0 ? (
-            <EmptyState text='今天没有用药安排。可在「计划」页为该成员添加计划。' />
+            <EmptyState text={t('today.empty')} />
           ) : (
             <View className='col'>
               {items.map((item, idx) => {
@@ -197,17 +200,17 @@ export default function Index() {
                           {item.doseUnit}
                         </Text>
                         <Badge tone={statusTone(item.status)} icon={statusIcon(item.status)}>
-                          {INSTANCE_STATUS_LABELS[item.status] ?? item.status}
+                          {instanceStatusLabels()[item.status] ?? item.status}
                         </Badge>
                         {item.mealRelation && item.mealRelation !== 'none' && (
-                          <Badge tone='gray'>{MEAL_LABELS[item.mealRelation] ?? item.mealRelation}</Badge>
+                          <Badge tone='gray'>{mealLabels()[item.mealRelation] ?? item.mealRelation}</Badge>
                         )}
                       </View>
                       <View className='col' style={{ gap: '4rpx', marginTop: '8rpx' }}>
-                        {item.storageLocation && <Text className='tx-sm tx-sub'>存放位置：{item.storageLocation}</Text>}
-                        {item.additionalNote && <Text className='tx-sm tx-sub'>备注：{item.additionalNote}</Text>}
+                        {item.storageLocation && <Text className='tx-sm tx-sub'>{t('today.storage', { location: item.storageLocation })}</Text>}
+                        {item.additionalNote && <Text className='tx-sm tx-sub'>{t('today.noteLabel', { note: item.additionalNote })}</Text>}
                         {item.status === 'snoozed' && item.snoozeUntil && (
-                          <Text className='tx-sm tx-sub'>已顺延至 {fmtTime(item.snoozeUntil, item.timezone)} 再次提醒</Text>
+                          <Text className='tx-sm tx-sub'>{t('today.snoozedTo', { time: fmtTime(item.snoozeUntil, item.timezone) })}</Text>
                         )}
                       </View>
                       {!done && canOperate && (
@@ -217,9 +220,9 @@ export default function Index() {
                               variant='success'
                               block
                               disabled={busyId === item.id}
-                              onClick={() => void act(item.id, () => reminderApi.checkin(item.id), '已打卡，服药记录完成')}
+                              onClick={() => void act(item.id, () => reminderApi.checkin(item.id), t('today.checkinOk'))}
                             >
-                              ✓ 已服用
+                              {t('today.takenBtn')}
                             </Btn>
                           </View>
                           <View className='grow'>
@@ -227,13 +230,13 @@ export default function Index() {
                               variant='soft'
                               block
                               disabled={busyId === item.id}
-                              onClick={() => void act(item.id, () => reminderApi.snooze(item.id), '已稍后提醒（按周期顺延）')}
+                              onClick={() => void act(item.id, () => reminderApi.snooze(item.id), t('today.snoozeOk'))}
                             >
-                              ◷ 稍后提醒
+                              {t('today.snoozeBtn')}
                             </Btn>
                           </View>
                           <Btn variant='ghost' disabled={busyId === item.id} onClick={() => setSkipTarget(item)}>
-                            ✕ 跳过
+                            {t('today.skipBtn')}
                           </Btn>
                         </View>
                       )}
@@ -246,18 +249,18 @@ export default function Index() {
         </Card>
       )}
 
-      <Sheet open={skipTarget !== null} title='跳过这次服药' onClose={() => setSkipTarget(null)}>
+      <Sheet open={skipTarget !== null} title={t('today.skipTitle')} onClose={() => setSkipTarget(null)}>
         <View className='col' style={{ gap: '24rpx' }}>
           <Text className='tx-md tx-sub'>
-            将把「{skipTarget?.drugNameSnapshot}」本次标记为跳过，并计入依从统计。请确认不是误操作。
+            {t('today.skipDesc', { drug: skipTarget?.drugNameSnapshot ?? '' })}
           </Text>
-          <Field label='跳过原因（选填）'>
-            <TxtInput value={skipReason} onChange={setSkipReason} placeholder='如：医生嘱咐暂停' />
+          <Field label={t('today.skipReason')}>
+            <TxtInput value={skipReason} onChange={setSkipReason} placeholder={t('today.skipReasonPlaceholder')} />
           </Field>
           <View className='row' style={{ gap: '12rpx' }}>
             <View className='grow'>
               <Btn variant='ghost' block onClick={() => setSkipTarget(null)}>
-                取消
+                {tr('common.cancel')}
               </Btn>
             </View>
             <View className='grow'>
@@ -267,11 +270,11 @@ export default function Index() {
                 onClick={() => {
                   const target = skipTarget;
                   setSkipTarget(null);
-                  if (target) void act(target.id, () => reminderApi.skip(target.id, skipReason || undefined), '已跳过本次');
+                  if (target) void act(target.id, () => reminderApi.skip(target.id, skipReason || undefined), tr('today.skippedOk'));
                   setSkipReason('');
                 }}
               >
-                确认跳过
+                {tr('today.skipConfirm')}
               </Btn>
             </View>
           </View>

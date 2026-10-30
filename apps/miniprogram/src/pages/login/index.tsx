@@ -7,12 +7,15 @@ import { actions, useApp } from '../../lib/store';
 import { navigateAfterAuth } from '../../lib/hooks';
 import type { Account, AuthResult } from '../../lib/types';
 import { Btn, Card, ErrorLine, Field, PageShell, SegTabs, TxtInput } from '../../components/ui';
+import { tr, useNavTitle, useT } from '../../lib/i18n';
 import { EmailCodeButton } from '../../components/EmailCodeButton';
 
 /** 登录：手机号/邮箱 + 密码 / 邮箱验证码双模式；含忘记密码（验证码重置）。与 Web 端 Login 同逻辑。
  * 验证码通道：邮箱为唯一可用通道（默认）；短信通道暂未开通（个人拿不到腾讯云短信签名/模板），
  * 短信入口保留并标注，发码/提交一律拦截提示并切回邮箱 tab，不调后端接口。 */
 export default function Login() {
+  const t = useT();
+  useNavTitle('nav.login');
   const booted = useApp((s) => s.booted);
   const account = useApp((s) => s.account);
   const [mode, setMode] = useState<'password' | 'code'>('password');
@@ -62,28 +65,28 @@ export default function Login() {
     const isEmail = identifier.includes('@');
     if (mode === 'code' && codeChannel === 'phone') {
       /* 短信通道暂未开通：不调接口，提示并切回邮箱 tab */
-      toastError(new Error('短信通道暂未开通，请使用邮箱验证码'));
+      toastError(new Error(t('auth.smsNotOpen')));
       setCodeChannel('email');
       return;
     }
     if (mode === 'code' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      setError(new Error('请输入正确的邮箱地址'));
+      setError(new Error(t('auth.invalidEmail')));
       return;
     }
     if (mode === 'code' && !emailCode) {
-      setError(new Error('请输入邮箱验证码'));
+      setError(new Error(t('auth.enterEmailCode')));
       return;
     }
     if (mode === 'password' && isEmail && !/^\S+@\S+\.\S+$/.test(identifier)) {
-      setError(new Error('请输入正确的邮箱地址'));
+      setError(new Error(t('auth.invalidEmail')));
       return;
     }
     if (mode === 'password' && !isEmail && !/^1\d{10}$/.test(identifier)) {
-      setError(new Error('请输入正确的手机号或邮箱'));
+      setError(new Error(t('auth.invalidIdentifier')));
       return;
     }
     if (mode === 'password' && !password) {
-      setError(new Error('请输入密码'));
+      setError(new Error(t('auth.enterPassword')));
       return;
     }
     setBusy(true);
@@ -94,10 +97,10 @@ export default function Login() {
           ? await authApi.login({ account: identifier, password })
           : await authApi.loginByCode({ email, code: emailCode });
       await persistSession(result);
-      toastOk('登录成功');
+      toastOk(t('auth.loginOk'));
       navigateAfterAuth();
     } catch (err) {
-      if (err instanceof ApiError && err.code === 401) setError(new Error('账号或密码不正确'));
+      if (err instanceof ApiError && err.code === 401) setError(new Error(t('auth.wrongCredentials')));
       else setError(err);
     } finally {
       setBusy(false);
@@ -112,17 +115,17 @@ export default function Login() {
       let code: string;
       try {
         const res = await Taro.login();
-        if (!res.code) throw new Error('未获取到微信登录凭证');
+        if (!res.code) throw new Error(t('auth.wxNoCode'));
         code = res.code;
       } catch {
-        toastError(new Error('微信登录失败，请重试'));
+        toastError(new Error(t('auth.wxFailed')));
         return;
       }
       const result = await authApi.wechatMiniappLogin({ code });
       const acct = await persistSession(result, (a) => {
         if (a?.phoneVerified === false) phoneVerifyPendingRef.current = true;
       });
-      toastOk('登录成功');
+      toastOk(t('auth.loginOk'));
       if (acct?.phoneVerified === false) {
         /* 先不跳首页，页面内展示手机号验证引导卡片 */
         setNeedPhoneVerify(true);
@@ -146,18 +149,18 @@ export default function Login() {
   const onGetPhoneNumber = async (e: { detail: { code?: string; errMsg?: string } }) => {
     const errMsg = e.detail.errMsg ?? '';
     if (errMsg.includes('deny')) {
-      toastInfo('可稍后在设置页完成手机号验证');
+      toastInfo(t('auth.verifyLaterHint'));
       return;
     }
     const phoneCode = e.detail.code;
     if (!phoneCode) {
-      toastError(new Error('未获取到手机号授权，请重试'));
+      toastError(new Error(t('auth.noPhoneAuth')));
       return;
     }
     try {
       const updated = await authApi.verifyPhoneByWechat(phoneCode);
       actions.setAccount(updated);
-      toastOk('手机号已验证');
+      toastOk(t('auth.phoneVerified'));
       goHomeAfterPhoneVerifyGuide();
     } catch (err) {
       /* 40910（与已登记号码不一致）等业务错误 message 直接透出 */
@@ -169,30 +172,30 @@ export default function Login() {
     <PageShell style={{ paddingTop: '72rpx' }}>
       <View className='col' style={{ alignItems: 'center', gap: '12rpx' }}>
         <Text className='tx-title' style={{ fontSize: '56rpx' }}>
-          药准时 MedOnTime
+          {t('auth.brandTitle')}
         </Text>
-        <Text className='tx-md tx-sub'>按时吃药，家人放心</Text>
+        <Text className='tx-md tx-sub'>{t('auth.tagline')}</Text>
       </View>
       <Card>
         <View className='col' style={{ gap: '24rpx' }}>
           <SegTabs
             options={[
-              { value: 'password', label: '密码登录' },
-              { value: 'code', label: '验证码登录' },
+              { value: 'password', label: t('auth.tabPassword') },
+              { value: 'code', label: t('auth.tabCode') },
             ]}
             value={mode}
             onChange={(v) => setMode(v as 'password' | 'code')}
           />
           {mode === 'password' ? (
-            <Field label='账号'>
-              <TxtInput value={identifier} onChange={setIdentifier} placeholder='手机号或邮箱' maxlength={64} />
+            <Field label={t('auth.account')}>
+              <TxtInput value={identifier} onChange={setIdentifier} placeholder={t('auth.accountPlaceholder')} maxlength={64} />
             </Field>
           ) : (
             <>
               <SegTabs
                 options={[
-                  { value: 'phone', label: '手机号（暂未开通）' },
-                  { value: 'email', label: '邮箱' },
+                  { value: 'phone', label: t('auth.channelPhoneSoon') },
+                  { value: 'email', label: t('auth.channelEmail') },
                 ]}
                 value={codeChannel}
                 onChange={(v) => setCodeChannel(v as 'phone' | 'email')}
@@ -200,37 +203,37 @@ export default function Login() {
               {codeChannel === 'phone' ? (
                 <>
                   <Text className='tx-sm' style={{ color: 'var(--color-status-danger-text)' }}>
-                    短信通道暂未开通，请使用邮箱验证码
+                    {t('auth.smsNotOpen')}
                   </Text>
-                  <Field label='手机号'>
-                    <TxtInput value={identifier} onChange={setIdentifier} placeholder='请输入 11 位手机号' type='number' maxlength={11} />
+                  <Field label={t('auth.phone')}>
+                    <TxtInput value={identifier} onChange={setIdentifier} placeholder={t('auth.phonePlaceholder')} type='number' maxlength={11} />
                   </Field>
-                  <Field label='短信验证码'>
+                  <Field label={t('auth.smsCode')}>
                     <View className='row' style={{ gap: '12rpx' }}>
                       <View className='grow'>
-                        <TxtInput value={code} onChange={setCode} placeholder='6 位验证码' type='number' maxlength={6} />
+                        <TxtInput value={code} onChange={setCode} placeholder={t('auth.codePlaceholder')} type='number' maxlength={6} />
                       </View>
                       <Btn
                         variant='soft'
                         onClick={() => {
-                          toastError(new Error('短信通道暂未开通，请使用邮箱验证码'));
+                          toastError(new Error(tr('auth.smsNotOpen')));
                           setCodeChannel('email');
                         }}
                       >
-                        发送验证码
+                        {tr('auth.sendCode')}
                       </Btn>
                     </View>
                   </Field>
                 </>
               ) : (
                 <>
-                  <Field label='邮箱'>
-                    <TxtInput value={email} onChange={setEmail} placeholder='请输入邮箱地址' maxlength={254} />
+                  <Field label={t('auth.email')}>
+                    <TxtInput value={email} onChange={setEmail} placeholder={t('auth.emailPlaceholder')} maxlength={254} />
                   </Field>
-                  <Field label='邮箱验证码'>
+                  <Field label={t('auth.emailCode')}>
                     <View className='row' style={{ gap: '12rpx' }}>
                       <View className='grow'>
-                        <TxtInput value={emailCode} onChange={setEmailCode} placeholder='6 位验证码' type='number' maxlength={6} />
+                        <TxtInput value={emailCode} onChange={setEmailCode} placeholder={t('auth.codePlaceholder')} type='number' maxlength={6} />
                       </View>
                       <EmailCodeButton email={email} scene='login' />
                     </View>
@@ -240,23 +243,23 @@ export default function Login() {
             </>
           )}
           {mode === 'password' && (
-            <Field label='密码'>
-              <TxtInput value={password} onChange={setPassword} placeholder='请输入密码' password />
+            <Field label={t('auth.password')}>
+              <TxtInput value={password} onChange={setPassword} placeholder={t('auth.passwordPlaceholder')} password />
             </Field>
           )}
           <ErrorLine error={error} />
           <Btn block disabled={busy} onClick={submit}>
-            {busy ? '登录中…' : '登录'}
+            {busy ? t('auth.loggingIn') : t('auth.login')}
           </Btn>
           <Btn variant='soft' block disabled={wxBusy} onClick={wechatLogin}>
-            {wxBusy ? '微信登录中…' : '微信一键登录'}
+            {wxBusy ? t('auth.wxLoggingIn') : t('auth.wxLogin')}
           </Btn>
           <View className='row-between'>
             <Text className='tx-md tx-green' onClick={() => Taro.navigateTo({ url: '/pages/register/index' })}>
-              注册新账号
+              {t('auth.registerNew')}
             </Text>
             <Text className='tx-md tx-sub' onClick={() => setResetOpen((v) => !v)}>
-              忘记密码
+              {t('auth.forgot')}
             </Text>
           </View>
           {resetOpen && <ResetPasswordForm onDone={() => setResetOpen(false)} />}
@@ -265,9 +268,9 @@ export default function Login() {
       {needPhoneVerify && (
         <Card>
           <View className='col' style={{ gap: '20rpx' }}>
-            <Text className='tx-h'>还差一步：验证手机号</Text>
+            <Text className='tx-h'>{t('auth.verifyTitle')}</Text>
             <Text className='tx-md tx-sub' style={{ lineHeight: 1.7 }}>
-              完成手机号验证后可接收短信提醒并接受家人照护授权
+              {t('auth.verifyDesc')}
             </Text>
             {/* getPhoneNumber 必须使用 @tarojs/components 原生 Button，项目 Btn（View 封装）无法触发微信授权 */}
             <Button
@@ -275,22 +278,23 @@ export default function Login() {
               openType='getPhoneNumber'
               onGetPhoneNumber={onGetPhoneNumber}
             >
-              验证手机号
+              {t('auth.verifyPhoneBtn')}
             </Button>
             <Btn variant='ghost' block onClick={goHomeAfterPhoneVerifyGuide}>
-              稍后再说
+              {t('auth.later')}
             </Btn>
           </View>
         </Card>
       )}
       <Text className='tx-sm tx-sub' style={{ textAlign: 'center' }}>
-        登录即代表同意《用户协议》与《隐私政策》；用药数据仅用于提醒与照护。
+        {t('auth.consent')}
       </Text>
     </PageShell>
   );
 }
 
 function ResetPasswordForm({ onDone }: { onDone: () => void }) {
+  const t = useT();
   /* 找回通道：默认邮箱（唯一可用通道）；手机号入口保留但暂未开通 */
   const [channel, setChannel] = useState<'phone' | 'email'>('email');
   const [phone, setPhone] = useState('');
@@ -302,26 +306,26 @@ function ResetPasswordForm({ onDone }: { onDone: () => void }) {
   const submit = async () => {
     if (channel === 'phone') {
       /* 短信通道暂未开通：不调接口，提示并切回邮箱 tab */
-      toastError(new Error('短信通道暂未开通，请使用邮箱验证码'));
+      toastError(new Error(tr('auth.smsNotOpen')));
       setChannel('email');
       return;
     }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      toastError(new Error('请输入正确的邮箱地址'));
+      toastError(new Error(tr('auth.invalidEmail')));
       return;
     }
     if (!emailCode.trim()) {
-      toastError(new Error('请输入邮箱验证码'));
+      toastError(new Error(tr('auth.enterEmailCode')));
       return;
     }
     if (newPassword.length < 8) {
-      toastError(new Error('新密码至少 8 位'));
+      toastError(new Error(tr('auth.newPasswordTooShort')));
       return;
     }
     setBusy(true);
     try {
       await authApi.resetPassword({ email, code: emailCode, newPassword });
-      toastOk('密码已重置，请用新密码登录');
+      toastOk(tr('auth.passwordReset'));
       onDone();
     } catch (e) {
       toastError(e);
@@ -331,11 +335,11 @@ function ResetPasswordForm({ onDone }: { onDone: () => void }) {
   };
   return (
     <View className='col' style={{ gap: '20rpx', borderTop: '1rpx solid var(--color-background-muted)', paddingTop: '24rpx' }}>
-      <Text className='tx-h'>重置密码</Text>
+      <Text className='tx-h'>{t('auth.resetTitle')}</Text>
       <SegTabs
         options={[
-          { value: 'phone', label: '手机号（暂未开通）' },
-          { value: 'email', label: '邮箱' },
+          { value: 'phone', label: t('auth.channelPhoneSoon') },
+          { value: 'email', label: t('auth.channelEmail') },
         ]}
         value={channel}
         onChange={(v) => setChannel(v as 'phone' | 'email')}
@@ -343,55 +347,55 @@ function ResetPasswordForm({ onDone }: { onDone: () => void }) {
       {channel === 'phone' ? (
         <>
           <Text className='tx-sm' style={{ color: 'var(--color-status-danger-text)' }}>
-            短信通道暂未开通，请使用邮箱验证码
+            {t('auth.smsNotOpen')}
           </Text>
-          <Field label='手机号'>
-            <TxtInput value={phone} onChange={setPhone} placeholder='注册手机号' type='number' maxlength={11} />
+          <Field label={t('auth.phone')}>
+            <TxtInput value={phone} onChange={setPhone} placeholder={t('auth.registerPhonePlaceholder')} type='number' maxlength={11} />
           </Field>
-          <Field label='短信验证码'>
+          <Field label={t('auth.smsCode')}>
             <View className='row' style={{ gap: '12rpx' }}>
               <View className='grow'>
-                <TxtInput value={code} onChange={setCode} placeholder='6 位验证码' type='number' maxlength={6} />
+                <TxtInput value={code} onChange={setCode} placeholder={t('auth.codePlaceholder')} type='number' maxlength={6} />
               </View>
               <Btn
                 variant='soft'
                 onClick={() => {
-                  toastError(new Error('短信通道暂未开通，请使用邮箱验证码'));
+                  toastError(new Error(tr('auth.smsNotOpen')));
                   setChannel('email');
                 }}
               >
-                发送验证码
+                {tr('auth.sendCode')}
               </Btn>
             </View>
           </Field>
         </>
       ) : (
         <>
-          <Field label='邮箱'>
-            <TxtInput value={email} onChange={setEmail} placeholder='注册邮箱地址' maxlength={254} />
+          <Field label={t('auth.email')}>
+            <TxtInput value={email} onChange={setEmail} placeholder={t('auth.registerEmailPlaceholder')} maxlength={254} />
           </Field>
-          <Field label='邮箱验证码'>
+          <Field label={t('auth.emailCode')}>
             <View className='row' style={{ gap: '12rpx' }}>
               <View className='grow'>
-                <TxtInput value={emailCode} onChange={setEmailCode} placeholder='6 位验证码' type='number' maxlength={6} />
+                <TxtInput value={emailCode} onChange={setEmailCode} placeholder={t('auth.codePlaceholder')} type='number' maxlength={6} />
               </View>
               <EmailCodeButton email={email} scene='reset' />
             </View>
           </Field>
         </>
       )}
-      <Field label='新密码'>
-        <TxtInput value={newPassword} onChange={setNewPassword} placeholder='至少 8 位' password />
+      <Field label={t('auth.newPassword')}>
+        <TxtInput value={newPassword} onChange={setNewPassword} placeholder={t('auth.newPasswordPlaceholder')} password />
       </Field>
       <View className='row' style={{ gap: '12rpx' }}>
         <View className='grow'>
           <Btn variant='ghost' block onClick={onDone}>
-            取消
+            {tr('common.cancel')}
           </Btn>
         </View>
         <View className='grow'>
           <Btn block disabled={busy} onClick={submit}>
-            确认重置
+            {tr('auth.confirmReset')}
           </Btn>
         </View>
       </View>

@@ -5,9 +5,10 @@ import { memberApi } from '../../lib/endpoints';
 import { toastError, toastOk } from '../../lib/api';
 import { actions, useApp } from '../../lib/store';
 import { useSessionGuard } from '../../lib/hooks';
-import { GENDER_LABELS, RELATIONSHIP_LABELS } from '../../lib/dict';
-import { CYCLE_PRESETS, STRONG_ALERT_LABELS, type CareSettings, type CyclePresetKey, type Member, type StrongAlertMode } from '../../lib/types';
+import { genderLabels, relationshipLabels } from '../../lib/dict';
+import { cyclePresets, strongAlertLabels, type CareSettings, type CyclePresetKey, type Member, type StrongAlertMode } from '../../lib/types';
 import { Badge, Btn, Card, DatePick, EmptyState, ErrorLine, Field, Loading, PageShell, Pick, Sheet, SwitchRow, TxtInput } from '../../components/ui';
+import { tr, useNavTitle, useT } from '../../lib/i18n';
 
 const MAX_MEMBERS = 10;
 const DEFAULT_CARE: CareSettings = {
@@ -21,6 +22,8 @@ const DEFAULT_CARE: CareSettings = {
 
 /** 成员管理：列表（上限 10 自有成员）、新建/编辑/删除、切换当前成员、关怀与提醒设置。与 Web 端 Members 同逻辑。 */
 export default function Members() {
+  const t = useT();
+  useNavTitle('nav.members');
   useSessionGuard();
   const members = useApp((s) => s.members);
   const currentMemberId = useApp((s) => s.currentMemberId);
@@ -39,15 +42,15 @@ export default function Members() {
 
   const remove = async (m: Member) => {
     const res = await Taro.showModal({
-      title: '删除成员',
-      content: `确定要删除成员「${m.displayName}」吗？其计划与记录将一并归档，不再显示。`,
-      confirmText: '删除',
+      title: t('memb.deleteTitle'),
+      content: t('memb.deleteContent', { name: m.displayName }),
+      confirmText: t('common.delete'),
       confirmColor: '#DC2626',
     });
     if (!res.confirm) return;
     try {
       await memberApi.remove(m.id);
-      toastOk('成员已删除');
+      toastOk(t('memb.deletedOk'));
       await refresh();
     } catch (e) {
       toastError(e);
@@ -57,20 +60,20 @@ export default function Members() {
   return (
     <PageShell>
       <View className='row-between'>
-        <Text className='tx-title'>成员管理</Text>
+        <Text className='tx-title'>{t('memb.title')}</Text>
         <Btn disabled={ownCount >= MAX_MEMBERS} onClick={() => setEditing('new')}>
-          + 添加成员
+          {t('memb.add')}
         </Btn>
       </View>
       <Text className='tx-md tx-sub'>
-        每个账号最多管理 {MAX_MEMBERS} 位成员（当前自有成员 {ownCount} 位）
-        {ownCount >= MAX_MEMBERS ? '，已达上限，请先删除不再需要的成员' : ''}
-        。被授权照护的成员也会出现在列表中，并标注授权级别。
+        {t('memb.limitNoteA', { max: MAX_MEMBERS, own: ownCount })}
+        {ownCount >= MAX_MEMBERS ? t('memb.limitReached') : ''}
+        {t('memb.limitNoteB')}
       </Text>
       <ErrorLine error={error} />
       {members.length === 0 ? (
         <Card>
-          <EmptyState text='还没有任何成员，点击「添加成员」开始。' />
+          <EmptyState text={t('memb.empty')} />
         </Card>
       ) : (
         <View className='col' style={{ gap: '24rpx' }}>
@@ -80,37 +83,37 @@ export default function Members() {
                 <View className='col' style={{ gap: '6rpx' }}>
                   <View className='row' style={{ gap: '12rpx' }}>
                     <Text className='tx-h'>{m.displayName}</Text>
-                    {m.id === currentMemberId && <Badge tone='green'>当前成员</Badge>}
+                    {m.id === currentMemberId && <Badge tone='green'>{t('memb.current')}</Badge>}
                   </View>
                   <Text className='tx-md tx-sub'>
-                    {RELATIONSHIP_LABELS[m.relationship] ?? m.relationship}
-                    {m.gender ? ` · ${GENDER_LABELS[m.gender] ?? m.gender}` : ''}
-                    {m.birthDate ? ` · 生于 ${m.birthDate.slice(0, 10)}` : ''}
+                    {relationshipLabels()[m.relationship] ?? m.relationship}
+                    {m.gender ? ` · ${genderLabels()[m.gender] ?? m.gender}` : ''}
+                    {m.birthDate ? t('memb.born', { date: m.birthDate.slice(0, 10) }) : ''}
                   </Text>
                   {m.accessLevel && m.accessLevel !== 'owner' && (
-                    <Text className='tx-md tx-sub'>照护授权：{m.accessLevel}（来自他人账号授权）</Text>
+                    <Text className='tx-md tx-sub'>{t('memb.authNote', { level: m.accessLevel })}</Text>
                   )}
                 </View>
-                <Badge tone={m.status === 'active' ? 'green' : 'gray'}>{m.status === 'active' ? '在用' : m.status}</Badge>
+                <Badge tone={m.status === 'active' ? 'green' : 'gray'}>{m.status === 'active' ? t('memb.active') : m.status}</Badge>
               </View>
               <View className='row-wrap' style={{ marginTop: '20rpx' }}>
                 {m.id !== currentMemberId && (
                   <Btn variant='soft' onClick={() => actions.setCurrentMember(m.id)}>
-                    切换为当前
+                    {t('memb.switch')}
                   </Btn>
                 )}
                 {(!m.accessLevel || m.accessLevel === 'owner' || m.accessLevel === 'L3') && (
                   <Btn variant='ghost' onClick={() => setCareTarget(m)}>
-                    关怀与提醒设置
+                    {t('memb.careBtn')}
                   </Btn>
                 )}
                 {(!m.accessLevel || m.accessLevel === 'owner') && (
                   <>
                     <Btn variant='ghost' onClick={() => setEditing(m)}>
-                      编辑
+                      {tr('common.edit')}
                     </Btn>
                     <Btn variant='ghost' onClick={() => void remove(m)}>
-                      删除
+                      {tr('common.delete')}
                     </Btn>
                   </>
                 )}
@@ -178,7 +181,7 @@ function MemberFormSheet({
 
   const submit = async () => {
     if (!displayName.trim()) {
-      setError(new Error('请填写显示名称'));
+      setError(new Error(tr('memb.nameRequired')));
       return;
     }
     setBusy(true);
@@ -192,7 +195,7 @@ function MemberFormSheet({
       };
       if (isNew) await memberApi.create(body);
       else if (member) await memberApi.update(member.id, body);
-      toastOk(isNew ? '成员已添加' : '成员已更新');
+      toastOk(isNew ? tr('memb.addedOk') : tr('memb.updatedOk'));
       onSaved();
     } catch (err) {
       setError(err);
@@ -202,33 +205,33 @@ function MemberFormSheet({
   };
 
   return (
-    <Sheet open title={isNew ? '添加成员' : '编辑成员'} onClose={onClose}>
+    <Sheet open title={isNew ? tr('memb.addTitle') : tr('memb.editTitle')} onClose={onClose}>
       <View className='col' style={{ gap: '24rpx' }}>
-        <Field label='显示名称'>
-          <TxtInput value={displayName} onChange={setDisplayName} placeholder='如：爸爸、王小明' />
+        <Field label={tr('memb.displayName')}>
+          <TxtInput value={displayName} onChange={setDisplayName} placeholder={tr('memb.displayNamePlaceholder')} />
         </Field>
-        <Field label='与账号持有人的关系'>
+        <Field label={tr('memb.relationship')}>
           <Pick
             value={relationship}
             onChange={setRelationship}
-            options={Object.entries(RELATIONSHIP_LABELS).map(([value, label]) => ({ value, label }))}
+            options={Object.entries(relationshipLabels()).map(([value, label]) => ({ value, label }))}
           />
         </Field>
-        <Field label='性别'>
+        <Field label={tr('memb.gender')}>
           <Pick
             value={gender}
             onChange={setGender}
-            options={Object.entries(GENDER_LABELS).map(([value, label]) => ({ value, label }))}
+            options={Object.entries(genderLabels()).map(([value, label]) => ({ value, label }))}
           />
         </Field>
-        <Field label='出生日期（选填）'>
+        <Field label={tr('memb.birthDate')}>
           <View className='row' style={{ gap: '12rpx' }}>
             <View className='grow'>
-              <DatePick value={birthDate} onChange={setBirthDate} placeholder='不填' />
+              <DatePick value={birthDate} onChange={setBirthDate} placeholder={tr('memb.birthNone')} />
             </View>
             {birthDate && (
               <Btn variant='ghost' onClick={() => setBirthDate('')}>
-                清除
+                {tr('pf.clear')}
               </Btn>
             )}
           </View>
@@ -237,12 +240,12 @@ function MemberFormSheet({
         <View className='row' style={{ gap: '12rpx' }}>
           <View className='grow'>
             <Btn variant='ghost' block onClick={onClose}>
-              取消
+              {tr('common.cancel')}
             </Btn>
           </View>
           <View className='grow'>
             <Btn block disabled={busy} onClick={submit}>
-              {busy ? '保存中…' : '保存'}
+              {busy ? tr('memb.saving') : tr('common.save')}
             </Btn>
           </View>
         </View>
@@ -286,7 +289,7 @@ function CareSettingsSheet({
   }, [member.id]);
 
   const setPreset = (key: CyclePresetKey) => {
-    const p = CYCLE_PRESETS[key];
+    const p = cyclePresets()[key];
     setSettings((s) => ({
       ...s,
       cyclePreset: key,
@@ -300,7 +303,7 @@ function CareSettingsSheet({
     setError(null);
     try {
       await memberApi.putCareSettings(member.id, settings);
-      toastOk('关怀与提醒设置已保存');
+      toastOk(tr('memb.careSaved'));
       onSaved?.();
       onClose();
     } catch (err) {
@@ -311,57 +314,56 @@ function CareSettingsSheet({
   };
 
   return (
-    <Sheet open title={`${member.displayName} · 关怀与提醒设置`} onClose={onClose}>
+    <Sheet open title={tr('memb.careTitle', { name: member.displayName })} onClose={onClose}>
       {loading ? (
         <Loading />
       ) : (
         <View className='col' style={{ gap: '24rpx' }}>
           <SwitchRow
-            label='长辈关怀模式'
-            desc='大字号、高对比度、大点击区（≥56px）'
+            label={tr('memb.careMode')}
+            desc={tr('memb.careModeDesc')}
             checked={settings.careMode}
             onChange={(v) => setSettings((s) => ({ ...s, careMode: v }))}
           />
-          <Field label='提醒重复周期（未确认时如何重复提醒）'>
+          <Field label={tr('memb.cycle')}>
             <Pick
               value={settings.cyclePreset}
               onChange={(v) => setPreset(v as CyclePresetKey)}
-              options={Object.entries(CYCLE_PRESETS).map(([value, p]) => ({ value, label: p.label }))}
+              options={Object.entries(cyclePresets()).map(([value, p]) => ({ value, label: p.label }))}
             />
           </Field>
           <Text className='tx-sm tx-sub'>
-            当前：{settings.cycleWindowMinutes} 分钟内每 {settings.cycleIntervalMinutes}{' '}
-            分钟重复一次，超时未确认记为漏服。单个计划可在计划编辑里覆盖此设置。
+            {tr('memb.cycleCurrent', { window: settings.cycleWindowMinutes, interval: settings.cycleIntervalMinutes })}
           </Text>
           <SwitchRow
-            label='锁屏提醒显示药品详情'
-            desc='默认关闭：通知只显示「有服药提醒」，不显示药名与剂量，保护隐私'
+            label={tr('memb.lockScreen')}
+            desc={tr('memb.lockScreenDesc')}
             checked={settings.lockScreenShowDrugDetail}
             onChange={(v) => setSettings((s) => ({ ...s, lockScreenShowDrugDetail: v }))}
           />
-          <Field label='强提醒方式（安卓 / 桌面端生效）'>
+          <Field label={tr('memb.strongAlert')}>
             <Pick
               value={settings.strongAlertMode}
               onChange={(v) => setSettings((s) => ({ ...s, strongAlertMode: v as StrongAlertMode }))}
-              options={(Object.keys(STRONG_ALERT_LABELS) as StrongAlertMode[]).map((value) => ({
+              options={(Object.keys(strongAlertLabels()) as StrongAlertMode[]).map((value) => ({
                 value,
-                label: STRONG_ALERT_LABELS[value],
+                label: strongAlertLabels()[value],
               }))}
             />
           </Field>
           <Text className='tx-sm tx-sub'>
-            弹窗通知始终开启；闹钟与语音二选一。小程序内提醒不受此设置影响。
+            {tr('memb.strongAlertNote')}
           </Text>
           <ErrorLine error={error} />
           <View className='row' style={{ gap: '12rpx' }}>
             <View className='grow'>
               <Btn variant='ghost' block onClick={onClose}>
-                取消
+                {tr('common.cancel')}
               </Btn>
             </View>
             <View className='grow'>
               <Btn block disabled={busy || !canConfig} onClick={submit}>
-                {busy ? '保存中…' : '保存设置'}
+                {busy ? tr('memb.saving') : tr('memb.saveSettings')}
               </Btn>
             </View>
           </View>

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { tr } from '../lib/i18n';
 import { View } from '@tarojs/components';
 import { authApi } from '../lib/endpoints';
 import { toastError, toastOk } from '../lib/api';
@@ -19,13 +20,13 @@ export function SmsCodeButton({ phone, scene }: { phone: string; scene: 'registe
 
   const send = async () => {
     if (!/^1\d{10}$/.test(phone)) {
-      toastError(new Error('请先输入正确的 11 位手机号'));
+      toastError(new Error(tr('auth.phoneFirst')));
       return;
     }
     setSending(true);
     try {
       await authApi.sendSmsCode(phone, scene);
-      toastOk('验证码已发送');
+      toastOk(tr('auth.codeSent'));
       setSeconds(60);
       timer.current = setInterval(() => {
         setSeconds((s) => {
@@ -43,7 +44,7 @@ export function SmsCodeButton({ phone, scene }: { phone: string; scene: 'registe
   return (
     <View style={{ flexShrink: 0 }}>
       <Btn variant='soft' disabled={seconds > 0 || sending} onClick={send}>
-        {seconds > 0 ? `${seconds} 秒后重发` : sending ? '发送中…' : '发送验证码'}
+        {seconds > 0 ? tr('auth.resendIn', { seconds }) : sending ? tr('auth.sending') : tr('auth.sendCode')}
       </Btn>
     </View>
   );

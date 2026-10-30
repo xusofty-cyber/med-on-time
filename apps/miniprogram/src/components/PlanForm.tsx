@@ -5,10 +5,10 @@ import { toastOk } from '../lib/api';
 import { currentMember, useApp } from '../lib/store';
 import { themeSwitchColor } from '../lib/theme';
 import { todayInTz } from '../lib/time';
-import { COURSE_LABELS, FREQUENCY_LABELS, MEAL_LABELS, WEEKDAY_LABELS } from '../lib/dict';
+import { courseLabels, frequencyLabels, mealLabels, weekdayLabels } from '../lib/dict';
 import {
-  CYCLE_PRESETS,
-  STRONG_ALERT_LABELS,
+  cyclePresets,
+  strongAlertLabels,
   type CyclePresetKey,
   type Drug,
   type Plan,
@@ -18,6 +18,7 @@ import {
   type StrongAlertMode,
 } from '../lib/types';
 import { Btn, DatePick, ErrorLine, Field, Pick, TimePick, TxtInput } from './ui';
+import { tr, useT } from '../lib/i18n';
 import { DrugPicker } from './DrugPicker';
 
 interface ItemDraft extends PlanItemInput {
@@ -32,7 +33,7 @@ function emptyItem(): ItemDraft {
     drug: null,
     drugId: '',
     doseAmount: 1,
-    doseUnit: '片',
+    doseUnit: tr('pf.defaultUnit'),
     frequencyType: 'daily',
     frequencyRule: { times: ['08:00'] },
     mealRelation: 'none',
@@ -68,6 +69,7 @@ export function PlanForm({
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const t = useT();
   const [name, setName] = useState('');
   const [planType, setPlanType] = useState('scheduled');
   const [startDate, setStartDate] = useState(() => todayInTz(currentMember()?.timezone ?? 'Asia/Shanghai'));
@@ -132,21 +134,21 @@ export function PlanForm({
   const submit = async () => {
     const invalid = items.find((it) => !it.drug && !it.drugId);
     if (invalid) {
-      setError(new Error('每条明细都要先搜索选择药品'));
+      setError(new Error(t('pf.errNoDrug')));
       return;
     }
     for (let i = 0; i < items.length; i++) {
       const it = items[i]!;
       if (!(Number(it.doseAmount) > 0)) {
-        setError(new Error(`药品 ${i + 1}：每次剂量须大于 0`));
+        setError(new Error(t('pf.errDose', { n: i + 1 })));
         return;
       }
       if (it.courseType === 'fixed_days' && !(Number(it.courseDays) >= 1)) {
-        setError(new Error(`药品 ${i + 1}：固定疗程天数须至少为 1 天`));
+        setError(new Error(t('pf.errCourseDays', { n: i + 1 })));
         return;
       }
       if (planType !== 'prn' && it.frequencyType === 'weekly' && !(it.frequencyRule.weekdays?.length)) {
-        setError(new Error(`药品 ${i + 1}：按周服用请至少勾选一天`));
+        setError(new Error(t('pf.errWeekday', { n: i + 1 })));
         return;
       }
     }
@@ -154,7 +156,7 @@ export function PlanForm({
       for (let i = 0; i < phases.length; i++) {
         const ph = phases[i]!;
         if (!(Number(ph.durationDays) >= 1 && Number(ph.dailyDoseAmount) > 0)) {
-          setError(new Error(`第 ${i + 1} 阶段：持续天数须至少为 1 天且每日总剂量须大于 0`));
+          setError(new Error(t('pf.errPhase', { n: i + 1 })));
           return;
         }
       }
@@ -162,7 +164,7 @@ export function PlanForm({
     setBusy(true);
     setError(null);
     const payload: PlanPayload = {
-      name: name || items[0]?.drug?.genericName || '用药计划',
+      name: name || items[0]?.drug?.genericName || t('pf.defaultName'),
       planType,
       startDate,
       endDate: endDate || null,
@@ -174,9 +176,9 @@ export function PlanForm({
         : {}),
       cyclePreset: cycleOverride === 'member' ? null : cycleOverride,
       cycleWindowMinutes:
-        cycleOverride === 'member' ? null : CYCLE_PRESETS[cycleOverride as CyclePresetKey].windowMinutes,
+        cycleOverride === 'member' ? null : cyclePresets()[cycleOverride as CyclePresetKey].windowMinutes,
       cycleIntervalMinutes:
-        cycleOverride === 'member' ? null : CYCLE_PRESETS[cycleOverride as CyclePresetKey].intervalMinutes,
+        cycleOverride === 'member' ? null : cyclePresets()[cycleOverride as CyclePresetKey].intervalMinutes,
       strongAlertMode: strongAlert === 'member' ? null : strongAlert,
       items: items.map((it) => ({
         drugId: it.drug?.id ?? it.drugId,
@@ -193,7 +195,7 @@ export function PlanForm({
     try {
       if (plan) await planApi.update(plan.id, payload);
       else await planApi.create(memberId, payload);
-      toastOk(plan ? '计划已更新，变更会记入变更史' : '计划已创建');
+      toastOk(plan ? t('pf.updatedOk') : t('pf.createdOk'));
       onSaved();
     } catch (err) {
       setError(err);
@@ -204,30 +206,30 @@ export function PlanForm({
 
   return (
     <View className='col' style={{ gap: '28rpx' }}>
-      <Field label='计划名称'>
-        <TxtInput value={name} onChange={setName} placeholder='如：早晨降压药' />
+      <Field label={t('pf.name')}>
+        <TxtInput value={name} onChange={setName} placeholder={t('pf.namePlaceholder')} />
       </Field>
-      <Field label='计划类型'>
+      <Field label={t('pf.type')}>
         <Pick
           value={planType}
           onChange={setPlanType}
           options={[
-            { value: 'scheduled', label: '常规计划（按时提醒）' },
-            { value: 'prn', label: 'PRN 按需（不生成提醒，服药时记录）' },
+            { value: 'scheduled', label: t('pf.typeScheduled') },
+            { value: 'prn', label: t('pf.typePrn') },
           ]}
         />
       </Field>
-      <Field label='开始日期'>
+      <Field label={t('pf.startDate')}>
         <DatePick value={startDate} onChange={setStartDate} />
       </Field>
-      <Field label='结束日期（长期计划可留空）'>
+      <Field label={t('pf.endDate')}>
         <View className='row' style={{ gap: '12rpx' }}>
           <View className='grow'>
-            <DatePick value={endDate} onChange={setEndDate} placeholder='长期（不设结束）' />
+            <DatePick value={endDate} onChange={setEndDate} placeholder={t('pf.endDatePlaceholder')} />
           </View>
           {endDate && (
             <Btn variant='ghost' onClick={() => setEndDate('')}>
-              清除
+              {t('pf.clear')}
             </Btn>
           )}
         </View>
@@ -235,10 +237,10 @@ export function PlanForm({
 
       {planType === 'prn' && (
         <View className='col' style={{ gap: '24rpx', background: 'var(--color-status-warning-background)', borderRadius: '20rpx', padding: '24rpx' }}>
-          <Field label='最短间隔（分钟）' hint='两次按需服药之间至少间隔'>
+          <Field label={t('pf.prnMinInterval')} hint={t('pf.prnMinIntervalHint')}>
             <TxtInput value={prnMinInterval} onChange={setPrnMinInterval} type='number' />
           </Field>
-          <Field label='每日最多次数'>
+          <Field label={t('pf.prnMaxPerDay')}>
             <TxtInput value={prnMaxPerDay} onChange={setPrnMaxPerDay} type='number' />
           </Field>
         </View>
@@ -247,10 +249,10 @@ export function PlanForm({
       <View className='col' style={{ gap: '20rpx' }}>
         <View className='row-between'>
           <Text className='tx-h' style={{ color: 'var(--color-brand-strong)' }}>
-            药品明细
+            {t('pf.itemsHead')}
           </Text>
           <Btn variant='soft' onClick={() => setItems((l) => [...l, emptyItem()])}>
-            + 再加一种药
+            {t('pf.addItem')}
           </Btn>
         </View>
         {items.map((item, idx) => (
@@ -260,10 +262,10 @@ export function PlanForm({
             style={{ gap: '20rpx', border: '1rpx solid var(--color-border-subtle)', borderRadius: '20rpx', padding: '24rpx' }}
           >
             <View className='row-between'>
-              <Text className='tx-md tx-strong'>药品 {idx + 1}</Text>
+              <Text className='tx-md tx-strong'>{t('pf.itemN', { n: idx + 1 })}</Text>
               {items.length > 1 && (
                 <Btn variant='ghost' onClick={() => setItems((l) => l.filter((x) => x.key !== item.key))}>
-                  移除
+                  {t('pf.remove')}
                 </Btn>
               )}
             </View>
@@ -280,7 +282,7 @@ export function PlanForm({
             />
             <View className='row' style={{ gap: '16rpx', alignItems: 'flex-start' }}>
               <View className='grow'>
-                <Field label='每次剂量'>
+                <Field label={t('pf.doseAmount')}>
                   <TxtInput
                     value={String(item.doseAmount)}
                     onChange={(v) => patchItem(item.key, { doseAmount: Number(v) || 0 })}
@@ -289,27 +291,27 @@ export function PlanForm({
                 </Field>
               </View>
               <View className='grow'>
-                <Field label='剂量单位'>
+                <Field label={t('pf.doseUnit')}>
                   <TxtInput value={item.doseUnit} onChange={(v) => patchItem(item.key, { doseUnit: v })} />
                 </Field>
               </View>
             </View>
-            <Field label='与餐关系'>
+            <Field label={t('pf.meal')}>
               <Pick
                 value={item.mealRelation}
                 onChange={(v) => patchItem(item.key, { mealRelation: v })}
-                options={Object.entries(MEAL_LABELS).map(([value, label]) => ({ value, label }))}
+                options={Object.entries(mealLabels()).map(([value, label]) => ({ value, label }))}
               />
             </Field>
-            <Field label='疗程'>
+            <Field label={t('pf.course')}>
               <Pick
                 value={item.courseType}
                 onChange={(v) => patchItem(item.key, { courseType: v })}
-                options={Object.entries(COURSE_LABELS).map(([value, label]) => ({ value, label }))}
+                options={Object.entries(courseLabels()).map(([value, label]) => ({ value, label }))}
               />
             </Field>
             {item.courseType === 'fixed_days' && (
-              <Field label='疗程天数'>
+              <Field label={t('pf.courseDays')}>
                 <TxtInput
                   value={String(item.courseDays ?? '')}
                   onChange={(v) => patchItem(item.key, { courseDays: Number(v) || null })}
@@ -319,22 +321,22 @@ export function PlanForm({
             )}
             {planType !== 'prn' && (
               <>
-                <Field label='频次'>
+                <Field label={t('pf.frequency')}>
                   <Pick
                     value={item.frequencyType}
                     onChange={(v) => patchItem(item.key, { frequencyType: v })}
-                    options={Object.entries(FREQUENCY_LABELS)
+                    options={Object.entries(frequencyLabels())
                       .filter(([value]) => value !== 'on_demand' && value !== 'course_cycle')
                       .map(([value, label]) => ({ value, label }))}
                   />
                 </Field>
                 {(item.frequencyType === 'daily' || item.frequencyType === 'times_per_day') && (
                   <View className='col' style={{ gap: '12rpx' }}>
-                    <Text className='field-label'>服用时刻</Text>
-                    {(item.frequencyRule.times ?? ['08:00']).map((t, ti) => (
+                    <Text className='field-label'>{t('pf.times')}</Text>
+                    {(item.frequencyRule.times ?? ['08:00']).map((tm, ti) => (
                       <View key={ti} className='row' style={{ gap: '12rpx' }}>
                         <TimePick
-                          value={t}
+                          value={tm}
                           onChange={(v) => {
                             const next = [...(item.frequencyRule.times ?? [])];
                             next[ti] = v;
@@ -348,23 +350,23 @@ export function PlanForm({
                               setTimes(item.key, (item.frequencyRule.times ?? []).filter((_, x) => x !== ti))
                             }
                           >
-                            删除
+                            {t('pf.delete')}
                           </Btn>
                         )}
                       </View>
                     ))}
                     <View>
                       <Btn variant='ghost' onClick={() => setTimes(item.key, [...(item.frequencyRule.times ?? []), '20:00'])}>
-                        + 时刻
+                        {t('pf.addTime')}
                       </Btn>
                     </View>
                   </View>
                 )}
                 {item.frequencyType === 'weekly' && (
                   <View className='col' style={{ gap: '12rpx' }}>
-                    <Text className='field-label'>每周哪几天</Text>
+                    <Text className='field-label'>{t('pf.weekdays')}</Text>
                     <View className='row-wrap'>
-                      {WEEKDAY_LABELS.map((label, i) => {
+                      {weekdayLabels().map((label, i) => {
                         const day = i + 1;
                         const active = (item.frequencyRule.weekdays ?? []).includes(day);
                         return (
@@ -373,12 +375,12 @@ export function PlanForm({
                             variant={active ? 'primary' : 'ghost'}
                             onClick={() => toggleWeekday(item.key, day)}
                           >
-                            周{label}
+                            {t('pf.weekdayBtn', { label })}
                           </Btn>
                         );
                       })}
                     </View>
-                    <Text className='field-label'>服用时刻</Text>
+                    <Text className='field-label'>{t('pf.times')}</Text>
                     <TimePick
                       value={(item.frequencyRule.times ?? ['08:00'])[0] ?? '08:00'}
                       onChange={(v) => setTimes(item.key, [v])}
@@ -386,7 +388,7 @@ export function PlanForm({
                   </View>
                 )}
                 {item.frequencyType === 'interval_days' && (
-                  <Field label='每隔几天服一次'>
+                  <Field label={t('pf.intervalDays')}>
                     <TxtInput
                       value={String(item.frequencyRule.intervalDays ?? 2)}
                       onChange={(v) =>
@@ -406,7 +408,7 @@ export function PlanForm({
         <View className='col' style={{ gap: '16rpx' }}>
           <View className='row-between'>
             <Text className='tx-h' style={{ color: 'var(--color-brand-strong)' }}>
-              剂量阶段（可选）
+              {t('pf.phasesHead')}
             </Text>
             <Btn
               variant='soft'
@@ -417,13 +419,13 @@ export function PlanForm({
                     stageNo: p.length + 1,
                     durationDays: 7,
                     dailyDoseAmount: 1,
-                    dailyDoseUnit: items[0]?.doseUnit ?? '片',
+                    dailyDoseUnit: items[0]?.doseUnit ?? t('pf.defaultUnit'),
                     note: '',
                   },
                 ])
               }
             >
-              + 添加阶段
+              {t('pf.addPhase')}
             </Btn>
           </View>
           {phases.map((ph, i) => (
@@ -432,7 +434,7 @@ export function PlanForm({
               className='col'
               style={{ gap: '16rpx', background: 'var(--color-background-page)', borderRadius: '20rpx', padding: '20rpx' }}
             >
-              <Field label={`第 ${i + 1} 阶段 · 持续天数`}>
+              <Field label={t('pf.phaseDuration', { n: i + 1 })}>
                 <TxtInput
                   value={String(ph.durationDays)}
                   onChange={(v) =>
@@ -443,7 +445,7 @@ export function PlanForm({
               </Field>
               <View className='row' style={{ gap: '16rpx', alignItems: 'flex-start' }}>
                 <View className='grow'>
-                  <Field label='每日总剂量'>
+                  <Field label={t('pf.phaseDailyDose')}>
                     <TxtInput
                       value={String(ph.dailyDoseAmount)}
                       onChange={(v) =>
@@ -454,7 +456,7 @@ export function PlanForm({
                   </Field>
                 </View>
                 <View className='grow'>
-                  <Field label='单位'>
+                  <Field label={t('pf.phaseUnit')}>
                     <TxtInput
                       value={ph.dailyDoseUnit}
                       onChange={(v) => setPhases((p) => p.map((x, xi) => (xi === i ? { ...x, dailyDoseUnit: v } : x)))}
@@ -463,7 +465,7 @@ export function PlanForm({
                 </View>
               </View>
               <View className='row-between'>
-                <Text className='tx-md'>末阶段停药</Text>
+                <Text className='tx-md'>{t('pf.phaseFinalStop')}</Text>
                 <Switch
                   checked={!!ph.isFinalStop}
                   color={themeSwitchColor(themeId)}
@@ -478,54 +480,54 @@ export function PlanForm({
                   setPhases((p) => p.filter((_, xi) => xi !== i).map((x, xi) => ({ ...x, stageNo: xi + 1 })))
                 }
               >
-                删除阶段
+                {t('pf.deletePhase')}
               </Btn>
             </View>
           ))}
-          {phases.length === 0 && <Text className='tx-sm tx-sub'>不设阶段时全程按明细剂量执行。</Text>}
+          {phases.length === 0 && <Text className='tx-sm tx-sub'>{t('pf.phasesEmpty')}</Text>}
         </View>
       )}
 
-      <Field label='存放位置（R-1）' hint='会显示在具体提醒里，如：客厅药盒'>
-        <TxtInput value={storageLocation} onChange={setStorageLocation} placeholder='如：卧室床头柜第二层' />
+      <Field label={t('pf.storage')} hint={t('pf.storageHint')}>
+        <TxtInput value={storageLocation} onChange={setStorageLocation} placeholder={t('pf.storagePlaceholder')} />
       </Field>
-      <Field label='提醒周期覆盖'>
+      <Field label={t('pf.cycleOverride')}>
         <Pick
           value={cycleOverride}
           onChange={(v) => setCycleOverride(v as 'member' | CyclePresetKey)}
           options={[
-            { value: 'member', label: '跟随成员设置' },
-            ...Object.entries(CYCLE_PRESETS).map(([value, p]) => ({ value, label: p.label })),
+            { value: 'member', label: t('pf.followMember') },
+            ...Object.entries(cyclePresets()).map(([value, p]) => ({ value, label: p.label })),
           ]}
         />
       </Field>
-      <Field label='强提醒方式覆盖（安卓/桌面端）' hint='闹钟与语音互斥，二选一'>
+      <Field label={t('pf.strongAlert')} hint={t('pf.strongAlertHint')}>
         <Pick
           value={strongAlert}
           onChange={(v) => setStrongAlert(v as 'member' | StrongAlertMode)}
           options={[
-            { value: 'member', label: '跟随成员设置' },
-            ...(Object.keys(STRONG_ALERT_LABELS) as StrongAlertMode[]).map((value) => ({
+            { value: 'member', label: t('pf.followMember') },
+            ...(Object.keys(strongAlertLabels()) as StrongAlertMode[]).map((value) => ({
               value,
-              label: STRONG_ALERT_LABELS[value],
+              label: strongAlertLabels()[value],
             })),
           ]}
         />
       </Field>
-      <Field label='附加备注（R-1）' hint='如：需整片吞服、不可掰开'>
-        <TxtInput value={additionalNote} onChange={setAdditionalNote} placeholder='补充说明，可留空' />
+      <Field label={t('pf.note')} hint={t('pf.noteHint')}>
+        <TxtInput value={additionalNote} onChange={setAdditionalNote} placeholder={t('pf.notePlaceholder')} />
       </Field>
 
       <ErrorLine error={error} />
       <View className='row' style={{ gap: '12rpx' }}>
         <View className='grow'>
           <Btn variant='ghost' block onClick={onClose}>
-            取消
+            {tr('common.cancel')}
           </Btn>
         </View>
         <View className='grow'>
           <Btn block disabled={busy} onClick={submit}>
-            {busy ? '保存中…' : plan ? '保存修改' : '创建计划'}
+            {busy ? t('pf.saving') : plan ? t('pf.saveChanges') : t('pf.create')}
           </Btn>
         </View>
       </View>

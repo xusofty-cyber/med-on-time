@@ -5,6 +5,7 @@ import { Input, Picker, ScrollView, Switch, Text, View } from '@tarojs/component
 import { careModeOn, currentMember, useApp } from '../lib/store';
 import { themeSwitchColor } from '../lib/theme';
 import { todayInTz } from '../lib/time';
+import { tr } from '../lib/i18n';
 
 class PageErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
   state: { error: Error | null } = { error: null };
@@ -17,17 +18,17 @@ class PageErrorBoundary extends Component<{ children: ReactNode }, { error: Erro
     if (this.state.error) {
       return (
         <View className='col' style={{ gap: '20rpx' }}>
-          <Text className='tx-title'>页面出错了</Text>
+          <Text className='tx-title'>{tr('app.errorTitle')}</Text>
           <Text className='tx-md' style={{ lineHeight: 1.7 }}>
             {String(this.state.error.message ?? this.state.error)}
           </Text>
           <Text className='tx-sm tx-sub' style={{ lineHeight: 1.7 }}>
-            请把这一屏截图发给开发者定位，可点击下方按钮重试或返回首页。
+            {tr('app.errorHint')}
           </Text>
           <View className='row' style={{ gap: '12rpx' }}>
             <View className='grow'>
               <Btn variant='soft' block onClick={() => this.setState({ error: null })}>
-                重试
+                {tr('app.retry')}
               </Btn>
             </View>
             <View className='grow'>
@@ -38,7 +39,7 @@ class PageErrorBoundary extends Component<{ children: ReactNode }, { error: Erro
                   Taro.switchTab({ url: '/pages/index/index' });
                 }}
               >
-                返回首页
+                {tr('app.backHome')}
               </Btn>
             </View>
           </View>
@@ -206,7 +207,7 @@ export function Pick({
 export function DatePick({
   value,
   onChange,
-  placeholder = '请选择日期',
+  placeholder = tr('app.selectDate'),
 }: {
   value: string;
   onChange: (v: string) => void;
@@ -289,7 +290,7 @@ export function EmptyState({ text }: { text: string }) {
   );
 }
 
-export function Loading({ text = '加载中…' }: { text?: string }) {
+export function Loading({ text = tr('common.loading') }: { text?: string }) {
   return (
     <View className='loading'>
       <Text>{text}</Text>
@@ -301,7 +302,7 @@ export function ErrorLine({ error }: { error: unknown }) {
   if (!error) return null;
   return (
     <View>
-      <Text className='error-line'>{error instanceof Error ? error.message : '加载失败，请下拉刷新重试'}</Text>
+      <Text className='error-line'>{error instanceof Error ? error.message : tr('app.errorFallback')}</Text>
     </View>
   );
 }

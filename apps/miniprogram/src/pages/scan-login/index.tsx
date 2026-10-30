@@ -6,6 +6,7 @@ import { toastError } from '../../lib/api';
 import { fmtDateTime } from '../../lib/time';
 import { consumePendingScanTicket, setPendingScanTicket, useSessionGuard } from '../../lib/hooks';
 import { Card, Loading, PageShell } from '../../components/ui';
+import { tr, useNavTitle, useT } from '../../lib/i18n';
 
 /**
  * 扫码登录网页版（2026-10-23 裁定路线：小程序扫码确认）：
@@ -23,6 +24,8 @@ function extractTicket(raw: string | undefined): string | null {
 }
 
 export default function ScanLogin() {
+  const t = useT();
+  useNavTitle('nav.scanLogin');
   const router = useRouter();
   const initialTicket = extractTicket(router.params.t);
   const { booted, account } = useSessionGuard();
@@ -55,7 +58,7 @@ export default function ScanLogin() {
       })
       .catch(() => {
         if (!cancelled) {
-          setPreviewError('无法读取这张二维码的发起信息，为安全起见已禁用确认，请重新扫码。');
+          setPreviewError(tr('scan.previewError'));
         }
       });
     return () => {
@@ -75,7 +78,7 @@ export default function ScanLogin() {
       }
       const t = extractTicket(raw);
       if (t) setTicket(t);
-      else setScanError('这不是药准时网页版的登录二维码，请重新扫描。');
+      else setScanError(tr('scan.invalid'));
     } catch {
       /* 用户取消扫码不提示 */
     }
@@ -87,7 +90,7 @@ export default function ScanLogin() {
     try {
       await authApi.confirmScanTicket(ticket);
       setDone(true);
-      Taro.showToast({ title: '已确认，请看网页版', icon: 'success' });
+      Taro.showToast({ title: tr('scan.confirmedToast'), icon: 'success' });
     } catch (e) {
       toastError(e);
     } finally {
@@ -95,37 +98,37 @@ export default function ScanLogin() {
     }
   };
 
-  if (!booted) return <Loading text='正在恢复会话…' />;
-  if (!account) return <Loading text='正在前往登录…' />;
+  if (!booted) return <Loading text={tr('flow.restoring')} />;
+  if (!account) return <Loading text={tr('flow.toLogin')} />;
 
   return (
     <PageShell>
       <Card>
         <View className='col' style={{ gap: '16rpx' }}>
-          <Text className='tx-h tx-strong'>登录药准时网页版</Text>
+          <Text className='tx-h tx-strong'>{t('scan.title')}</Text>
           {done ? (
             <>
-              <Text className='tx-md'>已确认登录，网页版将自动进入您的账号。</Text>
+              <Text className='tx-md'>{t('scan.done')}</Text>
               <Button className='btn btn-primary btn-block' onClick={() => Taro.navigateBack()}>
-                返回
+                {t('common.back')}
               </Button>
             </>
           ) : ticket ? (
             <>
               <Text className='tx-md'>
-                将以当前账号「{account.nickname}」登录网页版。请核对下方发起信息，确认是您本人在电脑上操作。
+                {t('scan.intro', { name: account.nickname })}
               </Text>
               {preview ? (
                 <View className='col' style={{ gap: '8rpx' }}>
-                  <Text className='tx-sm'>发起端：{preview.platform === 'web' ? '网页版' : preview.platform}</Text>
-                  <Text className='tx-sm'>设备：{preview.deviceName ?? '未知设备'}</Text>
-                  <Text className='tx-sm'>发起时间：{fmtDateTime(preview.createdAt)}</Text>
-                  <Text className='tx-sm'>有效期至：{fmtDateTime(preview.expiresAt)}</Text>
+                  <Text className='tx-sm'>{t('scan.platform', { p: preview.platform === 'web' ? t('scan.platformWeb') : preview.platform })}</Text>
+                  <Text className='tx-sm'>{t('scan.device', { name: preview.deviceName ?? t('scan.unknownDevice') })}</Text>
+                  <Text className='tx-sm'>{t('flow.createdAt', { t: fmtDateTime(preview.createdAt) })}</Text>
+                  <Text className='tx-sm'>{t('flow.expiresAt', { t: fmtDateTime(preview.expiresAt) })}</Text>
                 </View>
               ) : previewError ? (
                 <Text className='tx-sm tx-sub'>{previewError}</Text>
               ) : (
-                <Text className='tx-sm tx-sub'>正在读取发起信息…</Text>
+                <Text className='tx-sm tx-sub'>{t('scan.loadingPreview')}</Text>
               )}
               <Button
                 className='btn btn-primary btn-block'
@@ -133,7 +136,7 @@ export default function ScanLogin() {
                 disabled={!preview}
                 onClick={confirm}
               >
-                确认登录
+                {t('scan.confirm')}
               </Button>
               <Button
                 className='btn btn-ghost btn-block'
@@ -142,14 +145,14 @@ export default function ScanLogin() {
                   setScanError('');
                 }}
               >
-                换一张二维码
+                {t('scan.rescan')}
               </Button>
             </>
           ) : (
             <>
-              <Text className='tx-md'>请扫描网页版登录页上的二维码。</Text>
+              <Text className='tx-md'>{t('scan.hint')}</Text>
               <Button className='btn btn-primary btn-block' onClick={scan}>
-                扫一扫
+                {t('scan.scanBtn')}
               </Button>
               {scanError ? <Text className='tx-sm tx-sub'>{scanError}</Text> : null}
             </>
@@ -157,7 +160,7 @@ export default function ScanLogin() {
         </View>
       </Card>
       <Text className='tx-sm tx-sub'>
-        安全提示：只有您本人在电脑上打开的网页版才应确认；他人发来的二维码不要扫。
+        {t('scan.security')}
       </Text>
     </PageShell>
   );

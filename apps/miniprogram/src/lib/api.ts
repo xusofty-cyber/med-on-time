@@ -5,6 +5,7 @@
  * token 存 Taro storage（键名与 Web 端 localStorage 键保持一致）。
  */
 import Taro from '@tarojs/taro';
+import { tr } from './i18n';
 import { API_BASE } from '../config';
 import type { ApiEnvelope } from './types';
 
@@ -68,20 +69,20 @@ function rawRequest<T>(path: string, method: Method, data: unknown, withAuth: bo
       success: (res) => {
         const envelope = res.data as ApiEnvelope<T> | undefined;
         if (res.statusCode === 401) {
-          reject(new ApiError(401, envelope?.message || '登录已过期', envelope?.traceId));
+          reject(new ApiError(401, envelope?.message || tr('req.sessionExpired'), envelope?.traceId));
           return;
         }
         if (!envelope || typeof envelope.code !== 'number') {
-          reject(new ApiError(res.statusCode, `请求失败（HTTP ${res.statusCode}）`));
+          reject(new ApiError(res.statusCode, tr('req.failedHttp', { status: res.statusCode })));
           return;
         }
         if (envelope.code !== 0 && envelope.code !== 200) {
-          reject(new ApiError(envelope.code, envelope.message || '请求失败', envelope.traceId));
+          reject(new ApiError(envelope.code, envelope.message || tr('common.requestFailed'), envelope.traceId));
           return;
         }
         resolve(envelope.data);
       },
-      fail: () => reject(new ApiError(-1, '网络异常，请检查网络后重试')),
+      fail: () => reject(new ApiError(-1, tr('req.network'))),
     });
   });
 }
@@ -144,7 +145,7 @@ export function newClientRequestId(): string {
 /** 失败 toast（操作类失败统一走这里；列表加载失败由页面内联错误提示）。 */
 export function toastError(err: unknown) {
   Taro.showToast({
-    title: err instanceof Error ? err.message : '操作失败',
+    title: err instanceof Error ? err.message : tr('common.operationFailed'),
     icon: 'none',
     duration: 2600,
   });

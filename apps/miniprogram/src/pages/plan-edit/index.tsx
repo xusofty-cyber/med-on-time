@@ -6,9 +6,12 @@ import { useSessionGuard } from '../../lib/hooks';
 import type { Plan } from '../../lib/types';
 import { EmptyState, Loading, PageShell } from '../../components/ui';
 import { PlanForm } from '../../components/PlanForm';
+import { useNavTitle, useT } from '../../lib/i18n';
 
 /** 计划新建/编辑页：编辑时从成员计划列表按 planId 取全量对象（与 Web 端从列表传入同口径）。 */
 export default function PlanEdit() {
+  const t = useT();
+  useNavTitle('nav.planEdit');
   useSessionGuard();
   const router = useRouter();
   const planId = router.params.planId;
@@ -40,21 +43,21 @@ export default function PlanEdit() {
   if (!memberId) {
     return (
       <PageShell>
-        <EmptyState text='请先选择成员。' />
+        <EmptyState text={t('plan.selectMemberFirst')} />
       </PageShell>
     );
   }
   if (!ready) {
     return (
       <PageShell>
-        <Loading text='正在加载计划…' />
+        <Loading text={t('plan.loading')} />
       </PageShell>
     );
   }
   if (planId && !plan) {
     return (
       <PageShell>
-        <EmptyState text='未找到该计划（可能已被删除，或不属于当前成员）。' />
+        <EmptyState text={t('plan.notFound')} />
       </PageShell>
     );
   }

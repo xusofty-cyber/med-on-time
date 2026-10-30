@@ -1,3 +1,4 @@
+import { tr } from './i18n';
 /** 界面主题（阶段 3）：两套主题切换，根节点 .theme-a 类驱动 app.scss 的 CSS 变量。
  * - 主题 0 现行绿白（默认）；主题 A 暖阳关怀（暖白底 #FFF9F2、主按钮 #0369A1、
  *   正文 17px、圆角 12px、卡片 24px 内边距 + 柔和阴影、触控 ≥48px）。
@@ -14,10 +15,12 @@ export type MiniThemeId = '0' | 'a';
 
 export const THEME_STORAGE_KEY = 'medontime-theme';
 
-export const THEMES: { id: MiniThemeId; label: string; description: string }[] = [
-  { id: '0', label: '现行绿白', description: '默认主题 · 绿白配色' },
-  { id: 'a', label: '暖阳关怀', description: '暖白护眼底色 · 大字号与疏朗间距，适合长辈日常使用' },
-];
+export function themes(): { id: MiniThemeId; label: string; description: string }[] {
+  return [
+    { id: '0', label: tr('theme.0Label'), description: tr('theme.0Desc') },
+    { id: 'a', label: tr('theme.aLabel'), description: tr('theme.aDesc') },
+  ];
+}
 
 /** 主按钮蓝（主题 A）与主绿（主题 0）：Switch 等原生组件 color 属性跟随主题。 */
 export function themeSwitchColor(themeId: MiniThemeId): string {

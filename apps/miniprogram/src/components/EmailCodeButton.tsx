@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { tr } from '../lib/i18n';
 import { View } from '@tarojs/components';
 import { authApi, type EmailCodeScene } from '../lib/endpoints';
 import { toastError, toastOk } from '../lib/api';
@@ -19,13 +20,13 @@ export function EmailCodeButton({ email, scene }: { email: string; scene: EmailC
 
   const send = async () => {
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      toastError(new Error('请先输入正确的邮箱地址'));
+      toastError(new Error(tr('auth.emailFirst')));
       return;
     }
     setSending(true);
     try {
       await authApi.sendEmailCode(email, scene);
-      toastOk('验证码已发送，请注意查收邮件');
+      toastOk(tr('auth.emailCodeSent'));
       setSeconds(60);
       timer.current = setInterval(() => {
         setSeconds((s) => {
@@ -43,7 +44,7 @@ export function EmailCodeButton({ email, scene }: { email: string; scene: EmailC
   return (
     <View style={{ flexShrink: 0 }}>
       <Btn variant='soft' disabled={seconds > 0 || sending} onClick={send}>
-        {seconds > 0 ? `${seconds} 秒后重发` : sending ? '发送中…' : '发送验证码'}
+        {seconds > 0 ? tr('auth.resendIn', { seconds }) : sending ? tr('auth.sending') : tr('auth.sendCode')}
       </Btn>
     </View>
   );

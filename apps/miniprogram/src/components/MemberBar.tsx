@@ -2,9 +2,11 @@
 import Taro from '@tarojs/taro';
 import { ScrollView, Text, View } from '@tarojs/components';
 import { actions, useApp } from '../lib/store';
-import { RELATIONSHIP_LABELS } from '../lib/dict';
+import { relationshipLabels } from '../lib/dict';
+import { tr, useT } from '../lib/i18n';
 
 export function MemberBar() {
+  const t = useT();
   const members = useApp((s) => s.members);
   const currentMemberId = useApp((s) => s.currentMemberId);
   if (members.length === 0) return null;
@@ -18,13 +20,15 @@ export function MemberBar() {
             onClick={() => actions.setCurrentMember(m.id)}
           >
             <Text>
-              {m.displayName}（{RELATIONSHIP_LABELS[m.relationship] ?? m.relationship}
-              {m.accessLevel && m.accessLevel !== 'owner' ? ` · ${m.accessLevel}` : ''}）
+              {t('app.memberOption', {
+                name: m.displayName,
+                inner: `${relationshipLabels()[m.relationship] ?? m.relationship}${m.accessLevel && m.accessLevel !== 'owner' ? ` · ${m.accessLevel}` : ''}`,
+              })}
             </Text>
           </View>
         ))}
         <View className='chip' onClick={() => Taro.navigateTo({ url: '/pages/members/index' })}>
-          <Text className='tx-green'>＋ 管理成员</Text>
+          <Text className='tx-green'>{t('app.manageMembers')}</Text>
         </View>
       </View>
     </ScrollView>

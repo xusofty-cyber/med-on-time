@@ -3,9 +3,10 @@ import { Text, View } from '@tarojs/components';
 import Taro from '@tarojs/taro';
 import { drugApi } from '../lib/endpoints';
 import { toastError, toastOk } from '../lib/api';
-import { DOSAGE_FORM_LABELS } from '../lib/dict';
+import { dosageFormLabels } from '../lib/dict';
 import type { Drug } from '../lib/types';
 import { Badge, Btn, Field, Pick, Sheet, TxtInput } from './ui';
+import { tr, useT } from '../lib/i18n';
 
 /** 药品搜索选药：走 /drugs/search（trgm 模糊），无结果时可自建药品。与 Web 端 DrugPicker 同口径。 */
 export function DrugPicker({
@@ -17,6 +18,7 @@ export function DrugPicker({
   value: Drug | null;
   onChange: (drug: Drug | null) => void;
 }) {
+  useT();
   const [keyword, setKeyword] = useState('');
   const [results, setResults] = useState<Drug[]>([]);
   const [searching, setSearching] = useState(false);
@@ -55,12 +57,12 @@ export function DrugPicker({
       const first =
         res.candidates.find((c) => c.matches.length > 0) ?? res.candidates[0];
       if (!first) {
-        toastError(new Error('没认出药名，请对准药盒上的药名重拍，或手动输入'));
+        toastError(new Error(tr('drug.photoFail')));
         return;
       }
       setKeyword(first.text);
-      setPhotoHint(`已按识别结果「${first.text}」搜索，请在下方点选正确的药品确认`);
-      toastOk('识别完成，请点选药品确认');
+      setPhotoHint(tr('drug.photoHint', { text: first.text }));
+      toastOk(tr('drug.photoDone'));
     } catch (e) {
       toastError(e);
     } finally {
@@ -99,15 +101,15 @@ export function DrugPicker({
         <View className='col grow' style={{ gap: '4rpx' }}>
           <Text className='tx-md tx-strong' style={{ color: 'var(--color-brand-strong)' }}>
             {value.genericName}
-            {value.brandName ? `（${value.brandName}）` : ''}
+            {value.brandName ? tr('drug.brandWrap', { name: value.brandName }) : ''}
           </Text>
           <Text className='tx-sm tx-sub'>
-            {value.specification} · {DOSAGE_FORM_LABELS[value.dosageForm] ?? value.dosageForm}
+            {value.specification} · {dosageFormLabels()[value.dosageForm] ?? value.dosageForm}
             {value.manufacturer ? ` · ${value.manufacturer}` : ''}
           </Text>
         </View>
         <Btn variant='ghost' onClick={() => onChange(null)}>
-          更换
+          {tr('drug.change')}
         </Btn>
       </View>
     );
@@ -115,14 +117,14 @@ export function DrugPicker({
 
   return (
     <View className='col' style={{ gap: '12rpx' }}>
-      <TxtInput value={keyword} onChange={setKeyword} placeholder='输入药名或通用名搜索，如：二甲双胍' />
+      <TxtInput value={keyword} onChange={setKeyword} placeholder={tr('drug.searchPlaceholder')} />
       <View>
         <Btn variant='ghost' disabled={photoBusy} onClick={() => void takePhoto()}>
-          {photoBusy ? '识别中…' : '📷 拍照录入（拍药盒自动填药名）'}
+          {photoBusy ? tr('drug.photoBusy') : tr('drug.photoBtn')}
         </Btn>
       </View>
       {photoHint ? <Text className='tx-sm' style={{ color: 'var(--color-brand-primary)' }}>{photoHint}</Text> : null}
-      {searching && <Text className='tx-sm tx-sub'>搜索中…</Text>}
+      {searching && <Text className='tx-sm tx-sub'>{tr('drug.searching')}</Text>}
       {results.length > 0 && (
         <View className='col' style={{ border: '1rpx solid var(--color-border-subtle)', borderRadius: '20rpx', overflow: 'hidden' }}>
           {results.map((d, i) => (
@@ -139,7 +141,7 @@ export function DrugPicker({
               <View className='col grow' style={{ gap: '4rpx' }}>
                 <Text className='tx-md tx-strong'>
                   {d.genericName}
-                  {d.brandName ? `（${d.brandName}）` : ''}
+                  {d.brandName ? tr('drug.brandWrap', { name: d.brandName }) : ''}
                 </Text>
                 <Text className='tx-sm tx-sub'>
                   {d.specification} · {d.manufacturer ?? ''}
@@ -151,11 +153,11 @@ export function DrugPicker({
         </View>
       )}
       {keyword.trim() && !searching && results.length === 0 && (
-        <Text className='tx-sm tx-sub'>药品库里没有这个药？可以自建药品（将进入待核验）。</Text>
+        <Text className='tx-sm tx-sub'>{tr('drug.customHint')}</Text>
       )}
       <View>
         <Btn variant='ghost' onClick={() => setShowCustom(true)}>
-          + 自建药品
+          {tr('drug.customBtn')}
         </Btn>
       </View>
       <CustomDrugSheet
@@ -185,7 +187,7 @@ function CustomDrugSheet({
   const [genericName, setGenericName] = useState('');
   const [brandName, setBrandName] = useState('');
   const [specification, setSpecification] = useState('');
-  const [unit, setUnit] = useState('片');
+  const [unit, setUnit] = useState(tr('pf.defaultUnit'));
   const [dosageForm, setDosageForm] = useState('tablet');
   const [busy, setBusy] = useState(false);
 
@@ -199,7 +201,7 @@ function CustomDrugSheet({
         unit,
         dosageForm,
       });
-      toastOk('自建药品已保存');
+      toastOk(tr('drug.customSaved'));
       onCreated(drug);
     } catch (e) {
       toastError(e);
@@ -209,42 +211,42 @@ function CustomDrugSheet({
   };
 
   return (
-    <Sheet open={open} title='自建药品' onClose={onClose}>
+    <Sheet open={open} title={tr('drug.customTitle')} onClose={onClose}>
       <View className='col' style={{ gap: '24rpx' }}>
-        <Field label='通用名'>
-          <TxtInput value={genericName} onChange={setGenericName} placeholder='如：硝苯地平' />
+        <Field label={tr('drug.genericName')}>
+          <TxtInput value={genericName} onChange={setGenericName} placeholder={tr('drug.genericPlaceholder')} />
         </Field>
-        <Field label='商品名（选填）'>
-          <TxtInput value={brandName} onChange={setBrandName} placeholder='如：拜新同' />
+        <Field label={tr('drug.brandName')}>
+          <TxtInput value={brandName} onChange={setBrandName} placeholder={tr('drug.brandPlaceholder')} />
         </Field>
-        <Field label='规格'>
-          <TxtInput value={specification} onChange={setSpecification} placeholder='如：30mg/片' />
+        <Field label={tr('drug.spec')}>
+          <TxtInput value={specification} onChange={setSpecification} placeholder={tr('drug.specPlaceholder')} />
         </Field>
         <View className='row' style={{ gap: '16rpx', alignItems: 'flex-start' }}>
           <View className='grow'>
-            <Field label='剂型'>
+            <Field label={tr('drug.dosageForm')}>
               <Pick
                 value={dosageForm}
                 onChange={setDosageForm}
-                options={Object.entries(DOSAGE_FORM_LABELS).map(([value, label]) => ({ value, label }))}
+                options={Object.entries(dosageFormLabels()).map(([value, label]) => ({ value, label }))}
               />
             </Field>
           </View>
           <View className='grow'>
-            <Field label='最小单位'>
-              <TxtInput value={unit} onChange={setUnit} placeholder='片 / 粒 / ml' />
+            <Field label={tr('drug.unit')}>
+              <TxtInput value={unit} onChange={setUnit} placeholder={tr('drug.unitPlaceholder')} />
             </Field>
           </View>
         </View>
         <View className='row' style={{ gap: '12rpx' }}>
           <View className='grow'>
             <Btn variant='ghost' block onClick={onClose}>
-              取消
+              {tr('common.cancel')}
             </Btn>
           </View>
           <View className='grow'>
             <Btn block disabled={busy || !genericName || !specification} onClick={submit}>
-              保存药品
+              {tr('drug.save')}
             </Btn>
           </View>
         </View>

@@ -7,6 +7,8 @@ import { monthOf, pct, shiftMonth, todayInTz } from '../../lib/time';
 import type { AdherenceCalendarDay, AdherenceSummary } from '../../lib/types';
 import { Btn, Card, EmptyState, ErrorLine, Loading, PageShell, SegTabs, StatCard } from '../../components/ui';
 import { MemberBar } from '../../components/MemberBar';
+import { tr, useNavTitle, useT } from '../../lib/i18n';
+import { weekdayLabels } from '../../lib/dict';
 
 function rate(a: number, b: number): number | null {
   return b > 0 ? a / b : null;
@@ -48,6 +50,8 @@ function heatClass(cell: AdherenceCalendarDay): string {
 
 /** 依从统计（tab）：周/月汇总 + 月历热力。与 Web 端 Adherence 同口径。 */
 export default function Adherence() {
+  const t = useT();
+  useNavTitle('nav.adherence');
   useSessionGuard();
   const memberId = useApp((s) => s.currentMemberId);
   const members = useApp((s) => s.members);
@@ -110,7 +114,7 @@ export default function Adherence() {
       <PageShell>
         <MemberBar />
         <Card>
-          <EmptyState text='请先添加成员。' />
+          <EmptyState text={t('adh.noMember')} />
         </Card>
       </PageShell>
     );
@@ -119,13 +123,13 @@ export default function Adherence() {
   return (
     <PageShell>
       <MemberBar />
-      <Text className='tx-title'>{member?.displayName ?? ''} · 依从统计</Text>
+      <Text className='tx-title'>{t('adh.title', { name: member?.displayName ?? '' })}</Text>
       <ErrorLine error={error} />
-      <Card title='汇总'>
+      <Card title={t('adh.summary')}>
         <SegTabs
           options={[
-            { value: 'week', label: '本周' },
-            { value: 'month', label: '本月' },
+            { value: 'week', label: t('adh.week') },
+            { value: 'month', label: t('adh.month') },
           ]}
           value={range}
           onChange={(v) => setRange(v as 'week' | 'month')}
@@ -134,28 +138,28 @@ export default function Adherence() {
           {summary === null ? (
             <Loading />
           ) : summary.scheduledCount === 0 ? (
-            <EmptyState text='该时段暂无应服药记录。' />
+            <EmptyState text={t('adh.noRecords')} />
           ) : (
             <View className='col' style={{ gap: '12rpx' }}>
               <View className='row' style={{ gap: '12rpx' }}>
                 <View className='grow'>
-                  <StatCard label='应服' value={`${summary.scheduledCount} 次`} />
+                  <StatCard label={t('adh.scheduled')} value={t('adh.times', { n: summary.scheduledCount })} />
                 </View>
                 <View className='grow'>
-                  <StatCard label='实服' value={`${summary.takenCount} 次`} />
+                  <StatCard label={t('adh.taken')} value={t('adh.times', { n: summary.takenCount })} />
                 </View>
               </View>
               <View className='row' style={{ gap: '12rpx' }}>
                 <View className='grow'>
                   <StatCard
-                    label='按时率'
+                    label={t('adh.onTimeRate')}
                     value={pct(summary.onTimeRate ?? rate(summary.onTimeCount, summary.scheduledCount))}
                     highlight
                   />
                 </View>
                 <View className='grow'>
                   <StatCard
-                    label='服药率'
+                    label={t('adh.adherenceRate')}
                     value={pct(summary.adherenceRate ?? rate(summary.takenCount, summary.scheduledCount))}
                     highlight
                   />
@@ -163,37 +167,37 @@ export default function Adherence() {
               </View>
               <View className='row' style={{ gap: '12rpx' }}>
                 <View className='grow'>
-                  <StatCard label='按时服用' value={`${summary.onTimeCount} 次`} />
+                  <StatCard label={t('adh.onTime')} value={t('adh.times', { n: summary.onTimeCount })} />
                 </View>
                 <View className='grow'>
-                  <StatCard label='漏服' value={`${summary.missedCount} 次`} warn={summary.missedCount > 0} />
+                  <StatCard label={t('adh.missed')} value={t('adh.times', { n: summary.missedCount })} warn={summary.missedCount > 0} />
                 </View>
                 <View className='grow'>
-                  <StatCard label='主动跳过' value={`${summary.skippedCount} 次`} />
+                  <StatCard label={t('adh.skipped')} value={t('adh.times', { n: summary.skippedCount })} />
                 </View>
               </View>
             </View>
           )}
         </View>
         <Text className='tx-sm tx-sub' style={{ display: 'block', marginTop: '16rpx' }}>
-          口径：补记计入实服但不计按时；PRN 按需服药不进按时率分母；漏服与跳过分开统计。
+          {t('adh.note')}
         </Text>
       </Card>
 
-      <Card title='月历'>
+      <Card title={t('adh.calendar')}>
         <View className='row-between' style={{ marginBottom: '16rpx' }}>
           <Btn variant='ghost' onClick={() => setMonth((m) => shiftMonth(m, -1))}>
-            ← 上月
+            {t('adh.prevMonth')}
           </Btn>
-          <Text className='tx-h'>{month.replace('-', ' 年 ')} 月</Text>
+          <Text className='tx-h'>{t('adh.monthLabel', { y: month.split('-')[0] ?? '', m: Number(month.split('-')[1] ?? 0) })}</Text>
           <Btn variant='ghost' onClick={() => setMonth((m) => shiftMonth(m, 1))}>
-            下月 →
+            {t('adh.nextMonth')}
           </Btn>
         </View>
         <View className='row' style={{ gap: '6rpx', marginBottom: '6rpx' }}>
-          {['一', '二', '三', '四', '五', '六', '日'].map((d) => (
+          {weekdayLabels().map((d) => (
             <View key={d} className='grow' style={{ textAlign: 'center' }}>
-              <Text className='tx-sm tx-sub'>周{d}</Text>
+              <Text className='tx-sm tx-sub'>{t('adh.weekPrefix')}{d}</Text>
             </View>
           ))}
         </View>
@@ -227,11 +231,11 @@ export default function Adherence() {
           </View>
         )}
         <View className='row-wrap' style={{ marginTop: '18rpx' }}>
-          <Legend cls='cal-heat-full' label='全部按时' />
-          <Legend cls='cal-heat-good' label='服药率 ≥80%' />
-          <Legend cls='cal-heat-mid' label='服药率 50%–80%' />
-          <Legend cls='cal-heat-bad' label='服药率 <50% 或有漏服' />
-          <Legend cls='cal-heat-none' label='无安排' />
+          <Legend cls='cal-heat-full' label={t('adh.legendFull')} />
+          <Legend cls='cal-heat-good' label={t('adh.legendGood')} />
+          <Legend cls='cal-heat-mid' label={t('adh.legendMid')} />
+          <Legend cls='cal-heat-bad' label={t('adh.legendBad')} />
+          <Legend cls='cal-heat-none' label={t('adh.legendNone')} />
         </View>
       </Card>
     </PageShell>
