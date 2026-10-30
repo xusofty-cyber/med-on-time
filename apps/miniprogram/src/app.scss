@@ -449,6 +449,7 @@ page {
  * 开关经根节点 .care-on 类生效 —— 字号放大、文字与主按钮对比度 ≥7:1、
  * 触控目标 ≥112rpx（≈56px）。设置来自成员级 care-settings（PUT 保存）。
  */
+/* 第三批修复：关怀字号下限 18pt = 24px = 48rpx，原 tx-md 42rpx≈15.75pt 等多处不达标，已全部抬至 ≥48rpx（标题 56、副标题 52 保持层级）。 */
 .care-on {
   color: var(--color-care-text);
 }
@@ -456,16 +457,16 @@ page {
   font-size: 56rpx;
 }
 .care-on .tx-h {
-  font-size: 46rpx;
+  font-size: 52rpx;
 }
 .care-on .tx-md {
-  font-size: 42rpx;
+  font-size: 48rpx;
 }
 .care-on .tx-sm {
-  font-size: 38rpx;
+  font-size: 48rpx;
 }
 .care-on .tx-xs {
-  font-size: 34rpx;
+  font-size: 48rpx;
 }
 .care-on .tx-sub {
   color: var(--color-care-text-secondary);
@@ -473,20 +474,20 @@ page {
 .care-on .btn,
 .care-on .input {
   min-height: 112rpx;
-  font-size: 40rpx;
+  font-size: 48rpx;
 }
 .care-on .btn-primary {
   background: var(--color-brand-strong); /* 深绿对白 ≈ 9:1，满足关怀模式对比度 */
 }
 .care-on .field-label {
-  font-size: 36rpx;
+  font-size: 48rpx;
 }
 .care-on .chip {
-  font-size: 38rpx;
+  font-size: 48rpx;
   padding: 20rpx 32rpx;
 }
 .care-on .badge {
-  font-size: 30rpx;
+  font-size: 48rpx;
 }
 .care-on .cal-cell {
   min-height: 128rpx;

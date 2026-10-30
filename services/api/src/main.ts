@@ -10,6 +10,17 @@ import { LoggingMaskInterceptor } from './common/interceptors/logging-mask.inter
 
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  // 安全响应头（审查 07 H2：此前 API 与前端 nginx 均无安全头）：
+  // JSON API 不下发 CSP（页面级 CSP 在 web/admin 的 nginx 配置里），
+  // 这里给所有响应加防嗅探/防点击劫持/来源收敛/HSTS（生产经 HTTPS nginx 反代）。
+  app.use((_req: unknown, res: { setHeader: (k: string, v: string) => void }, next: () => void) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-Frame-Options', 'DENY');
+    res.setHeader('Referrer-Policy', 'no-referrer');
+    res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+    res.setHeader('Cross-Origin-Resource-Policy', 'same-site');
+    next();
+  });
   // 拍照录入走 base64 JSON 直传（单张 ≤5MB → body ≤ ~7MB）；仅放大 JSON 上限，
   // 其余端点本就无大 body 场景，超限由 express 直接 413。
   app.useBodyParser('json', { limit: '8mb' });
@@ -29,7 +40,7 @@ async function bootstrap(): Promise<void> {
     const swaggerConfig = new DocumentBuilder()
       .setTitle('药准时 MedOnTime API')
       .setDescription('全平台用药提醒系统后端接口契约')
-      .setVersion('0.1.0')
+      .setVersion('0.3.4')
       .addBearerAuth()
       .build();
     const document = SwaggerModule.createDocument(app, swaggerConfig);

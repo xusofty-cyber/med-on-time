@@ -40,8 +40,7 @@ med-on-time/
 │   ├── ios/          # iOS 客户端
 │   └── desktop/      # PC 客户端（Windows / Linux / macOS）
 ├── packages/
-│   ├── shared/       # 共享类型、枚举、常量、工具函数
-│   └── api-client/   # 各端共用的 API 客户端 SDK
+│   └── shared/       # 共享类型、枚举、常量、工具函数（api-client 生成客户端空壳已于第三批移除：两端零引用，契约事实源为后端 OpenAPI 文档 + 本包手写类型）
 ├── services/
 │   └── api/          # 后端 API + 提醒引擎
 └── docs/             # 设计文档索引

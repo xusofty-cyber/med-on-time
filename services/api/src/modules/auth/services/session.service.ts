@@ -4,10 +4,10 @@ import { uuidv7 } from '../../../common/utils/uuidv7';
 /**
  * 登录会话（refresh 吊销的事实来源）。
  *
- * ⚠️ schema 缺口：API 契约要求 refresh 存 `user_session` 表以便吊销，但现行
- * schema.prisma（56 表）无 user_session 模型，本线禁改 schema。故先以
- * RefreshSessionStore 抽象 + 内存实现落地接口语义（创建/校验/单会话踢出/全量吊销），
- * TODO(schema): 待 DB V1.3 补 user_session 表后切换为 Prisma 实现（接口不变）。
+ * 存储经 RefreshSessionStore 抽象落地：现行实现为 RedisRefreshSessionStore
+ * （会话/索引/吊销记录均在 Redis，进程重启不丢会话、不复活已吊销会话）。
+ * 早期「schema 无 user_session 表先内存实现」的缺口已由该迁移关闭；
+ * 若未来补 user_session 表，只需新增 Prisma 实现替换绑定，接口不变。
  */
 export interface RefreshSession {
   id: string; // sid，同时写入 JWT 的 sid claim
@@ -20,7 +20,25 @@ export interface RefreshSession {
   createdAt: Date;
   expiresAt: Date;
   revokedAt?: Date;
+  /** 轮换消费时刻：refresh 轮换成功时由 consumeForRotation 原子写入（与 revokedAt 同时落）。 */
+  rotatedAt?: Date;
 }
+
+/**
+ * refresh 轮换消费结果（防重放 + 复用检测，RFC 6819 口径）：
+ * - ok：本次消费成功，session 为被消费的旧会话（已标记 rotatedAt/revokedAt）；
+ * - reuse：已轮换出去的旧 token 在宽限期后再次出现 = 疑似盗用，调用方须
+ *   全量吊销该账号会话并拒绝；
+ * - invalid：不存在/已过期/已吊销/jti 不符/宽限期内重复提交（并发重试），
+ *   一律按「会话已失效」拒绝，不触发全量吊销。
+ */
+export type RotateConsumeOutcome =
+  | { status: 'ok'; session: RefreshSession }
+  | { status: 'reuse'; session: RefreshSession }
+  | { status: 'invalid' };
+
+/** 轮换宽限期：并发/重试在此时长内重复提交旧 token 只判 invalid，不判盗用。 */
+export const ROTATION_GRACE_MS = 10_000;
 
 export abstract class RefreshSessionStore {
   abstract create(session: RefreshSession): Promise<void>;
@@ -28,6 +46,14 @@ export abstract class RefreshSessionStore {
   abstract listByAccount(accountId: string): Promise<RefreshSession[]>;
   abstract revoke(id: string): Promise<void>;
   abstract revokeAllByAccount(accountId: string): Promise<void>;
+  /**
+   * 原子消费一次 refresh 轮换：校验 jti/过期/吊销状态并在同一原子步内标记
+   * rotatedAt+revokedAt，杜绝「先查后吊销」竞态下同一 refresh 被双花。
+   */
+  abstract consumeForRotation(
+    id: string,
+    expectedJti: string,
+  ): Promise<RotateConsumeOutcome>;
 }
 
 const activeSessionIds = new Set<string>();
@@ -176,6 +202,34 @@ export class InMemoryRefreshSessionStore extends RefreshSessionStore {
       }
     }
   }
+
+  /**
+   * 内存版轮换消费：判定与标记之间无 await，Node 单线程下即原子，
+   * 语义与 Redis Lua 版逐条对齐（宽限期口径同 ROTATION_GRACE_MS）。
+   */
+  async consumeForRotation(
+    id: string,
+    expectedJti: string,
+  ): Promise<RotateConsumeOutcome> {
+    this.prune();
+    const s = this.sessions.get(id);
+    if (!s) return { status: 'invalid' };
+    if (s.refreshJti !== expectedJti) return { status: 'invalid' };
+    const now = new Date();
+    if (s.expiresAt.getTime() < now.getTime()) return { status: 'invalid' };
+    if (s.rotatedAt) {
+      if (now.getTime() - s.rotatedAt.getTime() <= ROTATION_GRACE_MS) {
+        return { status: 'invalid' };
+      }
+      return { status: 'reuse', session: s };
+    }
+    if (s.revokedAt) return { status: 'invalid' };
+    s.rotatedAt = now;
+    s.revokedAt = now;
+    activeSessionIds.delete(id);
+    revokedSessionIds.set(id, now.getTime());
+    return { status: 'ok', session: s };
+  }
 }
 
 @Injectable()
@@ -214,6 +268,18 @@ export class SessionService {
     if (!s || s.revokedAt || s.refreshJti !== refreshJti) return null;
     if (s.expiresAt.getTime() < Date.now()) return null;
     return s;
+  }
+
+  /**
+   * refresh 轮换消费（原子）：把「校验 + 吊销旧会话」收敛为存储层单步，
+   * 并按 RotateConsumeOutcome 区分正常消费 / 疑似盗用复用 / 一般失效。
+   * 轮换成功后由调用方签发新会话（新 sid），旧会话不再可用。
+   */
+  async rotateSession(
+    sessionId: string,
+    refreshJti: string,
+  ): Promise<RotateConsumeOutcome> {
+    return this.store.consumeForRotation(sessionId, refreshJti);
   }
 
   async listActiveSessions(accountId: string): Promise<RefreshSession[]> {

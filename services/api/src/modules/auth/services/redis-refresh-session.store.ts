@@ -1,8 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { RedisService } from '../../../common/redis/redis.service';
 import {
+  ROTATION_GRACE_MS,
   RefreshSession,
   RefreshSessionStore,
+  RotateConsumeOutcome,
   SESSION_REDIS_KEYS,
   getRevokedRetentionMs,
   markAccountRevokedBeforeInMirror,
@@ -45,6 +47,7 @@ export class RedisRefreshSessionStore extends RefreshSessionStore {
       createdAt: new Date(o.createdAt as string),
       expiresAt: new Date(o.expiresAt as string),
       revokedAt: o.revokedAt ? new Date(o.revokedAt as string) : undefined,
+      rotatedAt: o.rotatedAt ? new Date(o.rotatedAt as string) : undefined,
     };
   }
 
@@ -75,6 +78,59 @@ export class RedisRefreshSessionStore extends RefreshSessionStore {
       out.push(this.deserialize(raw));
     }
     return out;
+  }
+
+  /**
+   * 原子消费轮换（Lua 单步，杜绝并发双花）：
+   * 时间比较走 ISO8601 字符串字典序（JS toISOString 恒定宽 + Z 后缀，字典序
+   * 即时间序）。判定序：不存在/jti 不符/已过期 → invalid；已轮换且 jti 相符
+   * 时，宽限期内 → invalid（并发重试），宽限期外 → reuse（疑似盗用）；
+   * 已吊销（非轮换）→ invalid；其余 → 写入 rotatedAt+revokedAt 并落吊销键 → ok。
+   */
+  async consumeForRotation(
+    id: string,
+    expectedJti: string,
+  ): Promise<RotateConsumeOutcome> {
+    const now = new Date();
+    const nowIso = now.toISOString();
+    const graceCutoffIso = new Date(now.getTime() - ROTATION_GRACE_MS).toISOString();
+    const script = `
+local raw = redis.call('GET', KEYS[1])
+if not raw then return cjson.encode({status = 'invalid'}) end
+local s = cjson.decode(raw)
+if s.refreshJti ~= ARGV[1] then return cjson.encode({status = 'invalid'}) end
+if s.expiresAt < ARGV[2] then return cjson.encode({status = 'invalid'}) end
+if s.rotatedAt then
+  if s.rotatedAt > ARGV[3] then return cjson.encode({status = 'invalid'}) end
+  return cjson.encode({status = 'reuse', session = raw})
+end
+if s.revokedAt then return cjson.encode({status = 'invalid'}) end
+s.rotatedAt = ARGV[2]
+s.revokedAt = ARGV[2]
+local encoded = cjson.encode(s)
+local ttl = redis.call('PTTL', KEYS[1])
+if ttl < 1000 then ttl = 1000 end
+redis.call('SET', KEYS[1], encoded, 'PX', ttl)
+redis.call('SET', KEYS[2], '1', 'PX', tonumber(ARGV[4]))
+return cjson.encode({status = 'ok', session = encoded})
+`;
+    const raw = await this.redis.getClient().eval(
+      script,
+      2,
+      this.sessionKey(id),
+      SESSION_REDIS_KEYS.revokedSession(id),
+      expectedJti,
+      nowIso,
+      graceCutoffIso,
+      String(getRevokedRetentionMs()),
+    );
+    const outcome = JSON.parse(raw as string) as {
+      status: 'ok' | 'reuse' | 'invalid';
+      session?: string;
+    };
+    if (outcome.status === 'invalid' || !outcome.session) return { status: 'invalid' };
+    if (outcome.status === 'ok') markSessionRevokedInMirror(id, now.getTime());
+    return { status: outcome.status, session: this.deserialize(outcome.session) };
   }
 
   async revoke(id: string): Promise<void> {

@@ -252,3 +252,17 @@
 - 桌面：ReminderScheduler 调度落盘（store.ts 的 PersistedState.reminders），main 启动 whenReady 时 restore() 恢复（重启/被杀后不等渲染层重同步）；Web 同步改全成员合并（Today 页 syncDesktopAll，逐成员拉时间线+各自 care 设置，条目级 showDrugDetail，载荷级恒 false）。
 - DDInter 文档：TECH_RESEARCH_REPORT 正文 5 处上线指令全部改写为 POC-1 否决口径（表格行、免费组合结论、P0/P1 路径、POC-3 方法）。
 - 验证：api build 通过、jest 11 套件 68 用例全过（新增 throttle 4 + lifecycle 3 + PRN 4）；web typecheck、miniprogram typecheck、desktop tsc 通过。安卓/iOS 无本地工具链，靠 CI 构建验证（随本批推送后触发）。
+
+## 2026-10-30 全项目审查第三批修复（对齐欠账，可闭环项）
+- 负责人令：上班期间自主推进、不逐项授权，能做的先做完。本批由云曦亲手实现并本地验证；未部署生产。
+- 版本单一源：根 package.json 的 version 为唯一事实源，全仓对齐 0.3.4（api/web/admin/desktop/miniprogram/shared 原 0.1.0 与桌面 0.2.1、iOS 1.0.0 全部归一；iOS MARKETING_VERSION=0.3.4，Swagger setVersion 同步）；新增 scripts/sync-version.mjs（根目录 pnpm version:sync）一键同步各包/安卓 versionName/iOS MARKETING_VERSION/Swagger；安卓 versionCode 与 iOS 构建号为单调计数，仍人工递增（脚本内有提醒）。
+- JWT TTL 三方统一：代码与配置本已是契约口径 access 2h / refresh 30d（configuration.ts + TokenService 常量 + DEPLOY.md 一致），冲突源是 deploy/.env.example 与 services/api/.env.example 的 JWT_ACCESS_TTL=30m，两处已改 2h。
+- Refresh 轮换原子化 + 复用检测：SessionService.rotateSession 收敛到存储层原子消费——Redis 实现为 Lua 单步（校验 jti/过期/吊销并同一步写入 rotatedAt+revokedAt+吊销键，杜绝先查后吊销的并发双花），内存实现同步语义对齐；已轮换旧 token 重现时，宽限期 10s 内（并发/重试）只判失效，宽限期外判疑似盗用 → 全量吊销该账号会话并拒绝（RFC 6819）。新增 session-rotation.spec 4 用例。注：内存实现的重放证据随吊销保留期 2h 清理，Redis 实现保留至会话原到期。
+- 配置启动校验：新增 config/validate-env.ts 接入 ConfigModule validate——生产环境 JWT 三密钥与 DATABASE_URL 缺失或三密钥彼此相同直接拒启动（与 TokenService 既有守卫双保险），密钥长度 <32 仅警告（不打挂存量部署），非生产只警告。新增 5 用例。
+- 安全响应头：API main.ts 加全局中间件（nosniff / X-Frame DENY / Referrer-Policy no-referrer / HSTS / CORP same-site）；apps/web 与 apps/admin 的 nginx.conf 加页面级 CSP 等六头（server 级 + /assets/ 重复一份，避 nginx add_header 继承失效），connect-src 放行 https:/wss: 供桌面端与跨源 API。
+- api-client 空壳处置（决策落档）：packages/api-client 自始为空壳（仅 export {} + orval 配置）、Web/Admin 零代码引用——本批移除该包、删除两端 workspace 依赖、重生锁文件、README 目录树同步。契约事实源仍为后端 OpenAPI（/api/docs）+ packages/shared 手写类型；未来真要生成客户端，以独立任务按当时 API 面重新生成，不再留空壳占位。
+- 关怀字号达标：Web 关怀根字号 20px（≈15pt）→24px（=18pt，UI 规范下限），rem 体系随之达标；小程序 .care-on 下 tx-md/tx-sm/tx-xs/btn/input/field-label/chip/badge 全部抬至 ≥48rpx（=18pt；原 30–42rpx≈11–16pt），标题层级 56/52rpx 保留。
+- Web 信封口径统一（审查 02 M2）：成功判定由 code===0||200 改为只认 0；Login/App/api 三处 401 死判断（code===401，后端业务码实为 40100）改判 40100，与 Admin 口径一致（httpStatus 兜底保留）。
+- 杂项：小程序 project.config.json 的 appid 由 touristappid 改为真实 wxfc47179d51798ba2；桌面端根目录孤儿 main.js/preload.js 删除（现行入口为 dist/main.js、preload 走 dist/preload.js，electron-builder 打包清单从未包含根目录两文件）；session.service.ts 头部「schema 缺口待补 user_session 表」过期注释已改实（Redis 实现为现行事实源）。
+- 验证：frozen 安装通过；api build 通过、jest 13 套件 77 用例全过（新增 rotation 4 + validate-env 5）；shared 构建、web/admin/miniprogram typecheck、desktop tsc 全过。原生端本批无代码改动（仅 iOS MARKETING_VERSION 与 MP 配置/样式），仍随推送触发 CI 复核 + 打包抽验。
+- 本批未动（待单独立项/负责人拍板）：i18n 三语 UI 落地（全端工程量大，需专门排期与译文校对流）；真实推送通道 APNs/极光/FCM（需付费开发者账号与厂商配置，零投入原则下冻结）；证书绑定 pinning 落地（裁定为软失败监控型，需先定告警通道与证书轮换口径）；异地加密备份与告警（动生产服务器与外部存储，须负责人发令）；refresh token 存 localStorage 的改造（审查 07 H2 另一半：改 httpOnly cookie 涉及全端登录态契约变更，单独立项）。

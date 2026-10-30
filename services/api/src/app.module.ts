@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import configuration from './config/configuration';
+import { validateEnv } from './config/validate-env';
 import { PrismaModule } from './prisma/prisma.module';
 import { RedisModule } from './common/redis/redis.module';
 import { AccountModule } from './modules/account/account.module';
@@ -27,7 +28,7 @@ import { StockModule } from './modules/stock/stock.module';
  */
 @Module({
   imports: [
-    ConfigModule.forRoot({ isGlobal: true, load: [configuration] }),
+    ConfigModule.forRoot({ isGlobal: true, load: [configuration], validate: validateEnv }),
     PrismaModule,
     RedisModule,
     AuthModule,

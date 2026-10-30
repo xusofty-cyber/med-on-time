@@ -54,7 +54,7 @@ async function rawFetch<T>(path: string, init: RequestInit, withAuth: boolean): 
     envelope = null;
   }
   if (!envelope) throw new ApiError(res.status, `请求失败（HTTP ${res.status}）`, undefined, res.status);
-  if (envelope.code !== 0 && envelope.code !== 200) {
+  if (envelope.code !== 0) {
     throw new ApiError(envelope.code, envelope.message || '请求失败', envelope.traceId, res.status);
   }
   return envelope.data;
@@ -88,7 +88,7 @@ async function request<T>(path: string, init: RequestInit = {}, retry = true): P
   try {
     return await rawFetch<T>(path, init, true);
   } catch (err) {
-    if (err instanceof ApiError && (err.httpStatus === 401 || err.code === 401)) {
+    if (err instanceof ApiError && (err.httpStatus === 401 || err.code === 40100)) {
       if (retry && tokenStore.refresh) {
         const ok = await refreshTokens();
         if (ok) return request<T>(path, init, false);

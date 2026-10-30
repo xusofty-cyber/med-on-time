@@ -10,9 +10,11 @@
 /*
  * 长辈关怀模式（UI 规范 V1.0）：字号 ≥18pt、对比度 ≥7:1、触控目标 ≥56px。
  * 开关经 html[data-care-mode='on'] 生效，成员级设置（PUT care-settings）驱动。
+ * 字号换算：18pt = 24px —— 根字号必须 ≥24px（第三批修复：原 20px≈15pt 不达标，
+ * rem 基准抬升后全站 rem 文本随之达标）。
  */
 html[data-care-mode='on'] {
-  font-size: 20px;
+  font-size: 24px;
 }
 
 html[data-care-mode='on'] body {

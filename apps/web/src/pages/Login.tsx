@@ -60,7 +60,7 @@ export default function Login() {
             : await authApi.loginByCode({ email, code: emailCode });
       await finishLogin(result);
     } catch (err) {
-      if (err instanceof ApiError && err.code === 401) setError(new Error('账号或密码不正确'));
+      if (err instanceof ApiError && err.code === 40100) setError(new Error('账号或密码不正确'));
       else setError(err);
     } finally {
       setBusy(false);

@@ -81,7 +81,7 @@ export default function App() {
             actions.toast('error', '成员列表加载失败，请稍后刷新重试');
           }
         } catch (err) {
-          if (err instanceof ApiError && (err.httpStatus === 401 || err.code === 401)) {
+          if (err instanceof ApiError && (err.httpStatus === 401 || err.code === 40100)) {
             tokenStore.clear();
             actions.resetSession();
           }

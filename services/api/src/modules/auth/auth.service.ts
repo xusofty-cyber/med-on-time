@@ -301,7 +301,11 @@ export class AuthService {
     }
   }
 
-  /** refresh 轮换：旧会话吊销后发新对（token rotation，防 refresh 重放）。 */
+  /**
+   * refresh 轮换：存储层原子消费旧会话后发新对（token rotation，防 refresh 重放）。
+   * 已轮换的旧 token 在宽限期外重现 = 疑似盗用：全量吊销该账号会话并拒绝
+   * （RFC 6819 复用检测）；宽限期内的并发/重试重复提交只判失效，不误伤。
+   */
   async refresh(refreshToken: string, ctx: RequestContext): Promise<TokenPair> {
     const payload = this.tokenService.verify(refreshToken, 'refresh');
     if (!payload) {
@@ -311,14 +315,23 @@ export class AuthService {
         HttpStatus.UNAUTHORIZED,
       );
     }
-    const session = await this.sessions.findValidSession(payload.sid, payload.jti);
-    if (!session) {
+    const outcome = await this.sessions.rotateSession(payload.sid, payload.jti);
+    if (outcome.status === 'reuse') {
+      await this.sessions.revokeAllSessions(payload.sub);
+      throw new BusinessException(
+        BusinessCode.Unauthorized,
+        '检测到登录凭证被异常复用，已退出全部设备，请重新登录',
+        HttpStatus.UNAUTHORIZED,
+      );
+    }
+    if (outcome.status !== 'ok') {
       throw new BusinessException(
         BusinessCode.Unauthorized,
         '会话已失效，请重新登录',
         HttpStatus.UNAUTHORIZED,
       );
     }
+    const session = outcome.session;
     const account = await this.findAccountById(payload.sub);
     if (!account) {
       throw new BusinessException(
@@ -328,7 +341,6 @@ export class AuthService {
       );
     }
     this.assertAccountUsable(account);
-    await this.sessions.revokeSession(session.id);
     return this.issueTokens(
       account,
       { platform: session.platform, deviceName: session.deviceName },
