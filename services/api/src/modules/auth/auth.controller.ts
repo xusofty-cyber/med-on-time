@@ -1,6 +1,19 @@
-import { Body, Controller, Get, Param, Post, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, HttpStatus, Param, Post, Req, UseGuards } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
+import {
+  BusinessCode,
+  BusinessException,
+} from '../../common/exceptions/business.exception';
+import {
+  clearRefreshCookie,
+  hasCookieClientHeader,
+  parseTtlSeconds,
+  readRefreshCookie,
+  setRefreshCookie,
+  type RefreshCookieOptions,
+} from './auth-cookie';
 import {
   CurrentUser,
   type AuthenticatedUser,
@@ -35,7 +48,24 @@ function requestContext(req: Request): RequestContext {
 @ApiTags('auth')
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly service: AuthService) {}
+  constructor(
+    private readonly service: AuthService,
+    private readonly config: ConfigService,
+  ) {}
+
+  /** refresh cookie 参数（经 ConfigService 取值，配置隔离红线）。 */
+  private cookieOptions(): RefreshCookieOptions {
+    return {
+      secure: this.config.get<string>('NODE_ENV') === 'production',
+      maxAgeSeconds: parseTtlSeconds(this.config.get<string>('jwt.refreshTtl') ?? '30d'),
+    };
+  }
+
+  /** 令牌签发后同步下发 httpOnly refresh cookie（Web/Admin 浏览器通道）。 */
+  private withCookie<T extends { refreshToken: string }>(req: Request, pair: T): T {
+    setRefreshCookie(req, pair.refreshToken, this.cookieOptions());
+    return pair;
+  }
 
   /** 发送短信验证码（register/login/reset 三场景，限频见 VerificationCodeService） */
   @Post('sms/send')
@@ -51,34 +81,51 @@ export class AuthController {
 
   @Post('register')
   async register(@Body() dto: RegisterDto, @Req() req: Request) {
-    return this.service.register(dto, requestContext(req));
+    return this.withCookie(req, await this.service.register(dto, requestContext(req)));
   }
 
   /** 邮箱验证码注册（V1.3 先行通道；手机号选填、登记不验证） */
   @Post('register/email')
   async registerByEmail(@Body() dto: RegisterByEmailDto, @Req() req: Request) {
-    return this.service.registerByEmail(dto, requestContext(req));
+    return this.withCookie(req, await this.service.registerByEmail(dto, requestContext(req)));
   }
 
   /** 微信小程序登录（V1.3 先行通道；未配置 appid/secret 返回 40312） */
   @Post('wechat/miniapp/login')
   async wechatMiniappLogin(@Body() dto: WechatMiniappLoginDto, @Req() req: Request) {
-    return this.service.wechatMiniappLogin(dto, requestContext(req));
+    return this.withCookie(req, await this.service.wechatMiniappLogin(dto, requestContext(req)));
   }
 
   @Post('login')
   async login(@Body() dto: LoginDto, @Req() req: Request) {
-    return this.service.login(dto, requestContext(req));
+    return this.withCookie(req, await this.service.login(dto, requestContext(req)));
   }
 
   @Post('login/code')
   async loginByCode(@Body() dto: LoginByCodeDto, @Req() req: Request) {
-    return this.service.loginByCode(dto, requestContext(req));
+    return this.withCookie(req, await this.service.loginByCode(dto, requestContext(req)));
   }
 
+  /**
+   * 刷新令牌（双模）：body 传 refreshToken（原生/小程序/桌面）；
+   * 或浏览器凭 httpOnly cookie 自动携带（Web/Admin，refresh 不落 localStorage）——
+   * cookie 模式必须带 X-Mot-Client: web 自定义头作 CSRF 门槛。成功后轮换并重下发 cookie。
+   */
   @Post('refresh')
   async refresh(@Body() dto: RefreshDto, @Req() req: Request) {
-    return this.service.refresh(dto.refreshToken, requestContext(req));
+    let token = dto.refreshToken;
+    if (!token) {
+      token = readRefreshCookie(req) ?? undefined;
+      if (token && !hasCookieClientHeader(req)) {
+        throw new BusinessException(
+          BusinessCode.Forbidden,
+          'cookie 刷新缺少客户端标识头',
+          HttpStatus.FORBIDDEN,
+        );
+      }
+    }
+    const pair = await this.service.refresh(token ?? '', requestContext(req));
+    return this.withCookie(req, pair);
   }
 
   @ApiBearerAuth()
@@ -87,8 +134,13 @@ export class AuthController {
   async logout(
     @CurrentUser() user: AuthenticatedUser,
     @Body() dto: LogoutDto,
+    @Req() req: Request,
   ) {
-    await this.service.logout(user.accountId, dto.refreshToken);
+    await this.service.logout(
+      user.accountId,
+      dto.refreshToken ?? readRefreshCookie(req) ?? undefined,
+    );
+    clearRefreshCookie(req, this.cookieOptions());
     return { loggedOut: true };
   }
 
@@ -128,7 +180,9 @@ export class AuthController {
   /** 扫码登录：Web 轮询取票（confirmed 时一次性返回令牌） */
   @Get('scan-login/tickets/:id')
   async pollScanTicket(@Param('id') id: string, @Req() req: Request) {
-    return this.service.pollScanTicket(id, requestContext(req));
+    const result = await this.service.pollScanTicket(id, requestContext(req));
+    if (result.status === 'confirmed') this.withCookie(req, result);
+    return result;
   }
 
   /** 扫码登录：小程序确认页预览发起端信息（需登录态，不含令牌） */

@@ -1,5 +1,5 @@
 import { message } from 'antd';
-import { clearSession, getAccessToken, getRefreshToken, updateTokens } from './session';
+import { clearSession, getAccessToken } from './session';
 
 /**
  * 统一 request 封装（后台专用）。
@@ -54,33 +54,6 @@ export interface RequestOptions {
 
 const API_PREFIX = '/api';
 
-let refreshInFlight: Promise<boolean> | null = null;
-function tryRefreshTokens(): Promise<boolean> {
-  if (!refreshInFlight) {
-    refreshInFlight = (async () => {
-      const refreshToken = getRefreshToken();
-      if (!refreshToken) return false;
-      try {
-        const res = await fetch(`${API_PREFIX}/admin/auth/refresh`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ refreshToken }),
-        });
-        if (!res.ok) return false;
-        const env = (await res.json()) as ApiEnvelope<{ accessToken: string; refreshToken?: string }>;
-        if (!env || env.code !== 0 || !env.data?.accessToken) return false;
-        updateTokens(env.data.accessToken, env.data.refreshToken);
-        return true;
-      } catch {
-        return false;
-      } finally {
-        refreshInFlight = null;
-      }
-    })();
-  }
-  return refreshInFlight;
-}
-
 function redirectToLogin(): void {
   clearSession();
   if (window.location.pathname !== '/login') {
@@ -88,7 +61,7 @@ function redirectToLogin(): void {
   }
 }
 
-export async function request<T>(path: string, options: RequestOptions = {}, retry = true): Promise<T> {
+export async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const { method = 'GET', params, body, silent = false, authCall = false } = options;
 
   const qs = new URLSearchParams();
@@ -137,12 +110,7 @@ export async function request<T>(path: string, options: RequestOptions = {}, ret
         envelope?.traceId,
       );
     }
-    if (retry && getRefreshToken()) {
-      const refreshed = await tryRefreshTokens();
-      if (refreshed) {
-        return request<T>(path, options, false);
-      }
-    }
+    // 管理员侧无 refresh 机制：401 即会话结束，直接清会话跳登录（死刷新分支已删）
     if (!silent) message.error('登录已过期，请重新登录');
     redirectToLogin();
     throw new ApiError(40100, '登录已过期', 401, envelope?.traceId);

@@ -29,7 +29,7 @@ export default function LoginPage() {
   const onFinish = async (values: LoginValues): Promise<boolean> => {
     try {
       const result = await adminLogin(values.username, values.password);
-      saveSession(result.accessToken, result.refreshToken, result.admin);
+      saveSession(result.accessToken, result.admin);
       message.success(`欢迎回来，${result.admin.realName}`);
       navigate(from, { replace: true });
       return true;

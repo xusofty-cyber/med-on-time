@@ -266,3 +266,9 @@
 - 杂项：小程序 project.config.json 的 appid 由 touristappid 改为真实 wxfc47179d51798ba2；桌面端根目录孤儿 main.js/preload.js 删除（现行入口为 dist/main.js、preload 走 dist/preload.js，electron-builder 打包清单从未包含根目录两文件）；session.service.ts 头部「schema 缺口待补 user_session 表」过期注释已改实（Redis 实现为现行事实源）。
 - 验证：frozen 安装通过；api build 通过、jest 13 套件 77 用例全过（新增 rotation 4 + validate-env 5）；shared 构建、web/admin/miniprogram typecheck、desktop tsc 全过。原生端本批无代码改动（仅 iOS MARKETING_VERSION 与 MP 配置/样式），仍随推送触发 CI 复核 + 打包抽验。
 - 本批未动（待单独立项/负责人拍板）：i18n 三语 UI 落地（全端工程量大，需专门排期与译文校对流）；真实推送通道 APNs/极光/FCM（需付费开发者账号与厂商配置，零投入原则下冻结）；证书绑定 pinning 落地（裁定为软失败监控型，需先定告警通道与证书轮换口径）；异地加密备份与告警（动生产服务器与外部存储，须负责人发令）；refresh token 存 localStorage 的改造（审查 07 H2 另一半：改 httpOnly cookie 涉及全端登录态契约变更，单独立项）。
+
+## 2026-10-30 续批一：refresh 改 httpOnly cookie（审查 07 H2 后半）
+- 负责人 08:51 发令单独立项。后端双模（services/api/modules/auth/auth-cookie.ts + auth.controller.ts）：登录/注册/邮箱注册/小程序登录/验证码登录/扫码轮询确认/刷新成功后统一经 withCookie 下发 httpOnly cookie「mot_refresh」（Path=/api/auth、SameSite=Lax、生产 Secure、Max-Age 与 jwt.refreshTtl 同口径）；POST /auth/refresh 改为 body 优先、cookie 兜底，cookie 模式必须带 X-Mot-Client: web 自定义头（CSRF 门槛）；RefreshDto.refreshToken 改可选；logout 兼收 cookie 并清 cookie。cookie 选项经控制器 ConfigService 注入（守配置隔离红线，模块不直读 env）。原生/小程序/桌面继续 body 模式，AuthService.refresh 汇合（原子轮换+复用检测不变）。新增 auth-cookie.spec 5 用例；api jest 14 套件 82 用例全过。
+- Web（apps/web/src/lib/api.ts）：access 改只驻内存；浏览器 refresh 走 cookie 静默恢复（App 启动 ensureSession → me）；桌面壳维持 body 模式（refresh 存应用 localStorage）；旧版 localStorage 里的 refresh 仅作一次性迁移刷新，成功后清除、后续走 cookie；401 重试判定改为无条件尝试刷新（cookie 模式下 tokenStore.refresh 恒 null，旧判定会误杀）。Login/Register/Layout 调用面不变。
+- Admin 侧实情与处置：后端管理员根本没有 refresh（AdminAuthController 仅 login、8h access、无刷新端点），前端却存着一套永远 404 的 refresh 死代码——本次删除死代码链（tryRefreshTokens/getRefreshToken/updateTokens），token 与管理员信息由 localStorage 改 sessionStorage（关标签即失效），401 直接清会话跳登录。若将来要管理员长会话，须先在后端立项管理员 refresh+会话存储，不在本次范围。
+- 验证：api build + jest 82/82；web/admin typecheck 全过。未部署生产（部署仍须先配独立 ADMIN_JWT_SECRET，见第一批记录）。

@@ -115,9 +115,11 @@ export class LoginByCodeDto extends DeviceInfoDto {
 }
 
 export class RefreshDto {
+  /** 可选：Web/Admin 浏览器通道走 httpOnly cookie 携带（见 auth-cookie.ts），body 可缺省。 */
+  @IsOptional()
   @IsString()
   @Length(1, 4096)
-  refreshToken!: string;
+  refreshToken?: string;
 }
 
 export class LogoutDto {

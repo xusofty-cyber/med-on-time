@@ -13,7 +13,7 @@ import Ehr from './pages/Ehr';
 import Authorizations from './pages/Authorizations';
 import Notifications from './pages/Notifications';
 import Settings from './pages/Settings';
-import { tokenStore, setSessionExpiredHandler, ApiError } from './lib/api';
+import { tokenStore, setSessionExpiredHandler, ApiError, ensureSession } from './lib/api';
 import { authApi, memberApi } from './lib/endpoints';
 import { actions, applyCareMode, useApp } from './lib/store';
 import { PUBLIC_ROUTES, navigate, useRoute } from './lib/router';
@@ -71,7 +71,10 @@ export default function App() {
     });
     applyCareMode();
     (async () => {
-      if (tokenStore.access || tokenStore.refresh) {
+      // access 只驻内存：冷启动先静默刷新恢复会话（cookie/桌面/旧版迁移），再拉账号信息
+      const hasSession =
+        tokenStore.access || tokenStore.refresh || (await ensureSession());
+      if (hasSession) {
         try {
           const me = await authApi.me();
           actions.setAccount(me);
