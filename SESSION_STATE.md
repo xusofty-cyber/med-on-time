@@ -310,3 +310,9 @@
 - 用户裁定：改走 git 直推，免逐次授权。GitHub 账号 xusofty-cyber 已添加本机 SSH 公钥「Muse VM (yunxi)」（指纹 SHA256:/RqHgBHDKbqU3w1GooVZqk3phJAtCtciUcziat3nDsM，2026-10-30 13:36 经 sudo 邮箱验证码确认添加；既有钥匙未动）。
 - 通道：22 端口直连被出口代理重置，须经 HTTPS_PROXY 的 CONNECT 隧道——仓库已配 core.sshCommand 指向 ~/workspace/.tools/ssh/ssh_config_gh（ProxyCommand 复用 .tools/ssh/tsconnect.py，凭据只读环境变量）。本地空壳 .git 已替换为正式克隆（HEAD 5779423 与远端一致）；对账差异仅 ci.yml 本地缺失（已从远端恢复）与 update.sh 本地多可执行位（内容一致，已还原）。
 - 本条即首笔直推实测提交；此后代码推送默认 git push（串行、推后核链纪律不变），.github/workflows/ 仍不可由连接器写、git 直推可写（待后续实际验证），连接器保留为只读核验与应急通道。
+
+## 2026-10-30 生产部署记录（云曦执行，用户条件令「评审修复完成即部署」）
+- 第一步核验（部署门禁）：对照 R1–R4 + F1–F5 + 全量审查三批总账逐项实查闭环——F5 文档批移交的三项已由代码批消解：#13 JWT TTL（TokenService 已读 jwt.accessTtl 配置 + validate-env 生产硬校验）、#15 注销终局（AccountLifecycleService.runDueCancellations + 引擎调度 + 单测）、#18 project.config（真实 AppID wxfc47179d51798ba2）；F1 后端 #37 会话内存化已由 Redis 会话存储落地；F2→F3 的 MP-01…07 全 FIXED；native 批 DEFERRED 为 0。仍开口者仅用户亲裁冻结项（真实推送通道、证书 pinning）与功能后续项（PRN 前端录入），不属评审修复范围。
+- 部署：develop@d12f02e（CI #21 Success）经 update.sh --no-pull 首次生产实跑上线（服务器先行 git pull 快进并核 HEAD）。前置：磁盘 86%→清 builder 缓存 9.7G 至 72%；deploy/.env 实查三密钥齐全两两不同、NODE_ENV=production（ADMIN_JWT_SECRET 前置已满足，零改动）。构建串行（COMPOSE_PARALLEL_LIMIT=1）；发布前备份通过；迁移应用 1 条（20261030090000_v17），migrate status 复核 up to date；滚动替换 api/web/admin，redis 与其他服务未动。
+- 踩点：首跑在备份关卡中止——deploy/scripts/*.sh 在 git 中为 100644，update.sh 直接 exec backup.sh 报 Permission denied（脚本按设计中止、线上未受影响）；服务器侧 chmod +x + git core.fileMode=false 后重跑成功；本提交同时把脚本可执行位修进 git 根除。
+- 部署后核验：容器 api(healthy)/web/admin 均新镜像 Up；公网烟测 mot 200、/api/ops/health 200（code:0）、/ready 200、admin 200、blog 200（未动）；部署后磁盘经二次清理（builder 5.8G）为 76%/剩 16G。
