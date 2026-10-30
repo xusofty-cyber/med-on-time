@@ -2,35 +2,37 @@ import { FormEvent, useEffect, useState } from 'react';
 import { ehrApi } from '../lib/endpoints';
 import { actions, useApp } from '../lib/store';
 import { Badge, Button, Card, EmptyState, ErrorText, Field, Modal, Select, Spinner, TextInput } from '../components/ui';
-import { ALLERGEN_TYPE_LABELS, SEVERITY_LABELS, SYMPTOM_TAGS } from '../lib/dict';
+import { allergenTypeLabels, severityLabels, symptomTags } from '../lib/dict';
+import { tr, useT } from '../lib/i18n';
 import { fmtDateTime, nowLocalDateTime } from '../lib/time';
 import type { AdverseRecord, Allergy, EmergencyContact } from '../lib/types';
 
 type Tab = 'allergies' | 'adverse' | 'contacts' | 'records';
 
 export default function Ehr() {
+  const tr = useT();
   const memberId = useApp((s) => s.currentMemberId);
   const [tab, setTab] = useState<Tab>('allergies');
 
   if (!memberId) {
     return (
       <Card>
-        <EmptyState text="请先添加成员。" />
+        <EmptyState text={tr('ehr.noMember')} />
       </Card>
     );
   }
 
   const tabs: { key: Tab; label: string }[] = [
-    { key: 'allergies', label: '过敏档案' },
-    { key: 'adverse', label: '服药后不适' },
-    { key: 'contacts', label: '紧急联系人' },
-    { key: 'records', label: '健康概况' },
+    { key: 'allergies', label: tr('ehr.tabAllergies') },
+    { key: 'adverse', label: tr('ehr.tabAdverse') },
+    { key: 'contacts', label: tr('ehr.tabContacts') },
+    { key: 'records', label: tr('ehr.tabRecords') },
   ];
 
   return (
     <div className="flex flex-col gap-5">
-      <h1 className="text-2xl font-bold text-medgreen-dark">健康档案</h1>
-      <div className="flex flex-wrap gap-2" role="tablist" aria-label="健康档案栏目">
+      <h1 className="text-2xl font-bold text-medgreen-dark">{tr('nav.ehr')}</h1>
+      <div className="flex flex-wrap gap-2" role="tablist" aria-label={tr('ehr.tabsAria')}>
         {tabs.map((t) => (
           <Button key={t.key} variant={tab === t.key ? 'primary' : 'ghost'} onClick={() => setTab(t.key)}>
             {t.label}
@@ -68,23 +70,23 @@ function Allergies({ memberId }: { memberId: string }) {
     setBusy(true);
     try {
       setItems(await ehrApi.putAllergies(memberId, next));
-      actions.toast('success', '过敏档案已保存');
+      actions.toast('success', tr('ehr.allergySavedToast'));
     } catch (e) {
-      actions.toast('error', e instanceof Error ? e.message : '保存失败');
+      actions.toast('error', e instanceof Error ? e.message : tr('ehr.saveFailed'));
     } finally {
       setBusy(false);
     }
   };
 
   return (
-    <Card title="过敏档案">
+    <Card title={tr('ehr.tabAllergies')}>
       <ErrorText error={error} />
       {items === null ? (
         <Spinner />
       ) : (
         <>
           {items.length === 0 ? (
-            <EmptyState text="暂无过敏记录。如有药物/食物过敏，请在下方添加，添加计划时会做提醒。" />
+            <EmptyState text={tr('ehr.allergyEmpty')} />
           ) : (
             <ul className="mb-5 flex flex-col gap-2">
               {items.map((a, i) => (
@@ -92,18 +94,18 @@ function Allergies({ memberId }: { memberId: string }) {
                   <div>
                     <span className="font-semibold text-red-900">{a.allergen}</span>
                     <span className="ml-2 text-sm text-red-700">
-                      {ALLERGEN_TYPE_LABELS[a.allergenType] ?? a.allergenType}
-                      {a.severity ? ` · ${SEVERITY_LABELS[a.severity] ?? a.severity}` : ''}
+                      {allergenTypeLabels()[a.allergenType] ?? a.allergenType}
+                      {a.severity ? ` · ${severityLabels()[a.severity] ?? a.severity}` : ''}
                     </span>
-                    {a.reaction && <p className="text-sm text-red-700">反应：{a.reaction}</p>}
-                    {a.note && <p className="text-sm text-red-700">备注：{a.note}</p>}
+                    {a.reaction && <p className="text-sm text-red-700">{tr('ehr.allergyReaction', { text: a.reaction })}</p>}
+                    {a.note && <p className="text-sm text-red-700">{tr('ehr.allergyNote', { text: a.note })}</p>}
                   </div>
                   <Button
                     variant="ghost"
                     disabled={busy}
                     onClick={() => saveAll(items.filter((_, xi) => xi !== i))}
                   >
-                    删除
+                    {tr('common.delete')}
                   </Button>
                 </li>
               ))}
@@ -118,29 +120,29 @@ function Allergies({ memberId }: { memberId: string }) {
               setDraft({ allergen: '', allergenType: 'other', severity: 'mild', reaction: '', note: '' });
             }}
           >
-            <Field label="过敏原名称">
-              <TextInput value={draft.allergen} onChange={(v) => setDraft({ ...draft, allergen: v })} placeholder="如：青霉素、头孢类" required />
+            <Field label={tr('ehr.allergenName')}>
+              <TextInput value={draft.allergen} onChange={(v) => setDraft({ ...draft, allergen: v })} placeholder={tr('ehr.allergenPlaceholder')} required />
             </Field>
-            <Field label="过敏原类型">
+            <Field label={tr('ehr.allergenType')}>
               <Select
                 value={draft.allergenType}
                 onChange={(v) => setDraft({ ...draft, allergenType: v })}
-                options={Object.entries(ALLERGEN_TYPE_LABELS).map(([value, label]) => ({ value, label }))}
+                options={Object.entries(allergenTypeLabels()).map(([value, label]) => ({ value, label }))}
               />
             </Field>
-            <Field label="严重程度">
+            <Field label={tr('ehr.severity')}>
               <Select
                 value={draft.severity ?? 'mild'}
                 onChange={(v) => setDraft({ ...draft, severity: v })}
-                options={Object.entries(SEVERITY_LABELS).map(([value, label]) => ({ value, label }))}
+                options={Object.entries(severityLabels()).map(([value, label]) => ({ value, label }))}
               />
             </Field>
-            <Field label="过敏反应（选填）">
-              <TextInput value={draft.reaction ?? ''} onChange={(v) => setDraft({ ...draft, reaction: v })} placeholder="如：皮疹、呼吸困难" />
+            <Field label={tr('ehr.reactionOptional')}>
+              <TextInput value={draft.reaction ?? ''} onChange={(v) => setDraft({ ...draft, reaction: v })} placeholder={tr('ehr.reactionPlaceholder')} />
             </Field>
             <div className="sm:col-span-2">
               <Button type="submit" disabled={busy}>
-                + 添加过敏记录
+                {tr('ehr.addAllergyBtn')}
               </Button>
             </div>
           </form>
@@ -174,7 +176,7 @@ function Adverse({ memberId }: { memberId: string }) {
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     if (tags.length === 0) {
-      actions.toast('error', '请至少选择一个不适症状');
+      actions.toast('error', tr('ehr.adverseNeedTag'));
       return;
     }
     setBusy(true);
@@ -185,12 +187,12 @@ function Adverse({ memberId }: { memberId: string }) {
         severity,
         occurredAt: new Date(occurredAt).toISOString(),
       });
-      actions.toast('success', '不适记录已保存');
+      actions.toast('success', tr('ehr.adverseSavedToast'));
       setTags([]);
       setDescription('');
       await load();
     } catch (err) {
-      actions.toast('error', err instanceof Error ? err.message : '保存失败');
+      actions.toast('error', err instanceof Error ? err.message : tr('ehr.saveFailed'));
     } finally {
       setBusy(false);
     }
@@ -198,12 +200,12 @@ function Adverse({ memberId }: { memberId: string }) {
 
   return (
     <div className="flex flex-col gap-4">
-      <Card title="记录一次服药后不适">
+      <Card title={tr('ehr.adverseRecordTitle')}>
         <form className="flex flex-col gap-4" onSubmit={submit}>
           <div>
-            <span className="field-label">症状（可多选）</span>
+            <span className="field-label">{tr('ehr.adverseSymptoms')}</span>
             <div className="flex flex-wrap gap-2">
-              {SYMPTOM_TAGS.map((t) => {
+              {symptomTags().map((t) => {
                 const active = tags.includes(t.value);
                 return (
                   <button
@@ -219,34 +221,34 @@ function Adverse({ memberId }: { memberId: string }) {
             </div>
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
-            <Field label="严重程度">
+            <Field label={tr('ehr.severity')}>
               <Select
                 value={severity}
                 onChange={setSeverity}
-                options={Object.entries(SEVERITY_LABELS).map(([value, label]) => ({ value, label }))}
+                options={Object.entries(severityLabels()).map(([value, label]) => ({ value, label }))}
               />
             </Field>
-            <Field label="发生时间">
+            <Field label={tr('ehr.adverseOccurredAt')}>
               <input className="input" type="datetime-local" value={occurredAt} onChange={(e) => setOccurredAt(e.target.value)} />
             </Field>
           </div>
-          <Field label="补充描述（选填）">
-            <TextInput value={description} onChange={setDescription} placeholder="如：服药后半小时开始头晕，休息后缓解" />
+          <Field label={tr('ehr.adverseDescOptional')}>
+            <TextInput value={description} onChange={setDescription} placeholder={tr('ehr.adverseDescPlaceholder')} />
           </Field>
           <div>
             <Button type="submit" disabled={busy}>
-              保存记录
+              {tr('ehr.adverseSave')}
             </Button>
           </div>
-          <p className="text-sm text-neutral-500">如出现呼吸困难、意识模糊等严重不适，请立即就医，不要只在这里记录。</p>
+          <p className="text-sm text-neutral-500">{tr('ehr.adverseEmergencyNote')}</p>
         </form>
       </Card>
-      <Card title="历史不适记录">
+      <Card title={tr('ehr.adverseHistoryTitle')}>
         <ErrorText error={error} />
         {items === null ? (
           <Spinner />
         ) : items.length === 0 ? (
-          <EmptyState text="暂无不适记录。" />
+          <EmptyState text={tr('ehr.adverseEmpty')} />
         ) : (
           <ul className="flex flex-col gap-2">
             {items.map((r) => (
@@ -254,11 +256,11 @@ function Adverse({ memberId }: { memberId: string }) {
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="font-medium">{fmtDateTime(r.occurredAt)}</span>
                   <Badge tone={r.severity === 'severe' ? 'red' : r.severity === 'moderate' ? 'amber' : 'gray'}>
-                    {SEVERITY_LABELS[r.severity] ?? r.severity}
+                    {severityLabels()[r.severity] ?? r.severity}
                   </Badge>
                   {r.symptomTags.map((t) => (
                     <Badge key={t} tone="blue">
-                      {SYMPTOM_TAGS.find((x) => x.value === t)?.label ?? t}
+                      {symptomTags().find((x) => x.value === t)?.label ?? t}
                     </Badge>
                   ))}
                 </div>
@@ -290,24 +292,24 @@ function Contacts({ memberId }: { memberId: string }) {
   }, [memberId]);
 
   const remove = async (c: EmergencyContact) => {
-    if (!window.confirm(`删除紧急联系人「${c.contactName}」？`)) return;
+    if (!window.confirm(tr('ehr.contactDeleteConfirm', { name: c.contactName }))) return;
     try {
       await ehrApi.removeContact(memberId, c.id);
       await load();
     } catch (e) {
-      actions.toast('error', e instanceof Error ? e.message : '删除失败');
+      actions.toast('error', e instanceof Error ? e.message : tr('ehr.deleteFailed'));
     }
   };
 
   return (
-    <Card title="紧急联系人（每位成员最多 3 位）">
+    <Card title={tr('ehr.contactsTitle')}>
       <ErrorText error={error} />
       {items === null ? (
         <Spinner />
       ) : (
         <>
           {items.length === 0 ? (
-            <EmptyState text="暂无紧急联系人。出事时能第一时间联系上的人，请至少添加一位。" />
+            <EmptyState text={tr('ehr.contactsEmpty')} />
           ) : (
             <ul className="mb-4 flex flex-col gap-2">
               {[...items]
@@ -317,17 +319,17 @@ function Contacts({ memberId }: { memberId: string }) {
                     <div>
                       <span className="font-semibold">{c.contactName}</span>
                       <span className="ml-2 text-neutral-600">
-                        {c.relationship} · 优先级 {c.priority}
+                        {c.relationship} · {tr('ehr.contactPriority', { n: c.priority })}
                       </span>
                       <p className="text-neutral-600">{c.phone ?? c.phoneMasked ?? ''}</p>
                       {c.note && <p className="text-sm text-neutral-500">{c.note}</p>}
                     </div>
                     <div className="flex gap-2">
                       <Button variant="ghost" onClick={() => setEditing(c)}>
-                        编辑
+                        {tr('common.edit')}
                       </Button>
                       <Button variant="ghost" onClick={() => remove(c)}>
-                        删除
+                        {tr('common.delete')}
                       </Button>
                     </div>
                   </li>
@@ -335,7 +337,7 @@ function Contacts({ memberId }: { memberId: string }) {
             </ul>
           )}
           <Button disabled={items.length >= 3} onClick={() => setEditing('new')}>
-            + 添加联系人{items.length >= 3 ? '（已达上限）' : ''}
+            {tr('ehr.addContactBtn')}{items.length >= 3 ? tr('ehr.limitSuffix') : ''}
           </Button>
         </>
       )}
@@ -380,7 +382,7 @@ function ContactForm({
     try {
       if (isNew) await ehrApi.createContact(memberId, body);
       else if (c) await ehrApi.updateContact(memberId, c.id, body);
-      actions.toast('success', '紧急联系人已保存');
+      actions.toast('success', tr('ehr.contactSavedToast'));
       onSaved();
     } catch (err) {
       setError(err);
@@ -388,30 +390,30 @@ function ContactForm({
   };
 
   return (
-    <Modal open title={isNew ? '添加紧急联系人' : '编辑紧急联系人'} onClose={onClose}>
+    <Modal open title={isNew ? tr('ehr.addContactTitle') : tr('ehr.editContactTitle')} onClose={onClose}>
       <form className="flex flex-col gap-4" onSubmit={submit}>
-        <Field label="姓名">
+        <Field label={tr('ehr.contactName')}>
           <TextInput value={contactName} onChange={setContactName} required />
         </Field>
-        <Field label="电话">
+        <Field label={tr('ehr.contactPhone')}>
           <TextInput value={phone} onChange={setPhone} type="tel" required />
         </Field>
-        <Field label="关系（自由填写）">
-          <TextInput value={relationship} onChange={setRelationship} placeholder="如：长女、邻居、社区医生" required />
+        <Field label={tr('ehr.contactRelationship')}>
+          <TextInput value={relationship} onChange={setRelationship} placeholder={tr('ehr.contactRelationshipPlaceholder')} required />
         </Field>
-        <Field label="优先级（1 最高）">
+        <Field label={tr('ehr.contactPriorityLabel')}>
           <TextInput value={priority} onChange={setPriority} type="number" />
         </Field>
-        <Field label="备注（选填）">
+        <Field label={tr('ehr.noteOptional')}>
           <TextInput value={note} onChange={setNote} />
         </Field>
         <ErrorText error={error} />
         <div className="flex gap-2">
           <Button variant="ghost" className="flex-1" onClick={onClose}>
-            取消
+            {tr('common.cancel')}
           </Button>
           <Button type="submit" className="flex-1">
-            保存
+            {tr('common.save')}
           </Button>
         </div>
       </form>
@@ -460,59 +462,59 @@ function Records({ memberId }: { memberId: string }) {
         summary: summary || undefined,
       });
       setUpdatedAt(saved.updatedAt ?? null);
-      actions.toast('success', '健康概况已保存（摘要加密存储）');
+      actions.toast('success', tr('ehr.recordsSavedToast'));
     } catch (err) {
-      actions.toast('error', err instanceof Error ? err.message : '保存失败');
+      actions.toast('error', err instanceof Error ? err.message : tr('ehr.saveFailed'));
     } finally {
       setBusy(false);
     }
   };
 
   return (
-    <Card title="健康概况（每位成员一份，持续更新）">
+    <Card title={tr('ehr.recordsTitle')}>
       <ErrorText error={error} />
       {!loaded ? (
         <Spinner />
       ) : (
         <form className="flex flex-col gap-4" onSubmit={submit}>
           <div className="grid gap-3 sm:grid-cols-2">
-            <Field label="血型">
+            <Field label={tr('ehr.bloodType')}>
               <Select
                 value={bloodType}
                 onChange={setBloodType}
                 options={[
-                  { value: '', label: '未填写' },
-                  { value: 'A', label: 'A 型' },
-                  { value: 'B', label: 'B 型' },
-                  { value: 'AB', label: 'AB 型' },
-                  { value: 'O', label: 'O 型' },
-                  { value: 'unknown', label: '不清楚' },
+                  { value: '', label: tr('ehr.bloodUnfilled') },
+                  { value: 'A', label: tr('ehr.bloodLabel', { type: 'A' }) },
+                  { value: 'B', label: tr('ehr.bloodLabel', { type: 'B' }) },
+                  { value: 'AB', label: tr('ehr.bloodLabel', { type: 'AB' }) },
+                  { value: 'O', label: tr('ehr.bloodLabel', { type: 'O' }) },
+                  { value: 'unknown', label: tr('ehr.bloodUnknown') },
                 ]}
               />
             </Field>
-            <Field label="常去医院（选填）">
-              <TextInput value={primaryHospital} onChange={setPrimaryHospital} placeholder="如：市人民医院" />
+            <Field label={tr('ehr.hospitalOptional')}>
+              <TextInput value={primaryHospital} onChange={setPrimaryHospital} placeholder={tr('ehr.hospitalPlaceholder')} />
             </Field>
-            <Field label="身高（cm，选填）">
-              <TextInput value={heightCm} onChange={setHeightCm} type="number" placeholder="如：165" />
+            <Field label={tr('ehr.heightOptional')}>
+              <TextInput value={heightCm} onChange={setHeightCm} type="number" placeholder={tr('ehr.heightPlaceholder')} />
             </Field>
-            <Field label="体重（kg，选填）">
-              <TextInput value={weightKg} onChange={setWeightKg} type="number" placeholder="如：60" />
+            <Field label={tr('ehr.weightOptional')}>
+              <TextInput value={weightKg} onChange={setWeightKg} type="number" placeholder={tr('ehr.weightPlaceholder')} />
             </Field>
           </div>
-          <Field label="健康摘要（选填）" hint="既往病史、手术史、长期注意事项等；正文在服务端字段加密存储，仅本人及被授权照护人可见">
+          <Field label={tr('ehr.summaryOptional')} hint={tr('ehr.summaryHint')}>
             <textarea
               className="input min-h-[120px]"
               value={summary}
               onChange={(e) => setSummary(e.target.value)}
-              placeholder="如：2019 年阑尾切除术；高血压 10 年，长期服药控制中"
+              placeholder={tr('ehr.summaryPlaceholder')}
             />
           </Field>
           <div className="flex items-center gap-3">
             <Button type="submit" disabled={busy}>
-              {busy ? '保存中…' : '保存健康概况'}
+              {busy ? tr('planForm.saving') : tr('ehr.recordsSave')}
             </Button>
-            {updatedAt && <span className="text-sm text-neutral-500">最近更新 {fmtDateTime(updatedAt)}</span>}
+            {updatedAt && <span className="text-sm text-neutral-500">{tr('ehr.recordsUpdatedAt', { time: fmtDateTime(updatedAt) })}</span>}
           </div>
         </form>
       )}

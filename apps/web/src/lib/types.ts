@@ -3,6 +3,7 @@
  * 字段命名与 services/api/prisma/schema.prisma 的 camelCase 对齐。
  * 后端个别字段可能增补，读取时一律做可选处理，避免渲染崩溃。
  */
+import { tr } from './i18n';
 
 export interface ApiEnvelope<T> {
   code: number;
@@ -64,11 +65,13 @@ export type CyclePresetKey = 'standard' | 'gentle' | 'strict';
 /** 强提醒方式（2026-10-24 定版，原生/桌面端）：弹窗打底 + 三态单选，闹钟与语音互斥 */
 export type StrongAlertMode = 'none' | 'alarm' | 'voice';
 
-export const STRONG_ALERT_LABELS: Record<StrongAlertMode, string> = {
-  none: '无（仅弹窗通知）',
-  alarm: '闹钟（全屏 + 持续响铃）',
-  voice: '语音播报',
-};
+export function strongAlertLabels(): Record<StrongAlertMode, string> {
+  return {
+    none: tr('enum.strongAlert.none'),
+    alarm: tr('enum.strongAlert.alarm'),
+    voice: tr('enum.strongAlert.voice'),
+  };
+}
 
 export interface CareSettings {
   careMode: boolean;
@@ -79,11 +82,13 @@ export interface CareSettings {
   strongAlertMode: StrongAlertMode;
 }
 
-export const CYCLE_PRESETS: Record<CyclePresetKey, { label: string; windowMinutes: number; intervalMinutes: number }> = {
-  standard: { label: '标准（90 分钟内每 15 分钟）', windowMinutes: 90, intervalMinutes: 15 },
-  gentle: { label: '温和（120 分钟内每 30 分钟）', windowMinutes: 120, intervalMinutes: 30 },
-  strict: { label: '严格（60 分钟内每 10 分钟）', windowMinutes: 60, intervalMinutes: 10 },
-};
+export function cyclePresets(): Record<CyclePresetKey, { label: string; windowMinutes: number; intervalMinutes: number }> {
+  return {
+    standard: { label: tr('enum.cyclePreset.standard'), windowMinutes: 90, intervalMinutes: 15 },
+    gentle: { label: tr('enum.cyclePreset.gentle'), windowMinutes: 120, intervalMinutes: 30 },
+    strict: { label: tr('enum.cyclePreset.strict'), windowMinutes: 60, intervalMinutes: 10 },
+  };
+}
 
 export interface Drug {
   id: string;

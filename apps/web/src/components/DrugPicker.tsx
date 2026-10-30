@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { drugApi } from '../lib/endpoints';
 import { actions } from '../lib/store';
 import { Badge, Button, Field, Modal, Select, TextInput } from './ui';
-import { DOSAGE_FORM_LABELS } from '../lib/dict';
+import { dosageFormLabels } from '../lib/dict';
+import { tr, useT } from '../lib/i18n';
 import type { Drug } from '../lib/types';
 
 /** 药品搜索选药：走 /drugs/search（trgm 模糊），无结果时可自建药品。 */
@@ -15,6 +16,7 @@ export function DrugPicker({
   value: Drug | null;
   onChange: (drug: Drug | null) => void;
 }) {
+  const tr = useT();
   const [keyword, setKeyword] = useState('');
   const [results, setResults] = useState<Drug[]>([]);
   const [searching, setSearching] = useState(false);
@@ -49,16 +51,16 @@ export function DrugPicker({
         <div>
           <p className="font-medium text-medgreen-dark">
             {value.genericName}
-            {value.brandName ? `（${value.brandName}）` : ''}
+            {value.brandName ? tr('drug.brandNameWrap', { name: value.brandName }) : ''}
           </p>
           <p className="text-sm text-neutral-600">
-            {[value.specification, DOSAGE_FORM_LABELS[value.dosageForm] ?? value.dosageForm, value.manufacturer]
+            {[value.specification, dosageFormLabels()[value.dosageForm] ?? value.dosageForm, value.manufacturer]
               .filter(Boolean)
               .join(' · ')}
           </p>
         </div>
         <Button variant="ghost" onClick={() => onChange(null)}>
-          更换
+          {tr('drug.change')}
         </Button>
       </div>
     );
@@ -66,8 +68,8 @@ export function DrugPicker({
 
   return (
     <div className="flex flex-col gap-2">
-      <TextInput value={keyword} onChange={setKeyword} placeholder="输入药名或通用名搜索，如：二甲双胍" />
-      {searching && <p className="text-sm text-neutral-500">搜索中…</p>}
+      <TextInput value={keyword} onChange={setKeyword} placeholder={tr('drug.searchPlaceholder')} />
+      {searching && <p className="text-sm text-neutral-500">{tr('drug.searching')}</p>}
       {results.length > 0 && (
         <ul className="max-h-56 divide-y divide-neutral-100 overflow-y-auto rounded-xl border border-neutral-200">
           {results.map((d) => (
@@ -80,7 +82,7 @@ export function DrugPicker({
                 <span>
                   <span className="font-medium">
                     {d.genericName}
-                    {d.brandName ? `（${d.brandName}）` : ''}
+                    {d.brandName ? tr('drug.brandNameWrap', { name: d.brandName }) : ''}
                   </span>
                   <span className="block text-sm text-neutral-500">
                     {d.specification} · {d.manufacturer ?? ''}
@@ -93,11 +95,11 @@ export function DrugPicker({
         </ul>
       )}
       {keyword.trim() && !searching && results.length === 0 && (
-        <p className="text-sm text-neutral-500">药品库里没有这个药？</p>
+        <p className="text-sm text-neutral-500">{tr('drug.notFound')}</p>
       )}
       <div>
         <Button variant="ghost" onClick={() => setShowCustom(true)}>
-          + 自建药品
+          {tr('drug.customBtn')}
         </Button>
       </div>
       <CustomDrugModal
@@ -127,7 +129,7 @@ function CustomDrugModal({
   const [genericName, setGenericName] = useState('');
   const [brandName, setBrandName] = useState('');
   const [specification, setSpecification] = useState('');
-  const [unit, setUnit] = useState('片');
+  const [unit, setUnit] = useState(tr('planForm.defaultUnit'));
   const [dosageForm, setDosageForm] = useState('tablet');
   const [busy, setBusy] = useState(false);
 
@@ -141,45 +143,45 @@ function CustomDrugModal({
         unit,
         dosageForm,
       });
-      actions.toast('success', '自建药品已保存');
+      actions.toast('success', tr('drug.savedToast'));
       onCreated(drug);
     } catch (e) {
-      actions.toast('error', e instanceof Error ? e.message : '自建药品失败');
+      actions.toast('error', e instanceof Error ? e.message : tr('drug.saveFailedToast'));
     } finally {
       setBusy(false);
     }
   };
 
   return (
-    <Modal open={open} title="自建药品" onClose={onClose}>
+    <Modal open={open} title={tr('drug.customTitle')} onClose={onClose}>
       <div className="flex flex-col gap-4">
-        <Field label="通用名">
-          <TextInput value={genericName} onChange={setGenericName} placeholder="如：硝苯地平" />
+        <Field label={tr('drug.genericName')}>
+          <TextInput value={genericName} onChange={setGenericName} placeholder={tr('drug.genericNamePlaceholder')} />
         </Field>
-        <Field label="商品名（选填）">
-          <TextInput value={brandName} onChange={setBrandName} placeholder="如：拜新同" />
+        <Field label={tr('drug.brandNameOptional')}>
+          <TextInput value={brandName} onChange={setBrandName} placeholder={tr('drug.brandNamePlaceholder')} />
         </Field>
-        <Field label="规格">
-          <TextInput value={specification} onChange={setSpecification} placeholder="如：30mg/片" />
+        <Field label={tr('drug.specification')}>
+          <TextInput value={specification} onChange={setSpecification} placeholder={tr('drug.specificationPlaceholder')} />
         </Field>
         <div className="grid grid-cols-2 gap-3">
-          <Field label="剂型">
+          <Field label={tr('drug.dosageForm')}>
             <Select
               value={dosageForm}
               onChange={setDosageForm}
-              options={Object.entries(DOSAGE_FORM_LABELS).map(([value, label]) => ({ value, label }))}
+              options={Object.entries(dosageFormLabels()).map(([value, label]) => ({ value, label }))}
             />
           </Field>
-          <Field label="最小单位">
-            <TextInput value={unit} onChange={setUnit} placeholder="片 / 粒 / ml" />
+          <Field label={tr('drug.minUnit')}>
+            <TextInput value={unit} onChange={setUnit} placeholder={tr('drug.unitPlaceholder')} />
           </Field>
         </div>
         <div className="flex gap-2">
           <Button variant="ghost" className="flex-1" onClick={onClose}>
-            取消
+            {tr('common.cancel')}
           </Button>
           <Button className="flex-1" disabled={busy || !genericName || !specification} onClick={submit}>
-            保存药品
+            {tr('drug.saveDrug')}
           </Button>
         </div>
       </div>

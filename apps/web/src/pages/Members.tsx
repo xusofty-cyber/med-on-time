@@ -2,8 +2,9 @@ import { FormEvent, useEffect, useState } from 'react';
 import { memberApi } from '../lib/endpoints';
 import { actions, useApp } from '../lib/store';
 import { Badge, Button, Card, EmptyState, ErrorText, Field, Modal, Select, Spinner, TextInput } from '../components/ui';
-import { GENDER_LABELS, RELATIONSHIP_LABELS } from '../lib/dict';
-import { CYCLE_PRESETS, STRONG_ALERT_LABELS, type CareSettings, type CyclePresetKey, type Member, type StrongAlertMode } from '../lib/types';
+import { genderLabels, relationshipLabels } from '../lib/dict';
+import { tr, useT } from '../lib/i18n';
+import { cyclePresets, strongAlertLabels, type CareSettings, type CyclePresetKey, type Member, type StrongAlertMode } from '../lib/types';
 
 const MAX_MEMBERS = 10;
 
@@ -17,6 +18,7 @@ const DEFAULT_CARE: CareSettings = {
 };
 
 export default function Members() {
+  const tr = useT();
   const members = useApp((s) => s.members);
   const currentMemberId = useApp((s) => s.currentMemberId);
   const [error, setError] = useState<unknown>(null);
@@ -33,32 +35,35 @@ export default function Members() {
   };
 
   const remove = async (m: Member) => {
-    if (!window.confirm(`确定要删除成员「${m.displayName}」吗？其计划与记录将一并归档，不再显示。`)) return;
+    if (!window.confirm(tr('member.deleteConfirm', { name: m.displayName }))) return;
     try {
       await memberApi.remove(m.id);
-      actions.toast('success', '成员已删除');
+      actions.toast('success', tr('member.deletedToast'));
       await refresh();
     } catch (e) {
-      actions.toast('error', e instanceof Error ? e.message : '删除失败');
+      actions.toast('error', e instanceof Error ? e.message : tr('member.deleteFailed'));
     }
   };
 
   return (
     <div className="flex flex-col gap-5">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h1 className="text-2xl font-bold text-medgreen-dark">成员管理</h1>
+        <h1 className="text-2xl font-bold text-medgreen-dark">{tr('member.title')}</h1>
         <Button disabled={ownCount >= MAX_MEMBERS} onClick={() => setEditing('new')}>
-          + 添加成员
+          {tr('member.addBtn')}
         </Button>
       </div>
       <p className="text-neutral-600">
-        每个账号最多管理 {MAX_MEMBERS} 位成员（当前自有成员 {ownCount} 位）
-        {ownCount >= MAX_MEMBERS ? '，已达上限，请先删除不再需要的成员' : ''}。被授权照护的成员也会出现在列表中，并标注授权级别。
+        {tr('member.quotaNote', {
+          max: MAX_MEMBERS,
+          own: ownCount,
+          limitSuffix: ownCount >= MAX_MEMBERS ? tr('member.quotaLimitSuffix') : '',
+        })}
       </p>
       <ErrorText error={error} />
       {members.length === 0 ? (
         <Card>
-          <EmptyState text="还没有任何成员，点击「添加成员」开始。" />
+          <EmptyState text={tr('member.empty')} />
         </Card>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2">
@@ -68,35 +73,35 @@ export default function Members() {
                 <div>
                   <p className="text-xl font-semibold">
                     {m.displayName}
-                    {m.id === currentMemberId && <Badge tone="green">当前成员</Badge>}
+                    {m.id === currentMemberId && <Badge tone="green">{tr('nav.currentMember')}</Badge>}
                   </p>
                   <p className="mt-1 text-neutral-600">
-                    {RELATIONSHIP_LABELS[m.relationship] ?? m.relationship}
-                    {m.gender ? ` · ${GENDER_LABELS[m.gender] ?? m.gender}` : ''}
-                    {m.birthDate ? ` · 生于 ${m.birthDate.slice(0, 10)}` : ''}
+                    {relationshipLabels()[m.relationship] ?? m.relationship}
+                    {m.gender ? ` · ${genderLabels()[m.gender] ?? m.gender}` : ''}
+                    {m.birthDate ? ` · ${tr('member.born', { date: m.birthDate.slice(0, 10) })}` : ''}
                   </p>
                   {m.accessLevel && m.accessLevel !== 'owner' && (
-                    <p className="mt-1 text-neutral-600">照护授权：{m.accessLevel}（来自他人账号授权）</p>
+                    <p className="mt-1 text-neutral-600">{tr('member.authFrom', { level: m.accessLevel })}</p>
                   )}
                 </div>
-                <Badge tone={m.status === 'active' ? 'green' : 'gray'}>{m.status === 'active' ? '在用' : m.status}</Badge>
+                <Badge tone={m.status === 'active' ? 'green' : 'gray'}>{m.status === 'active' ? tr('member.statusActive') : m.status}</Badge>
               </div>
               <div className="mt-4 flex flex-wrap gap-2">
                 {m.id !== currentMemberId && (
                   <Button variant="soft" onClick={() => actions.setCurrentMember(m.id)}>
-                    切换为当前
+                    {tr('member.switchBtn')}
                   </Button>
                 )}
                 <Button variant="ghost" onClick={() => setCareTarget(m)}>
-                  关怀与提醒设置
+                  {tr('member.careBtn')}
                 </Button>
                 {(!m.accessLevel || m.accessLevel === 'owner') && (
                   <>
                     <Button variant="ghost" onClick={() => setEditing(m)}>
-                      编辑
+                      {tr('common.edit')}
                     </Button>
                     <Button variant="ghost" onClick={() => remove(m)}>
-                      删除
+                      {tr('common.delete')}
                     </Button>
                   </>
                 )}
@@ -175,7 +180,7 @@ function MemberForm({
       };
       if (isNew) await memberApi.create(body);
       else if (member) await memberApi.update(member.id, body);
-      actions.toast('success', isNew ? '成员已添加' : '成员已更新');
+      actions.toast('success', isNew ? tr('member.addedToast') : tr('member.updatedToast'));
       onSaved();
     } catch (err) {
       setError(err);
@@ -185,35 +190,35 @@ function MemberForm({
   };
 
   return (
-    <Modal open title={isNew ? '添加成员' : '编辑成员'} onClose={onClose}>
+    <Modal open title={isNew ? tr('member.addTitle') : tr('member.editTitle')} onClose={onClose}>
       <form className="flex flex-col gap-4" onSubmit={submit}>
-        <Field label="显示名称">
-          <TextInput value={displayName} onChange={setDisplayName} placeholder="如：爸爸、王小明" required />
+        <Field label={tr('member.displayName')}>
+          <TextInput value={displayName} onChange={setDisplayName} placeholder={tr('member.displayNamePlaceholder')} required />
         </Field>
-        <Field label="与账号持有人的关系">
+        <Field label={tr('member.relationshipLabel')}>
           <Select
             value={relationship}
             onChange={setRelationship}
-            options={Object.entries(RELATIONSHIP_LABELS).map(([value, label]) => ({ value, label }))}
+            options={Object.entries(relationshipLabels()).map(([value, label]) => ({ value, label }))}
           />
         </Field>
-        <Field label="性别">
+        <Field label={tr('member.gender')}>
           <Select
             value={gender}
             onChange={setGender}
-            options={Object.entries(GENDER_LABELS).map(([value, label]) => ({ value, label }))}
+            options={Object.entries(genderLabels()).map(([value, label]) => ({ value, label }))}
           />
         </Field>
-        <Field label="出生日期（选填）">
+        <Field label={tr('member.birthDateOptional')}>
           <input className="input" type="date" value={birthDate} onChange={(e) => setBirthDate(e.target.value)} />
         </Field>
         <ErrorText error={error} />
         <div className="flex gap-2">
           <Button variant="ghost" className="flex-1" onClick={onClose}>
-            取消
+            {tr('common.cancel')}
           </Button>
           <Button type="submit" className="flex-1" disabled={busy}>
-            {busy ? '保存中…' : '保存'}
+            {busy ? tr('planForm.saving') : tr('common.save')}
           </Button>
         </div>
       </form>
@@ -255,7 +260,7 @@ export function CareSettingsEditor({
   }, [member.id]);
 
   const setPreset = (key: CyclePresetKey) => {
-    const p = CYCLE_PRESETS[key];
+    const p = cyclePresets()[key];
     setSettings((s) => ({ ...s, cyclePreset: key, cycleWindowMinutes: p.windowMinutes, cycleIntervalMinutes: p.intervalMinutes }));
   };
 
@@ -265,7 +270,7 @@ export function CareSettingsEditor({
     setError(null);
     try {
       await memberApi.putCareSettings(member.id, settings);
-      actions.toast('success', '关怀与提醒设置已保存');
+      actions.toast('success', tr('member.careSavedToast'));
       onSaved?.();
       onClose();
     } catch (err) {
@@ -276,15 +281,15 @@ export function CareSettingsEditor({
   };
 
   return (
-    <Modal open title={`${member.displayName} · 关怀与提醒设置`} onClose={onClose}>
+    <Modal open title={tr('member.careTitle', { name: member.displayName })} onClose={onClose}>
       {loading ? (
         <Spinner />
       ) : (
         <form className="flex flex-col gap-5" onSubmit={submit}>
           <label className="flex items-center justify-between gap-3">
             <span>
-              <span className="block font-medium">长辈关怀模式</span>
-              <span className="block text-sm text-neutral-500">大字号（≥18pt）、高对比度、大点击区（≥56px）</span>
+              <span className="block font-medium">{tr('member.careMode')}</span>
+              <span className="block text-sm text-neutral-500">{tr('member.careModeDesc')}</span>
             </span>
             <input
               type="checkbox"
@@ -293,20 +298,20 @@ export function CareSettingsEditor({
               onChange={(e) => setSettings((s) => ({ ...s, careMode: e.target.checked }))}
             />
           </label>
-          <Field label="提醒重复周期（未确认时如何重复提醒）">
+          <Field label={tr('member.cycleLabel')}>
             <Select
               value={settings.cyclePreset}
               onChange={(v) => setPreset(v as CyclePresetKey)}
-              options={Object.entries(CYCLE_PRESETS).map(([value, p]) => ({ value, label: p.label }))}
+              options={Object.entries(cyclePresets()).map(([value, p]) => ({ value, label: p.label }))}
             />
           </Field>
           <p className="-mt-2 text-sm text-neutral-500">
-            当前：{settings.cycleWindowMinutes} 分钟内每 {settings.cycleIntervalMinutes} 分钟重复一次，超时未确认记为漏服。单个计划可在计划编辑里覆盖此设置。
+            {tr('member.cycleCurrent', { window: settings.cycleWindowMinutes, interval: settings.cycleIntervalMinutes })}
           </p>
           <label className="flex items-center justify-between gap-3">
             <span>
-              <span className="block font-medium">锁屏提醒显示药品详情</span>
-              <span className="block text-sm text-neutral-500">默认关闭：锁屏/通知只显示「有服药提醒」，不显示药名与剂量，保护隐私</span>
+              <span className="block font-medium">{tr('member.lockScreen')}</span>
+              <span className="block text-sm text-neutral-500">{tr('member.lockScreenDesc')}</span>
             </span>
             <input
               type="checkbox"
@@ -316,12 +321,12 @@ export function CareSettingsEditor({
             />
           </label>
           <div>
-            <span className="block font-medium">强提醒方式（安卓 / 桌面端）</span>
+            <span className="block font-medium">{tr('member.strongAlert')}</span>
             <span className="block text-sm text-neutral-500">
-              弹窗通知始终开启；闹钟与语音二选一：闹钟 = 全屏持续响铃到处理为止，语音 = 直接念出药名与剂量。小程序与网页端不受此设置影响。
+              {tr('member.strongAlertDesc')}
             </span>
             <div className="mt-2 grid grid-cols-3 gap-2">
-              {(Object.keys(STRONG_ALERT_LABELS) as StrongAlertMode[]).map((mode) => (
+              {(Object.keys(strongAlertLabels()) as StrongAlertMode[]).map((mode) => (
                 <button
                   key={mode}
                   type="button"
@@ -332,7 +337,7 @@ export function CareSettingsEditor({
                       : 'border-neutral-300 text-neutral-600'
                   }`}
                 >
-                  {STRONG_ALERT_LABELS[mode]}
+                  {strongAlertLabels()[mode]}
                 </button>
               ))}
             </div>
@@ -340,10 +345,10 @@ export function CareSettingsEditor({
           <ErrorText error={error} />
           <div className="flex gap-2">
             <Button variant="ghost" className="flex-1" onClick={onClose}>
-              取消
+              {tr('common.cancel')}
             </Button>
             <Button type="submit" className="flex-1" disabled={busy}>
-              {busy ? '保存中…' : '保存设置'}
+              {busy ? tr('planForm.saving') : tr('member.saveSettings')}
             </Button>
           </div>
         </form>

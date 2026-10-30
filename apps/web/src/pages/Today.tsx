@@ -3,7 +3,8 @@ import { memberApi, reminderApi } from '../lib/endpoints';
 import { actions, getState, useApp } from '../lib/store';
 import { desktopBridge, syncDesktopReminders } from '../lib/desktop';
 import { Badge, Button, Card, EmptyState, ErrorText, Modal, Spinner } from '../components/ui';
-import { INSTANCE_STATUS_LABELS, MEAL_LABELS } from '../lib/dict';
+import { instanceStatusLabels, mealLabels } from '../lib/dict';
+import { tr, useT } from '../lib/i18n';
 import { fmtTime, wallTime } from '../lib/time';
 import type { ReminderInstance } from '../lib/types';
 
@@ -62,6 +63,7 @@ function statusTone(status: string): 'green' | 'amber' | 'red' | 'gray' | 'blue'
 }
 
 export default function Today() {
+  const tr = useT();
   const memberId = useApp((s) => s.currentMemberId);
   const members = useApp((s) => s.members);
   const member = members.find((m) => m.id === memberId) ?? null;
@@ -146,17 +148,17 @@ export default function Today() {
       notifiedRef.current.add(i.id);
       if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
         const showDetail = care?.lockScreenShowDrugDetail;
-        new Notification('药准时提醒', {
+        new Notification(tr('today.notifyTitle'), {
           body: showDetail
-            ? `${i.drugNameSnapshot} ${i.doseAmount}${i.doseUnit}，该吃药了`
-            : '有一条用药提醒，点击查看',
+            ? tr('today.notifyBodyDetail', { drug: i.drugNameSnapshot, amount: i.doseAmount, unit: i.doseUnit })
+            : tr('today.notifyBodyGeneric'),
         });
       }
     });
   }, [due, care]);
 
   useEffect(() => {
-    document.title = due.length > 0 ? `(${due.length}) 该吃药了 · 药准时` : '药准时 MedOnTime';
+    document.title = due.length > 0 ? tr('today.docTitleDue', { count: due.length }) : tr('auth.brandTitle');
   }, [due.length]);
 
   const act = async (id: string, fn: () => Promise<unknown>, okText: string) => {
@@ -166,7 +168,7 @@ export default function Today() {
       actions.toast('success', okText);
       await load();
     } catch (e) {
-      actions.toast('error', e instanceof Error ? e.message : '操作失败');
+      actions.toast('error', e instanceof Error ? e.message : tr('common.operationFailed'));
     } finally {
       setBusyId(null);
     }
@@ -175,7 +177,7 @@ export default function Today() {
   if (!memberId) {
     return (
       <Card>
-        <EmptyState text="还没有成员。请先在「成员」页添加本人或要照护的家人。" />
+        <EmptyState text={tr('today.noMember')} />
       </Card>
     );
   }
@@ -187,14 +189,14 @@ export default function Today() {
     <div className="flex flex-col gap-5">
       <div className="flex flex-wrap items-end justify-between gap-2">
         <div>
-          <h1 className="text-2xl font-bold text-medgreen-dark">{member?.displayName ?? ''} · 今日提醒</h1>
+          <h1 className="text-2xl font-bold text-medgreen-dark">{tr('today.heading', { name: member?.displayName ?? '' })}</h1>
           <p className="mt-1 text-neutral-600">
-            今天共 {totalCount} 次服药，已完成 {takenCount} 次
+            {tr('today.summary', { total: totalCount, taken: takenCount })}
           </p>
         </div>
         {typeof Notification !== 'undefined' && Notification.permission === 'default' && (
           <Button variant="soft" onClick={() => Notification.requestPermission()}>
-            开启浏览器通知
+            {tr('today.enableNotifications')}
           </Button>
         )}
       </div>
@@ -208,14 +210,14 @@ export default function Today() {
               <circle cx="12" cy="12" r="9" />
               <path d="M12 7v5l3 2" />
             </svg>
-            到吃药的时间了
+            {tr('today.dueBanner')}
           </p>
           <ul className="mt-2 flex flex-col gap-1">
             {due.map((i) => (
               <li key={i.id} className="text-amber-900">
                 {wallTime(i.localTime)} · {i.drugNameSnapshot} {i.doseAmount}
                 {i.doseUnit}
-                {i.storageLocation ? ` · 存放于 ${i.storageLocation}` : ''}
+                {i.storageLocation ? ` · ${tr('today.storedAt', { location: i.storageLocation })}` : ''}
               </li>
             ))}
           </ul>
@@ -224,9 +226,9 @@ export default function Today() {
 
       <Card>
         {items === null ? (
-          <Spinner text="正在加载今日提醒…" />
+          <Spinner text={tr('today.loading')} />
         ) : items.length === 0 ? (
-          <EmptyState text="今天没有用药安排。可在「用药计划」为该成员添加计划。" />
+          <EmptyState text={tr('today.empty')} />
         ) : (
           <ol className="flex flex-col">
             {items.map((item, idx) => {
@@ -256,17 +258,17 @@ export default function Today() {
                         {item.doseUnit}
                       </span>
                       <Badge tone={statusTone(item.status)}>
-                        {INSTANCE_STATUS_LABELS[item.status] ?? item.status}
+                        {instanceStatusLabels()[item.status] ?? item.status}
                       </Badge>
                       {item.mealRelation && item.mealRelation !== 'none' && (
-                        <Badge tone="gray">{MEAL_LABELS[item.mealRelation] ?? item.mealRelation}</Badge>
+                        <Badge tone="gray">{mealLabels()[item.mealRelation] ?? item.mealRelation}</Badge>
                       )}
                     </div>
                     <div className="mt-1 flex flex-col gap-0.5 text-neutral-600">
-                      {item.storageLocation && <span>存放位置：{item.storageLocation}</span>}
-                      {item.additionalNote && <span>备注：{item.additionalNote}</span>}
+                      {item.storageLocation && <span>{tr('today.storageLocation', { location: item.storageLocation })}</span>}
+                      {item.additionalNote && <span>{tr('today.note', { note: item.additionalNote })}</span>}
                       {item.status === 'snoozed' && item.snoozeUntil && (
-                        <span>已顺延至 {fmtTime(item.snoozeUntil, item.timezone)} 再次提醒</span>
+                        <span>{tr('today.snoozedUntil', { time: fmtTime(item.snoozeUntil, item.timezone) })}</span>
                       )}
                     </div>
                     {!done && canOperate && (
@@ -276,30 +278,30 @@ export default function Today() {
                         <Button
                           variant="success"
                           disabled={busyId === item.id}
-                          onClick={() => act(item.id, () => reminderApi.checkin(item.id), '已打卡，服药记录完成')}
+                          onClick={() => act(item.id, () => reminderApi.checkin(item.id), tr('today.checkedInToast'))}
                         >
                           <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                             <path d="M20 6 9 17l-5-5" />
                           </svg>
-                          已服用
+                          {tr('today.takenBtn')}
                         </Button>
                         <Button
                           variant="soft"
                           disabled={busyId === item.id}
-                          onClick={() => act(item.id, () => reminderApi.snooze(item.id), '已稍后提醒（按提醒周期顺延）')}
+                          onClick={() => act(item.id, () => reminderApi.snooze(item.id), tr('today.snoozedToast'))}
                         >
                           <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                             <circle cx="12" cy="12" r="9" />
                             <path d="M12 7v5l3 2" />
                           </svg>
-                          稍后提醒
+                          {tr('today.snoozeBtn')}
                         </Button>
                         <Button variant="ghost" disabled={busyId === item.id} onClick={() => setSkipTarget(item)}>
                           <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                             <circle cx="12" cy="12" r="9" />
                             <path d="m5.5 5.5 13 13" />
                           </svg>
-                          跳过
+                          {tr('today.skipBtn')}
                         </Button>
                       </div>
                     )}
@@ -311,18 +313,18 @@ export default function Today() {
         )}
       </Card>
 
-      <Modal open={skipTarget !== null} title="跳过这次服药" onClose={() => setSkipTarget(null)}>
+      <Modal open={skipTarget !== null} title={tr('today.skipTitle')} onClose={() => setSkipTarget(null)}>
         <div className="flex flex-col gap-4">
           <p className="text-neutral-600">
-            将把「{skipTarget?.drugNameSnapshot}」本次标记为跳过，并计入依从统计。请确认不是误操作。
+            {tr('today.skipBody', { drug: skipTarget?.drugNameSnapshot ?? '' })}
           </p>
           <label className="block">
-            <span className="field-label">跳过原因（选填）</span>
-            <input className="input" value={skipReason} onChange={(e) => setSkipReason(e.target.value)} placeholder="如：医生嘱咐暂停" />
+            <span className="field-label">{tr('today.skipReasonLabel')}</span>
+            <input className="input" value={skipReason} onChange={(e) => setSkipReason(e.target.value)} placeholder={tr('today.skipReasonPlaceholder')} />
           </label>
           <div className="flex gap-2">
             <Button variant="ghost" className="flex-1" onClick={() => setSkipTarget(null)}>
-              取消
+              {tr('common.cancel')}
             </Button>
             <Button
               variant="danger"
@@ -330,11 +332,11 @@ export default function Today() {
               onClick={() => {
                 const target = skipTarget;
                 setSkipTarget(null);
-                if (target) act(target.id, () => reminderApi.skip(target.id, skipReason || undefined), '已跳过本次');
+                if (target) act(target.id, () => reminderApi.skip(target.id, skipReason || undefined), tr('today.skippedToast'));
                 setSkipReason('');
               }}
             >
-              确认跳过
+              {tr('today.confirmSkip')}
             </Button>
           </div>
         </div>

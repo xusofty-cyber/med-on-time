@@ -2,7 +2,8 @@ import { FormEvent, useEffect, useState } from 'react';
 import { stockApi } from '../lib/endpoints';
 import { actions, useApp } from '../lib/store';
 import { Badge, Button, Card, EmptyState, ErrorText, Field, Modal, Select, Spinner, TextInput } from '../components/ui';
-import { STOCK_CHANGE_LABELS } from '../lib/dict';
+import { stockChangeLabels } from '../lib/dict';
+import { tr, useT } from '../lib/i18n';
 import { daysUntil, fmtDate } from '../lib/time';
 import type { StockItem } from '../lib/types';
 
@@ -10,15 +11,16 @@ function warningsOf(item: StockItem): { label: string; tone: 'red' | 'amber' }[]
   const out: { label: string; tone: 'red' | 'amber' }[] = [];
   const days = daysUntil(item.currentBatchExpiryDate);
   const expired = item.expired ?? (days !== null && days < 0) ?? item.status === 'expired';
-  if (expired) out.push({ label: '已过期', tone: 'red' });
-  else if (item.expiringSoon ?? (days !== null && days <= 30)) out.push({ label: `临近到期（${days} 天）`, tone: 'amber' });
+  if (expired) out.push({ label: tr('stock.warnExpired'), tone: 'red' });
+  else if (item.expiringSoon ?? (days !== null && days <= 30)) out.push({ label: tr('stock.warnExpiringSoon', { days: days ?? '' }), tone: 'amber' });
   const low = item.lowStock ?? (item.daysLeftEstimate !== null && item.daysLeftEstimate !== undefined && item.daysLeftEstimate < 7);
-  if (low) out.push({ label: `余量不足${item.daysLeftEstimate != null ? `（约 ${Math.floor(item.daysLeftEstimate)} 天）` : ''}`, tone: 'amber' });
-  if (Number(item.stockQuantity) <= 0) out.push({ label: '已用完', tone: 'red' });
+  if (low) out.push({ label: item.daysLeftEstimate != null ? tr('stock.warnLowDays', { days: Math.floor(item.daysLeftEstimate) }) : tr('stock.warnLow'), tone: 'amber' });
+  if (Number(item.stockQuantity) <= 0) out.push({ label: tr('stock.warnEmpty'), tone: 'red' });
   return out;
 }
 
 export default function Stock() {
+  const tr = useT();
   const memberId = useApp((s) => s.currentMemberId);
   const [items, setItems] = useState<StockItem[] | null>(null);
   const [error, setError] = useState<unknown>(null);
@@ -43,27 +45,27 @@ export default function Stock() {
   if (!memberId) {
     return (
       <Card>
-        <EmptyState text="请先添加成员。" />
+        <EmptyState text={tr('ehr.noMember')} />
       </Card>
     );
   }
 
   return (
     <div className="flex flex-col gap-5">
-      <h1 className="text-2xl font-bold text-medgreen-dark">药品库存</h1>
-      <p className="text-neutral-600">服药打卡会自动扣减库存；新开一盒药请用「补货入库」登记，并更新到期日。</p>
+      <h1 className="text-2xl font-bold text-medgreen-dark">{tr('stock.title')}</h1>
+      <p className="text-neutral-600">{tr('stock.intro')}</p>
       <ErrorText error={error} />
       {items === null ? (
-        <Spinner text="正在加载库存…" />
+        <Spinner text={tr('stock.loading')} />
       ) : items.length === 0 ? (
         <Card>
-          <EmptyState text="暂无库存记录。建立用药计划后，可在此登记每种药的库存。" />
+          <EmptyState text={tr('stock.empty')} />
         </Card>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2">
           {items.map((item) => {
             const warnings = warningsOf(item);
-            const name = item.genericName ?? item.drug?.genericName ?? item.drugName ?? '药品';
+            const name = item.genericName ?? item.drug?.genericName ?? item.drugName ?? tr('stock.drugFallback');
             return (
               <Card key={item.id}>
                 <div className="flex items-start justify-between gap-2">
@@ -73,12 +75,12 @@ export default function Stock() {
                       {item.specification ? <span className="ml-2 text-base font-normal text-neutral-500">{item.specification}</span> : null}
                     </p>
                     <p className="mt-1 text-neutral-600">
-                      剩余 <span className="text-xl font-bold text-medgreen-dark">{Number(item.stockQuantity)}</span> {item.stockUnit}
-                      {item.daysLeftEstimate != null ? ` · 约可服 ${Math.floor(item.daysLeftEstimate)} 天` : ''}
+                      {tr('stock.remaining')} <span className="text-xl font-bold text-medgreen-dark">{Number(item.stockQuantity)}</span> {item.stockUnit}
+                      {item.daysLeftEstimate != null ? ` · ${tr('stock.daysLeft', { days: Math.floor(item.daysLeftEstimate) })}` : ''}
                     </p>
                     <p className="mt-0.5 text-sm text-neutral-500">
-                      当前批次到期：{fmtDate(item.currentBatchExpiryDate)}
-                      {item.storageLocation ? ` · 存放：${item.storageLocation}` : ''}
+                      {tr('stock.expiryLine', { date: fmtDate(item.currentBatchExpiryDate) })}
+                      {item.storageLocation ? ` · ${tr('plan.storedShort', { location: item.storageLocation })}` : ''}
                     </p>
                   </div>
                 </div>
@@ -93,7 +95,7 @@ export default function Stock() {
                 )}
                 <div className="mt-4 flex gap-2">
                   <Button variant="soft" onClick={() => setAdjusting(item)}>
-                    调整库存
+                    {tr('stock.adjustBtn')}
                   </Button>
                 </div>
               </Card>
@@ -138,7 +140,7 @@ function AdjustModal({
     e.preventDefault();
     const amt = Number(amount);
     if (!amt || amt === 0) {
-      setError(new Error('请填写调整数量（补货为正数，手动减少可填负数）'));
+      setError(new Error(tr('stock.amountInvalid')));
       return;
     }
     setBusy(true);
@@ -151,7 +153,7 @@ function AdjustModal({
         expiryDate: changeType === 'restock' ? expiryDate || null : null,
         note: note || undefined,
       });
-      actions.toast('success', '库存已更新，流水已记录');
+      actions.toast('success', tr('stock.updatedToast'));
       onSaved();
     } catch (err) {
       setError(err);
@@ -161,33 +163,33 @@ function AdjustModal({
   };
 
   return (
-    <Modal open title={`调整库存 · ${item.genericName ?? item.drug?.genericName ?? ''}`} onClose={onClose}>
+    <Modal open title={tr('stock.adjustTitle', { name: item.genericName ?? item.drug?.genericName ?? '' })} onClose={onClose}>
       <form className="flex flex-col gap-4" onSubmit={submit}>
-        <Field label="调整类型">
+        <Field label={tr('stock.changeType')}>
           <Select
             value={changeType}
             onChange={setChangeType}
-            options={['restock', 'manual_adjust', 'expiry_writeoff'].map((v) => ({ value: v, label: STOCK_CHANGE_LABELS[v] ?? v }))}
+            options={['restock', 'manual_adjust', 'expiry_writeoff'].map((v) => ({ value: v, label: stockChangeLabels()[v] ?? v }))}
           />
         </Field>
-        <Field label={changeType === 'restock' ? '入库数量' : '调整数量（减少填负数，过期作废自动取负）'}>
+        <Field label={changeType === 'restock' ? tr('stock.amountRestock') : tr('stock.amountAdjust')}>
           <TextInput value={amount} onChange={setAmount} type="number" />
         </Field>
         {changeType === 'restock' && (
-          <Field label="新批次到期日">
+          <Field label={tr('stock.newExpiry')}>
             <input className="input" type="date" value={expiryDate} onChange={(e) => setExpiryDate(e.target.value)} />
           </Field>
         )}
-        <Field label="备注（手动调整/过期作废建议填写）">
-          <TextInput value={note} onChange={setNote} placeholder="如：新开一盒 30 片" />
+        <Field label={tr('stock.noteLabel')}>
+          <TextInput value={note} onChange={setNote} placeholder={tr('stock.notePlaceholder')} />
         </Field>
         <ErrorText error={error} />
         <div className="flex gap-2">
           <Button variant="ghost" className="flex-1" onClick={onClose}>
-            取消
+            {tr('common.cancel')}
           </Button>
           <Button type="submit" className="flex-1" disabled={busy}>
-            {busy ? '提交中…' : '确认调整'}
+            {busy ? tr('stock.submitting') : tr('stock.confirmAdjust')}
           </Button>
         </div>
       </form>

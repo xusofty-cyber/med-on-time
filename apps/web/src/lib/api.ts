@@ -12,6 +12,7 @@
  */
 import type { ApiEnvelope } from './types';
 import { desktopBridge } from './desktop';
+import { tr } from './i18n';
 
 const ACCESS_KEY = 'mot.accessToken';
 const REFRESH_KEY = 'mot.refreshToken';
@@ -76,9 +77,9 @@ async function rawFetch<T>(path: string, init: RequestInit, withAuth: boolean): 
   } catch {
     envelope = null;
   }
-  if (!envelope) throw new ApiError(res.status, `请求失败（HTTP ${res.status}）`, undefined, res.status);
+  if (!envelope) throw new ApiError(res.status, tr('common.requestFailedHttp', { status: res.status }), undefined, res.status);
   if (envelope.code !== 0) {
-    throw new ApiError(envelope.code, envelope.message || '请求失败', envelope.traceId, res.status);
+    throw new ApiError(envelope.code, envelope.message || tr('common.requestFailed'), envelope.traceId, res.status);
   }
   return envelope.data;
 }

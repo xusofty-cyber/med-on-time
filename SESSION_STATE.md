@@ -272,3 +272,15 @@
 - Web（apps/web/src/lib/api.ts）：access 改只驻内存；浏览器 refresh 走 cookie 静默恢复（App 启动 ensureSession → me）；桌面壳维持 body 模式（refresh 存应用 localStorage）；旧版 localStorage 里的 refresh 仅作一次性迁移刷新，成功后清除、后续走 cookie；401 重试判定改为无条件尝试刷新（cookie 模式下 tokenStore.refresh 恒 null，旧判定会误杀）。Login/Register/Layout 调用面不变。
 - Admin 侧实情与处置：后端管理员根本没有 refresh（AdminAuthController 仅 login、8h access、无刷新端点），前端却存着一套永远 404 的 refresh 死代码——本次删除死代码链（tryRefreshTokens/getRefreshToken/updateTokens），token 与管理员信息由 localStorage 改 sessionStorage（关标签即失效），401 直接清会话跳登录。若将来要管理员长会话，须先在后端立项管理员 refresh+会话存储，不在本次范围。
 - 验证：api build + jest 82/82；web/admin typecheck 全过。未部署生产（部署仍须先配独立 ADMIN_JWT_SECRET，见第一批记录）。
+
+## 2026-10-30 续批二：异地加密备份上线（审查外·负责人发令）
+- 链路：服务器每日 03:30 backup.sh 出明文 dump（原样不动）→ 新增 03:45 cron 跑 deploy/scripts/backup-offsite.sh：age 公钥加密最新 dump 到 deploy/backups/offsite/*.age + sha256，服务器侧加密副本留 14 天；云曦本机每日 04:20 cron（medontime-backup-pull）跑 ~/workspace/medontime-backups/pull-offsite.sh 拉取，sha256+全解密+PGDMP 魔数三重校验，留存=近 30 天全量+其后周备 12 份；失败经 HookBox 告警（source=medontime-backup）+聊天报告，成功静默。
+- 密钥：age 私钥仅存云曦本机 ~/workspace/user/files/medontime-backup-age-key.txt（600），服务器只有公钥（age1e5vex…smhpx9u）与 ~/bin/age v1.2.1；私钥建议负责人再在密码管理器留一份（本机 home 若丢，异地副本无人能解）。
+- 首轮实测（2026-10-30 09:26）：medontime-20261030-033001.dump 加密 1,210,743B → 拉取校验全过，解密 1,210,255B 与服务器明文大小一致。
+- 附带修复（云曦侧工具）：tsconnect.py 非阻塞 sendall 大流量必断的 bug 已改缓冲+可写事件驱动；ssh_config_ts 的 IdentityFile 必须写绝对路径（本机 ssh 以 root 运行、~ 按 passwd 展开 /root，这也是负责人加钥后我两度误判「被拒」的原因——钥一直是对的）。
+- 服务器磁盘 86%（剩 9.7G）：备份体积小（~1.2MB/天）不受影响，但已越过 85% 纪律线，后续部署前须先清。
+
+## 2026-10-30 续批三：i18n 三语落地·Web 端（框架定版见 docs/dev/I18N.md）
+- 框架定版（技术对齐欠账闭环）：Web/Admin/小程序用自研类型化字典（zh-CN 为事实源，zh-TW/en 以 Record<keyof zhCN> 约束键集合，漏译编译期报错，零新增依赖）；原生走平台资源（Android strings.xml / iOS Localizable.strings）；Admin 另加 antd 官方 locale。繁体一律台湾用语口径。语言存 localStorage mot.locale、默认 zh-CN，设置页新增「界面语言」切换卡，即时生效并同步 html lang。
+- Web 全量落地：运行时 lib/i18n（tr/useT）+ store 语言状态；lib/dict.ts 16 组枚举标签与 types.ts 强提醒/周期标签改函数式现取；Layout/登录注册扫码/今日/计划/计划表单/选药/成员/授权/健康档案/库存/依从/通知/设置（含时区城市名、主题名、注销规则全文）/落地页/ui 基础组件/api 兜底文案全部词条化。三语词条同键对齐（以 zh-CN 键数计，见 i18n/zh-CN.ts），typecheck + vite build 全过。
+- 边界（已在 I18N.md 登记）：后端业务错误 message 仍为简体（服务端按 locale 处理为后端待办）；药品内容数据走 DB locale 内容组，不属 UI 词条。

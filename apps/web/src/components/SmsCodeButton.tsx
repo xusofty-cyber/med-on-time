@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { authApi } from '../lib/endpoints';
 import { actions } from '../lib/store';
+import { tr } from '../lib/i18n';
 import { Button } from './ui';
 
 /** 短信验证码发送按钮（60 秒倒计时）；dev 期后端走 stub 通道。 */
@@ -18,13 +19,13 @@ export function SmsCodeButton({ phone, scene }: { phone: string; scene: 'registe
 
   const send = async () => {
     if (!/^1\d{10}$/.test(phone)) {
-      actions.toast('error', '请先输入正确的 11 位手机号');
+      actions.toast('error', tr('auth.invalidPhoneToast'));
       return;
     }
     setSending(true);
     try {
       await authApi.sendSmsCode(phone, scene);
-      actions.toast('success', '验证码已发送，请注意查收短信');
+      actions.toast('success', tr('auth.smsSentToast'));
       setSeconds(60);
       timer.current = window.setInterval(() => {
         setSeconds((s) => {
@@ -33,7 +34,7 @@ export function SmsCodeButton({ phone, scene }: { phone: string; scene: 'registe
         });
       }, 1000);
     } catch (e) {
-      actions.toast('error', e instanceof Error ? e.message : '验证码发送失败');
+      actions.toast('error', e instanceof Error ? e.message : tr('auth.sendFailedToast'));
     } finally {
       setSending(false);
     }
@@ -41,7 +42,7 @@ export function SmsCodeButton({ phone, scene }: { phone: string; scene: 'registe
 
   return (
     <Button variant="soft" onClick={send} disabled={seconds > 0 || sending} className="shrink-0 whitespace-nowrap">
-      {seconds > 0 ? `${seconds} 秒后重发` : sending ? '发送中…' : '发送验证码'}
+      {seconds > 0 ? tr('auth.resendIn', { seconds }) : sending ? tr('auth.sending') : tr('auth.sendCode')}
     </Button>
   );
 }

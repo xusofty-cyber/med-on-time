@@ -5,15 +5,20 @@
  * - 选择持久化到 localStorage（键 medontime-theme），与 Admin 端同键同值。
  * - 关怀模式（html[data-care-mode]，成员级设置）是独立维度，与主题并存。
  */
+import { tr } from './i18n';
+
 export type ThemeId = '0' | 'a' | 'b';
 
 export const THEME_STORAGE_KEY = 'medontime-theme';
 
-export const THEMES: { id: ThemeId; label: string; description: string }[] = [
-  { id: '0', label: '现行绿白', description: '默认主题 · 绿白配色' },
-  { id: 'a', label: '暖阳关怀', description: '暖白护眼底色 · 大字号与疏朗间距，适合长辈日常使用' },
-  { id: 'b', label: '临床极简', description: '冷白底 · 直角 · 紧凑密度，适合电脑端数据查看' },
-];
+/** 主题清单（i18n 化：名称/说明按当前语言现取）。 */
+export function themes(): { id: ThemeId; label: string; description: string }[] {
+  return [
+    { id: '0', label: tr('settings.theme0Label'), description: tr('settings.theme0Desc') },
+    { id: 'a', label: tr('settings.themeALabel'), description: tr('settings.themeADesc') },
+    { id: 'b', label: tr('settings.themeBLabel'), description: tr('settings.themeBDesc') },
+  ];
+}
 
 export function getStoredThemeId(): ThemeId {
   try {

@@ -3,9 +3,12 @@ import { adherenceApi } from '../lib/endpoints';
 import { useApp } from '../lib/store';
 import { Button, Card, EmptyState, ErrorText, Spinner } from '../components/ui';
 import { monthOf, pct, shiftMonth, todayInTz } from '../lib/time';
+import { weekdayLabels } from '../lib/dict';
+import { useT } from '../lib/i18n';
 import type { AdherenceCalendarDay, AdherenceSummary } from '../lib/types';
 
 export default function Adherence() {
+  const tr = useT();
   const memberId = useApp((s) => s.currentMemberId);
   const members = useApp((s) => s.members);
   const member = members.find((m) => m.id === memberId) ?? null;
@@ -38,55 +41,55 @@ export default function Adherence() {
   if (!memberId) {
     return (
       <Card>
-        <EmptyState text="请先添加成员。" />
+        <EmptyState text={tr('ehr.noMember')} />
       </Card>
     );
   }
 
   return (
     <div className="flex flex-col gap-5">
-      <h1 className="text-2xl font-bold text-medgreen-dark">{member?.displayName ?? ''} · 依从统计</h1>
+      <h1 className="text-2xl font-bold text-medgreen-dark">{tr('adh.heading', { name: member?.displayName ?? '' })}</h1>
       <ErrorText error={error} />
-      <Card title="汇总">
+      <Card title={tr('adh.summaryCard')}>
         <div className="mb-4 flex gap-2">
           <Button variant={range === 'week' ? 'primary' : 'ghost'} onClick={() => setRange('week')}>
-            本周
+            {tr('adh.week')}
           </Button>
           <Button variant={range === 'month' ? 'primary' : 'ghost'} onClick={() => setRange('month')}>
-            本月
+            {tr('adh.month')}
           </Button>
         </div>
         {summary === null ? (
           <Spinner />
         ) : summary.scheduledCount === 0 ? (
-          <EmptyState text="该时段暂无应服药记录。" />
+          <EmptyState text={tr('adh.empty')} />
         ) : (
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <StatCard label="应服" value={`${summary.scheduledCount} 次`} />
-            <StatCard label="实服" value={`${summary.takenCount} 次`} />
-            <StatCard label="按时率" value={pct(summary.onTimeRate ?? rate(summary.onTimeCount, summary.scheduledCount))} highlight />
-            <StatCard label="服药率" value={pct(summary.adherenceRate ?? rate(summary.takenCount, summary.scheduledCount))} highlight />
-            <StatCard label="按时服用" value={`${summary.onTimeCount} 次`} />
-            <StatCard label="漏服" value={`${summary.missedCount} 次`} warn={summary.missedCount > 0} />
-            <StatCard label="主动跳过" value={`${summary.skippedCount} 次`} />
+            <StatCard label={tr('adh.statScheduled')} value={tr('adh.times', { n: summary.scheduledCount })} />
+            <StatCard label={tr('adh.statTaken')} value={tr('adh.times', { n: summary.takenCount })} />
+            <StatCard label={tr('adh.statOnTimeRate')} value={pct(summary.onTimeRate ?? rate(summary.onTimeCount, summary.scheduledCount))} highlight />
+            <StatCard label={tr('adh.statAdherenceRate')} value={pct(summary.adherenceRate ?? rate(summary.takenCount, summary.scheduledCount))} highlight />
+            <StatCard label={tr('adh.statOnTime')} value={tr('adh.times', { n: summary.onTimeCount })} />
+            <StatCard label={tr('adh.statMissed')} value={tr('adh.times', { n: summary.missedCount })} warn={summary.missedCount > 0} />
+            <StatCard label={tr('adh.statSkipped')} value={tr('adh.times', { n: summary.skippedCount })} />
           </div>
         )}
-        <p className="mt-3 text-sm text-neutral-500">口径：补记计入实服但不计按时；PRN 按需服药不进按时率分母；漏服与跳过分开统计。</p>
+        <p className="mt-3 text-sm text-neutral-500">{tr('adh.note')}</p>
       </Card>
 
-      <Card title="月历热力">
+      <Card title={tr('adh.calendarCard')}>
         <div className="mb-4 flex items-center justify-between">
           <Button variant="ghost" onClick={() => setMonth((m) => shiftMonth(m, -1))}>
-            ← 上月
+            {tr('adh.prevMonth')}
           </Button>
-          <span className="text-lg font-semibold">{month.replace('-', ' 年 ')} 月</span>
+          <span className="text-lg font-semibold">{tr('adh.monthTitle', { y: month.slice(0, 4), m: Number(month.slice(5, 7)) })}</span>
           <Button variant="ghost" onClick={() => setMonth((m) => shiftMonth(m, 1))}>
-            下月 →
+            {tr('adh.nextMonth')}
           </Button>
         </div>
         <div className="mb-1 grid grid-cols-7 gap-1 text-center text-sm text-neutral-500">
-          {['一', '二', '三', '四', '五', '六', '日'].map((d) => (
-            <span key={d}>周{d}</span>
+          {weekdayLabels().map((d) => (
+            <span key={d}>{tr('planForm.weekdayBtn', { label: d })}</span>
           ))}
         </div>
         {calendar === null ? (
@@ -98,7 +101,7 @@ export default function Adherence() {
                 <div
                   key={cell.date}
                   className={`flex min-h-[64px] flex-col rounded-lg p-1.5 ${heatClass(cell)}`}
-                  title={`${cell.date}：应服 ${cell.scheduledCount}，实服 ${cell.takenCount}，按时 ${cell.onTimeCount}，漏服 ${cell.missedCount}`}
+                  title={tr('adh.cellTitle', { date: cell.date, s: cell.scheduledCount, t: cell.takenCount, o: cell.onTimeCount, m: cell.missedCount })}
                 >
                   <span className="text-sm font-medium">{Number(cell.date.slice(8))}</span>
                   {cell.scheduledCount > 0 && (
@@ -114,11 +117,11 @@ export default function Adherence() {
           </div>
         )}
         <div className="mt-4 flex flex-wrap gap-3 text-sm text-neutral-600">
-          <Legend className="bg-[var(--chart-heat-full)] text-white" label="全部按时" />
-          <Legend className="bg-[var(--chart-heat-good)]" label="服药率 ≥80%" />
-          <Legend className="bg-amber-200" label="服药率 50%–80%" />
-          <Legend className="bg-red-200" label="服药率 <50% 或有漏服" />
-          <Legend className="bg-neutral-100" label="无安排" />
+          <Legend className="bg-[var(--chart-heat-full)] text-white" label={tr('adh.legendFull')} />
+          <Legend className="bg-[var(--chart-heat-good)]" label={tr('adh.legendGood')} />
+          <Legend className="bg-amber-200" label={tr('adh.legendMid')} />
+          <Legend className="bg-red-200" label={tr('adh.legendBad')} />
+          <Legend className="bg-neutral-100" label={tr('adh.legendNone')} />
         </div>
       </Card>
     </div>

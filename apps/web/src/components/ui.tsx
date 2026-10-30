@@ -1,5 +1,6 @@
 import { ReactNode, useEffect } from 'react';
 import { actions, useApp } from '../lib/store';
+import { tr } from '../lib/i18n';
 
 /* 基础组件：类名走 index.css 的组件层，关怀模式下自动放大点击区与字号。 */
 
@@ -106,7 +107,7 @@ export function Spinner({ text }: { text?: string }) {
   return (
     <div className="flex items-center justify-center gap-3 py-10 text-neutral-500" role="status">
       <span className="spinner" aria-hidden />
-      <span>{text ?? '加载中…'}</span>
+      <span>{text ?? tr('common.loading')}</span>
     </div>
   );
 }
@@ -144,7 +145,7 @@ export function Modal(props: {
       >
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-xl font-semibold text-medgreen-dark">{props.title}</h2>
-          <button className="btn-icon" onClick={props.onClose} aria-label="关闭">
+          <button className="btn-icon" onClick={props.onClose} aria-label={tr('common.close')}>
             ×
           </button>
         </div>

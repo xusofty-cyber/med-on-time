@@ -3,9 +3,11 @@ import { notificationApi } from '../lib/endpoints';
 import { actions } from '../lib/store';
 import { Badge, Button, Card, EmptyState, ErrorText, Spinner } from '../components/ui';
 import { fmtDateTime } from '../lib/time';
+import { tr, useT } from '../lib/i18n';
 import type { NotificationItem, NotificationPrefs } from '../lib/types';
 
 export default function Notifications() {
+  const tr = useT();
   const [items, setItems] = useState<NotificationItem[] | null>(null);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
@@ -55,7 +57,7 @@ export default function Notifications() {
     const unread = (items ?? []).filter((n) => !n.isRead && !n.readAt);
     await Promise.all(unread.map(read));
     actions.setUnreadCount(0);
-    actions.toast('success', '已全部标为已读');
+    actions.toast('success', tr('notif.readAllToast'));
   };
 
   const updatePrefs = async (next: NotificationPrefs) => {
@@ -63,43 +65,43 @@ export default function Notifications() {
     try {
       const saved = await notificationApi.putPrefs(next);
       setPrefs(saved);
-      actions.toast('success', '通知偏好已保存');
+      actions.toast('success', tr('notif.prefsSavedToast'));
     } catch (e) {
-      actions.toast('error', e instanceof Error ? e.message : '保存失败');
+      actions.toast('error', e instanceof Error ? e.message : tr('ehr.saveFailed'));
     }
   };
 
   return (
     <div className="flex flex-col gap-5">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-medgreen-dark">消息中心</h1>
+        <h1 className="text-2xl font-bold text-medgreen-dark">{tr('notif.title')}</h1>
         <Button variant="soft" onClick={readAll}>
-          全部已读
+          {tr('notif.readAllBtn')}
         </Button>
       </div>
       <ErrorText error={error} />
 
-      <Card title="通知渠道偏好">
+      <Card title={tr('notif.prefsCard')}>
         {prefs === null ? (
           <Spinner />
         ) : (
           <div className="flex flex-col gap-4">
             <PrefRow
-              title="站内通知"
-              desc="始终开启，消息中心与今日页横幅都会显示"
+              title={tr('notif.inApp')}
+              desc={tr('notif.inAppDesc')}
               checked={true}
               disabled
               onChange={() => undefined}
             />
             <PrefRow
-              title="短信提醒"
-              desc="用户自选开启：重要提醒（漏服、库存不足等）额外发短信到注册手机号"
+              title={tr('notif.sms')}
+              desc={tr('notif.smsDesc')}
               checked={prefs.sms}
               onChange={(v) => updatePrefs({ ...prefs, sms: v })}
             />
             <PrefRow
-              title="微信提醒"
-              desc="尚未开通，后续版本接入微信订阅消息"
+              title={tr('notif.wechat')}
+              desc={tr('notif.wechatDesc')}
               checked={false}
               disabled
               onChange={() => undefined}
@@ -108,11 +110,11 @@ export default function Notifications() {
         )}
       </Card>
 
-      <Card title="站内通知">
+      <Card title={tr('notif.inApp')}>
         {items === null ? (
           <Spinner />
         ) : items.length === 0 ? (
-          <EmptyState text="暂无通知。" />
+          <EmptyState text={tr('notif.empty')} />
         ) : (
           <ul className="flex flex-col divide-y divide-neutral-100">
             {items.map((n) => {
@@ -122,7 +124,7 @@ export default function Notifications() {
                   <button className="w-full px-1 py-3 text-left" onClick={() => read(n)}>
                     <span className="flex items-center gap-2">
                       <span className={`font-medium ${unread ? 'text-medgreen-dark' : 'text-neutral-700'}`}>{n.title}</span>
-                      {unread && <Badge tone="red">未读</Badge>}
+                      {unread && <Badge tone="red">{tr('notif.unreadBadge')}</Badge>}
                       <span className="ml-auto text-sm text-neutral-400">{fmtDateTime(n.createdAt)}</span>
                     </span>
                     <span className="mt-0.5 block text-neutral-600">{n.content}</span>
@@ -135,18 +137,18 @@ export default function Notifications() {
         {total > pageSize && (
           <div className="mt-4 flex items-center justify-between border-t border-neutral-100 pt-3 text-sm text-neutral-600">
             <span>
-              第 {page} / {Math.ceil(total / pageSize)} 页（共 {total} 条）
+              {tr('notif.pageInfo', { page, pages: Math.ceil(total / pageSize), total })}
             </span>
             <div className="flex gap-2">
               <Button variant="ghost" disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>
-                上一页
+                {tr('notif.prevPage')}
               </Button>
               <Button
                 variant="ghost"
                 disabled={page * pageSize >= total}
                 onClick={() => setPage((p) => p + 1)}
               >
-                下一页
+                {tr('notif.nextPage')}
               </Button>
             </div>
           </div>

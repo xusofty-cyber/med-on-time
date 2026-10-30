@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { authApi, type EmailCodeScene } from '../lib/endpoints';
 import { actions } from '../lib/store';
+import { tr } from '../lib/i18n';
 import { Button } from './ui';
 
 /** 邮箱验证码发送按钮（60 秒倒计时）；镜像 SmsCodeButton 的倒计时与 toast 口径。 */
@@ -18,13 +19,13 @@ export function EmailCodeButton({ email, scene }: { email: string; scene: EmailC
 
   const send = async () => {
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      actions.toast('error', '请先输入正确的邮箱地址');
+      actions.toast('error', tr('auth.invalidEmailToast'));
       return;
     }
     setSending(true);
     try {
       await authApi.sendEmailCode(email, scene);
-      actions.toast('success', '验证码已发送，请注意查收邮件');
+      actions.toast('success', tr('auth.emailSentToast'));
       setSeconds(60);
       timer.current = window.setInterval(() => {
         setSeconds((s) => {
@@ -33,7 +34,7 @@ export function EmailCodeButton({ email, scene }: { email: string; scene: EmailC
         });
       }, 1000);
     } catch (e) {
-      actions.toast('error', e instanceof Error ? e.message : '验证码发送失败');
+      actions.toast('error', e instanceof Error ? e.message : tr('auth.sendFailedToast'));
     } finally {
       setSending(false);
     }
@@ -41,7 +42,7 @@ export function EmailCodeButton({ email, scene }: { email: string; scene: EmailC
 
   return (
     <Button variant="soft" onClick={send} disabled={seconds > 0 || sending} className="shrink-0 whitespace-nowrap">
-      {seconds > 0 ? `${seconds} 秒后重发` : sending ? '发送中…' : '发送验证码'}
+      {seconds > 0 ? tr('auth.resendIn', { seconds }) : sending ? tr('auth.sending') : tr('auth.sendCode')}
     </Button>
   );
 }

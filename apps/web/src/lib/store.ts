@@ -1,7 +1,8 @@
-/** 轻量全局状态（零依赖）：账号、成员列表、当前成员、关怀模式、未读数、Toast。 */
+/** 轻量全局状态（零依赖）：账号、成员列表、当前成员、关怀模式、界面语言、未读数、Toast。 */
 import { useSyncExternalStore } from 'react';
 import type { Account, CareSettings, Member } from './types';
 import { clearDesktopReminders } from './desktop';
+import { getLocale, setLocaleState, type Locale } from './i18n';
 
 export interface ToastMsg {
   id: number;
@@ -14,6 +15,7 @@ interface AppState {
   members: Member[];
   currentMemberId: string | null;
   careSettings: CareSettings | null;
+  locale: Locale;
   unreadCount: number;
   toasts: ToastMsg[];
 }
@@ -26,6 +28,7 @@ let state: AppState = {
   members: [],
   currentMemberId: localStorage.getItem(MEMBER_KEY),
   careSettings: null,
+  locale: getLocale(),
   unreadCount: 0,
   toasts: [],
 };
@@ -79,6 +82,10 @@ export const actions = {
   },
   setUnreadCount(n: number) {
     setState({ unreadCount: n });
+  },
+  setLocale(locale: Locale) {
+    setLocaleState(locale);
+    setState({ locale });
   },
   resetSession() {
     // 登出清桌面调度（桥不存在时自动跳过）

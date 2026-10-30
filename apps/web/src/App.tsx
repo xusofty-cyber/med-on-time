@@ -14,6 +14,7 @@ import Authorizations from './pages/Authorizations';
 import Notifications from './pages/Notifications';
 import Settings from './pages/Settings';
 import { tokenStore, setSessionExpiredHandler, ApiError, ensureSession } from './lib/api';
+import { tr } from './lib/i18n';
 import { authApi, memberApi } from './lib/endpoints';
 import { actions, applyCareMode, useApp } from './lib/store';
 import { PUBLIC_ROUTES, navigate, useRoute } from './lib/router';
@@ -22,7 +23,7 @@ import { PUBLIC_ROUTES, navigate, useRoute } from './lib/router';
  * Web 用户门户（需求 V1.8 / UI V1.0）：
  * 路由 /login /register /（今日提醒）/members /plans /adherence /stock /ehr
  *      /authorizations /notifications /settings（hash 路由，零新增依赖）。
- * 会话：token 存 localStorage，401 由请求层刷新；成员切换驱动关怀模式与全部成员域页面。
+ * 会话：access 只驻内存 + refresh 走 httpOnly cookie（桌面壳 body 模式），401 由请求层刷新；成员切换驱动关怀模式与全部成员域页面。
  */
 /**
  * 页面级错误边界（兜底）：单个页面渲染异常时只降级当前页并给出返回入口，
@@ -40,7 +41,7 @@ class PageBoundary extends Component<{ children: ReactNode }, { error: Error | n
     if (this.state.error) {
       return (
         <Card>
-          <EmptyState text="这个页面出了点问题，您的其它数据不受影响。可以先返回今日提醒，或稍后刷新重试。" />
+          <EmptyState text={tr('app.errorText')} />
           <div className="mt-4">
             <Button
               onClick={() => {
@@ -48,7 +49,7 @@ class PageBoundary extends Component<{ children: ReactNode }, { error: Error | n
                 navigate('/');
               }}
             >
-              返回今日提醒
+              {tr('app.backToday')}
             </Button>
           </div>
         </Card>
@@ -81,7 +82,7 @@ export default function App() {
           try {
             actions.setMembers(await memberApi.list());
           } catch {
-            actions.toast('error', '成员列表加载失败，请稍后刷新重试');
+            actions.toast('error', tr('app.membersLoadFailed'));
           }
         } catch (err) {
           if (err instanceof ApiError && (err.httpStatus === 401 || err.code === 40100)) {
@@ -122,7 +123,7 @@ export default function App() {
   if (!booted) {
     return (
       <main className="flex min-h-screen items-center justify-center">
-        <span className="spinner" aria-label="加载中" />
+        <span className="spinner" aria-label={tr('common.loading')} />
       </main>
     );
   }

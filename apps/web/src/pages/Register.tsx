@@ -5,8 +5,10 @@ import { actions } from '../lib/store';
 import { navigate } from '../lib/router';
 import { Button, Card, ErrorText, Field, TextInput } from '../components/ui';
 import { EmailCodeButton } from '../components/EmailCodeButton';
+import { tr, useT } from '../lib/i18n';
 
 export default function Register() {
+  const tr = useT();
   const [mode, setMode] = useState<'phone' | 'email'>('phone');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
@@ -20,7 +22,7 @@ export default function Register() {
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     if (password.length < 8) {
-      setError(new Error('密码至少 8 位'));
+      setError(new Error(tr('auth.passwordMin8')));
       return;
     }
     setBusy(true);
@@ -55,7 +57,7 @@ export default function Register() {
       } catch {
         /* 装载失败不阻断注册流程 */
       }
-      actions.toast('success', '注册成功，请先添加要照护的成员');
+      actions.toast('success', tr('auth.registerSuccessToast'));
       navigate('/members');
     } catch (err) {
       setError(err);
@@ -66,56 +68,56 @@ export default function Register() {
 
   return (
     <main className="mx-auto flex min-h-screen max-w-md flex-col justify-center px-4 py-10">
-      <h1 className="mb-8 text-center text-3xl font-bold text-medgreen">注册药准时账号</h1>
+      <h1 className="mb-8 text-center text-3xl font-bold text-medgreen">{tr('auth.registerTitle')}</h1>
       <Card>
-        <div className="mb-5 grid grid-cols-2 gap-2" role="tablist" aria-label="注册方式">
+        <div className="mb-5 grid grid-cols-2 gap-2" role="tablist" aria-label={tr('auth.registerTablistLabel')}>
           <Button variant={mode === 'phone' ? 'primary' : 'ghost'} onClick={() => setMode('phone')}>
-            手机号
+            {tr('auth.phone')}
           </Button>
           <Button variant={mode === 'email' ? 'primary' : 'ghost'} onClick={() => setMode('email')}>
-            邮箱
+            {tr('auth.email')}
           </Button>
         </div>
         <form className="flex flex-col gap-4" onSubmit={submit}>
           {mode === 'phone' ? (
             <>
-              <Field label="手机号" hint="短信通道开通前为未验证注册：暂不能用于短信提醒与找回密码，可日后补验">
-                <TextInput value={phone} onChange={setPhone} placeholder="11 位手机号" type="tel" required autoComplete="username" />
+              <Field label={tr('auth.phone')} hint={tr('auth.phoneUnverifiedHint')}>
+                <TextInput value={phone} onChange={setPhone} placeholder={tr('auth.phoneShortPlaceholder')} type="tel" required autoComplete="username" />
               </Field>
             </>
           ) : (
             <>
-              <Field label="邮箱">
-                <TextInput value={email} onChange={setEmail} placeholder="请输入邮箱地址" type="email" required autoComplete="username" />
+              <Field label={tr('auth.email')}>
+                <TextInput value={email} onChange={setEmail} placeholder={tr('auth.emailPlaceholder')} type="email" required autoComplete="username" />
               </Field>
-              <Field label="邮箱验证码">
+              <Field label={tr('auth.emailCode')}>
                 <div className="flex gap-2">
-                  <TextInput value={emailCode} onChange={setEmailCode} placeholder="6 位验证码" required />
+                  <TextInput value={emailCode} onChange={setEmailCode} placeholder={tr('auth.codePlaceholder6')} required />
                   <EmailCodeButton email={email} scene="register" />
                 </div>
               </Field>
             </>
           )}
-          <Field label="设置密码" hint="至少 8 位，用于密码登录">
-            <TextInput value={password} onChange={setPassword} placeholder="设置登录密码" type="password" required autoComplete="new-password" />
+          <Field label={tr('auth.setPassword')} hint={tr('auth.setPasswordHint')}>
+            <TextInput value={password} onChange={setPassword} placeholder={tr('auth.setPasswordPlaceholder')} type="password" required autoComplete="new-password" />
           </Field>
-          <Field label="昵称（选填）">
-            <TextInput value={nickname} onChange={setNickname} placeholder="家人怎么称呼您" />
+          <Field label={tr('auth.nicknameOptional')}>
+            <TextInput value={nickname} onChange={setNickname} placeholder={tr('auth.nicknamePlaceholder')} />
           </Field>
           {mode === 'email' && (
-            <Field label="手机号（选填）" hint="选填：未验证，暂不能用于短信提醒与找回密码">
-              <TextInput value={emailPhone} onChange={setEmailPhone} placeholder="11 位手机号（选填）" type="tel" autoComplete="tel" />
+            <Field label={tr('auth.phoneOptional')} hint={tr('auth.phoneOptionalHint')}>
+              <TextInput value={emailPhone} onChange={setEmailPhone} placeholder={tr('auth.phoneOptionalPlaceholder')} type="tel" autoComplete="tel" />
             </Field>
           )}
           <ErrorText error={error} />
           <Button type="submit" disabled={busy}>
-            {busy ? '注册中…' : '注册并登录'}
+            {busy ? tr('auth.registering') : tr('auth.registerAndLogin')}
           </Button>
         </form>
         <p className="mt-5 text-center text-base">
-          已有账号？
+          {tr('auth.haveAccount')}
           <button className="text-medgreen-dark underline" onClick={() => navigate('/login')}>
-            去登录
+            {tr('auth.goLogin')}
           </button>
         </p>
       </Card>

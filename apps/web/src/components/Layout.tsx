@@ -3,20 +3,22 @@ import { actions, useApp } from '../lib/store';
 import { navigate } from '../lib/router';
 import { tokenStore } from '../lib/api';
 import { authApi, notificationApi } from '../lib/endpoints';
-import { RELATIONSHIP_LABELS } from '../lib/dict';
+import { relationshipLabels } from '../lib/dict';
+import { useT, type I18nKey } from '../lib/i18n';
 
-const NAV = [
-  { path: '/', name: 'today', label: '今日提醒', icon: '💊' },
-  { path: '/members', name: 'members', label: '成员', icon: '👪' },
-  { path: '/plans', name: 'plans', label: '用药计划', icon: '📋' },
-  { path: '/adherence', name: 'adherence', label: '依从统计', icon: '📈' },
-  { path: '/stock', name: 'stock', label: '库存', icon: '🗄️' },
-  { path: '/ehr', name: 'ehr', label: '健康档案', icon: '🩺' },
-  { path: '/authorizations', name: 'authorizations', label: '照护授权', icon: '🤝' },
-  { path: '/settings', name: 'settings', label: '设置', icon: '⚙️' },
+const NAV: { path: string; name: string; labelKey: I18nKey; shortKey?: I18nKey; icon: string }[] = [
+  { path: '/', name: 'today', labelKey: 'nav.today', shortKey: 'nav.appShortToday', icon: '💊' },
+  { path: '/members', name: 'members', labelKey: 'nav.members', icon: '👪' },
+  { path: '/plans', name: 'plans', labelKey: 'nav.plans', icon: '📋' },
+  { path: '/adherence', name: 'adherence', labelKey: 'nav.adherence', shortKey: 'nav.appShortAdherence', icon: '📈' },
+  { path: '/stock', name: 'stock', labelKey: 'nav.stock', icon: '🗄️' },
+  { path: '/ehr', name: 'ehr', labelKey: 'nav.ehr', shortKey: 'nav.appShortEhr', icon: '🩺' },
+  { path: '/authorizations', name: 'authorizations', labelKey: 'nav.authorizations', icon: '🤝' },
+  { path: '/settings', name: 'settings', labelKey: 'nav.settings', icon: '⚙️' },
 ];
 
 export default function Layout({ routeName, children }: { routeName: string; children: ReactNode }) {
+  const t = useT();
   const account = useApp((s) => s.account);
   const members = useApp((s) => s.members);
   const currentMemberId = useApp((s) => s.currentMemberId);
@@ -61,11 +63,11 @@ export default function Layout({ routeName, children }: { routeName: string; chi
       <header className="sticky top-0 z-30 border-b border-neutral-200 bg-white/95 backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center gap-3 px-4 py-2.5">
           <button className="text-xl font-bold text-medgreen" onClick={() => navigate('/')}>
-            药准时
+            {t('nav.appName')}
           </button>
           <div className="ml-2 flex min-w-0 items-center gap-2">
             <label className="sr-only" htmlFor="member-switch">
-              当前成员
+              {t('nav.currentMember')}
             </label>
             <select
               id="member-switch"
@@ -75,14 +77,16 @@ export default function Layout({ routeName, children }: { routeName: string; chi
             >
               {members.map((m) => (
                 <option key={m.id} value={m.id}>
-                  {m.displayName}（{RELATIONSHIP_LABELS[m.relationship] ?? m.relationship}
-                  {m.accessLevel && m.accessLevel !== 'owner' ? ` · ${m.accessLevel}` : ''}）
+                  {t('nav.switcherOption', {
+                    name: m.displayName,
+                    inner: `${relationshipLabels()[m.relationship] ?? m.relationship}${m.accessLevel && m.accessLevel !== 'owner' ? ` · ${m.accessLevel}` : ''}`,
+                  })}
                 </option>
               ))}
             </select>
           </div>
           <div className="ml-auto flex items-center gap-1 sm:gap-2">
-            <button className="btn-icon relative" aria-label="消息中心" onClick={() => navigate('/notifications')}>
+            <button className="btn-icon relative" aria-label={t('nav.notificationsAria')} onClick={() => navigate('/notifications')}>
               🔔
               {unread > 0 && (
                 <span className="absolute -right-0.5 -top-0.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1 text-xs font-bold text-white">
@@ -92,13 +96,13 @@ export default function Layout({ routeName, children }: { routeName: string; chi
             </button>
             <span className="hidden text-neutral-600 sm:block">{account?.nickname ?? ''}</span>
             <button className="btn btn-ghost" onClick={logout}>
-              退出
+              {t('nav.logout')}
             </button>
           </div>
         </div>
       </header>
       <div className="mx-auto flex max-w-6xl gap-6 px-4 py-5">
-        <nav className="sticky top-[72px] hidden h-fit w-44 shrink-0 flex-col gap-1 md:flex" aria-label="主导航">
+        <nav className="sticky top-[72px] hidden h-fit w-44 shrink-0 flex-col gap-1 md:flex" aria-label={t('nav.mainNavAria')}>
           {NAV.map((item) => (
             <button
               key={item.name}
@@ -106,7 +110,7 @@ export default function Layout({ routeName, children }: { routeName: string; chi
               onClick={() => navigate(item.path)}
             >
               <span aria-hidden>{item.icon}</span>
-              {item.label}
+              {t(item.labelKey)}
             </button>
           ))}
         </nav>
@@ -114,7 +118,7 @@ export default function Layout({ routeName, children }: { routeName: string; chi
       </div>
       <nav
         className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t border-neutral-200 bg-white md:hidden"
-        aria-label="移动端导航"
+        aria-label={t('nav.mobileNavAria')}
       >
         {[
           NAV[0]!,
@@ -133,7 +137,7 @@ export default function Layout({ routeName, children }: { routeName: string; chi
             <span className="text-lg" aria-hidden>
               {item.icon}
             </span>
-            {item.label.replace('今日提醒', '今日').replace('依从统计', '统计').replace('健康档案', '档案')}
+            {t(item.shortKey ?? item.labelKey)}
           </button>
         ))}
       </nav>

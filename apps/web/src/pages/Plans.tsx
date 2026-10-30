@@ -3,11 +3,13 @@ import { planApi } from '../lib/endpoints';
 import { actions, useApp } from '../lib/store';
 import { Badge, Button, Card, EmptyState, ErrorText, Modal, Spinner } from '../components/ui';
 import { PlanForm } from '../components/PlanForm';
-import { FREQUENCY_LABELS, OPERATOR_TYPE_LABELS, PLAN_STATUS_LABELS } from '../lib/dict';
+import { frequencyLabels, operatorTypeLabels, planStatusLabels } from '../lib/dict';
+import { tr, useT } from '../lib/i18n';
 import { fmtDate, fmtDateTime } from '../lib/time';
 import type { Plan, PlanChangeHistoryEntry } from '../lib/types';
 
 export default function Plans() {
+  const tr = useT();
   const memberId = useApp((s) => s.currentMemberId);
   const members = useApp((s) => s.members);
   const current = members.find((m) => m.id === memberId) ?? null;
@@ -39,34 +41,34 @@ export default function Plans() {
     try {
       if (plan.status === 'paused') {
         await planApi.resume(plan.id);
-        actions.toast('success', '计划已恢复，提醒将继续生成');
+        actions.toast('success', tr('plan.resumedToast'));
       } else {
         await planApi.pause(plan.id);
-        actions.toast('success', '计划已暂停，暂停期间不再提醒');
+        actions.toast('success', tr('plan.pausedToast'));
       }
       await load();
     } catch (e) {
-      actions.toast('error', e instanceof Error ? e.message : '操作失败');
+      actions.toast('error', e instanceof Error ? e.message : tr('common.operationFailed'));
     } finally {
       setBusyId(null);
     }
   };
 
   const remove = async (plan: Plan) => {
-    if (!window.confirm(`确定删除计划「${plan.name}」吗？历史打卡与变更史仍会保留。`)) return;
+    if (!window.confirm(tr('plan.deleteConfirm', { name: plan.name }))) return;
     try {
       await planApi.remove(plan.id);
-      actions.toast('success', '计划已删除');
+      actions.toast('success', tr('plan.deletedToast'));
       await load();
     } catch (e) {
-      actions.toast('error', e instanceof Error ? e.message : '删除失败');
+      actions.toast('error', e instanceof Error ? e.message : tr('plan.deleteFailed'));
     }
   };
 
   if (!memberId) {
     return (
       <Card>
-        <EmptyState text="请先添加成员，再为其建立用药计划。" />
+        <EmptyState text={tr('plan.noMember')} />
       </Card>
     );
   }
@@ -74,7 +76,7 @@ export default function Plans() {
   return (
     <div className="flex flex-col gap-5">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-medgreen-dark">用药计划</h1>
+        <h1 className="text-2xl font-bold text-medgreen-dark">{tr('plan.title')}</h1>
         {canEdit && (
           <Button
             onClick={() => {
@@ -82,17 +84,17 @@ export default function Plans() {
               setFormOpen(true);
             }}
           >
-            + 新建计划
+            {tr('plan.create')}
           </Button>
         )}
       </div>
-      {!canEdit && <p className="text-neutral-600">当前授权级别为仅查看/协助，不能新建或编辑计划（需 L3 或成员本人账号）。</p>}
+      {!canEdit && <p className="text-neutral-600">{tr('plan.readonlyNote')}</p>}
       <ErrorText error={error} />
       {plans === null ? (
-        <Spinner text="正在加载计划…" />
+        <Spinner text={tr('plan.loading')} />
       ) : plans.length === 0 ? (
         <Card>
-          <EmptyState text="该成员还没有用药计划，点击「新建计划」添加第一种药。" />
+          <EmptyState text={tr('plan.empty')} />
         </Card>
       ) : (
         <div className="flex flex-col gap-4">
@@ -104,20 +106,20 @@ export default function Plans() {
                     {plan.name}
                     <span className="ml-2 align-middle">
                       <Badge tone={plan.planType === 'prn' ? 'blue' : 'green'}>
-                        {plan.planType === 'prn' ? 'PRN 按需' : '常规'}
+                        {plan.planType === 'prn' ? tr('plan.typePrn') : tr('plan.typeRegular')}
                       </Badge>
                     </span>
                     <span className="ml-2 align-middle">
                       <Badge tone={plan.status === 'active' ? 'green' : plan.status === 'paused' ? 'amber' : 'gray'}>
-                        {PLAN_STATUS_LABELS[plan.status] ?? plan.status}
+                        {planStatusLabels()[plan.status] ?? plan.status}
                       </Badge>
                     </span>
                   </p>
                   <p className="mt-1 text-neutral-600">
-                    {fmtDate(plan.startDate)} 起{plan.endDate ? ` 至 ${fmtDate(plan.endDate)}` : '（长期）'}
-                    {plan.storageLocation ? ` · 存放：${plan.storageLocation}` : ''}
+                    {tr('plan.fromDate', { start: fmtDate(plan.startDate) })} {plan.endDate ? tr('plan.toDate', { end: fmtDate(plan.endDate) }) : tr('plan.longTerm')}
+                    {plan.storageLocation ? ` · ${tr('plan.storedShort', { location: plan.storageLocation })}` : ''}
                   </p>
-                  {plan.additionalNote && <p className="mt-0.5 text-neutral-600">备注：{plan.additionalNote}</p>}
+                  {plan.additionalNote && <p className="mt-0.5 text-neutral-600">{tr('plan.note', { note: plan.additionalNote })}</p>}
                 </div>
               </div>
               <ul className="mt-3 flex flex-col gap-1.5">
@@ -125,9 +127,8 @@ export default function Plans() {
                   <li key={item.id} className="rounded-lg bg-neutral-50 px-3 py-2">
                     <span className="font-medium">{item.drugNameSnapshot}</span>{' '}
                     <span className="text-neutral-600">
-                      每次 {Number(item.doseAmount)}
-                      {item.doseUnit} · {FREQUENCY_LABELS[item.frequencyType] ?? item.frequencyType}
-                      {item.frequencyRule?.times?.length ? ` ${item.frequencyRule.times.join('、')}` : ''}
+                      {tr('plan.perDose', { amount: Number(item.doseAmount), unit: item.doseUnit })} · {frequencyLabels()[item.frequencyType] ?? item.frequencyType}
+                      {item.frequencyRule?.times?.length ? ` ${item.frequencyRule.times.join(tr('common.listSeparator'))}` : ''}
                     </span>
                   </li>
                 ))}
@@ -141,20 +142,20 @@ export default function Plans() {
                       setFormOpen(true);
                     }}
                   >
-                    编辑
+                    {tr('common.edit')}
                   </Button>
                 )}
                 {canEdit && (plan.status === 'active' || plan.status === 'paused') && (
                   <Button variant="soft" disabled={busyId === plan.id} onClick={() => togglePause(plan)}>
-                    {plan.status === 'paused' ? '恢复' : '暂停'}
+                    {plan.status === 'paused' ? tr('plan.resume') : tr('plan.pause')}
                   </Button>
                 )}
                 <Button variant="ghost" onClick={() => setHistoryOf(plan)}>
-                  变更史
+                  {tr('plan.history')}
                 </Button>
                 {canEdit && (
                   <Button variant="ghost" onClick={() => remove(plan)}>
-                    删除
+                    {tr('common.delete')}
                   </Button>
                 )}
               </div>
@@ -163,7 +164,7 @@ export default function Plans() {
         </div>
       )}
 
-      <Modal open={formOpen} title={editing ? '编辑计划' : '新建计划'} wide onClose={() => setFormOpen(false)}>
+      <Modal open={formOpen} title={editing ? tr('plan.editTitle') : tr('plan.createTitle')} wide onClose={() => setFormOpen(false)}>
         <PlanForm
           memberId={memberId}
           plan={editing}
@@ -192,12 +193,12 @@ function HistoryModal({ plan, onClose }: { plan: Plan; onClose: () => void }) {
   }, [plan.id]);
 
   return (
-    <Modal open title={`变更史 · ${plan.name}`} wide onClose={onClose}>
+    <Modal open title={tr('plan.historyTitle', { name: plan.name })} wide onClose={onClose}>
       <ErrorText error={error} />
       {entries === null ? (
         <Spinner />
       ) : entries.length === 0 ? (
-        <EmptyState text="暂无变更记录。" />
+        <EmptyState text={tr('plan.historyEmpty')} />
       ) : (
         <ol className="flex flex-col gap-3">
           {entries.map((e) => (
@@ -205,12 +206,12 @@ function HistoryModal({ plan, onClose }: { plan: Plan; onClose: () => void }) {
               <p className="font-medium">
                 {e.changedField}
                 <span className="ml-2 text-sm font-normal text-neutral-500">
-                  {OPERATOR_TYPE_LABELS[e.operatorType] ?? e.operatorType}
+                  {operatorTypeLabels()[e.operatorType] ?? e.operatorType}
                   {e.operatorLevel ? ` · ${e.operatorLevel}` : ''} · {fmtDateTime(e.createdAt)}
                 </span>
               </p>
               <p className="mt-1 break-words text-neutral-600">
-                {e.oldValue ?? '（空）'} → {e.newValue ?? '（空）'}
+                {e.oldValue ?? tr('plan.emptyValue')} → {e.newValue ?? tr('plan.emptyValue')}
               </p>
             </li>
           ))}
