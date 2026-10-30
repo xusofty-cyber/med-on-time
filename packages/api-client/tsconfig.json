@@ -1,1 +1,0 @@
-{"compilerOptions":{"declaration":false,"jsx":"react-jsx","module":"ESNext","moduleResolution":"bundler","noEmit":true},"extends":"../../tsconfig.base.json","include":["src","orval.config.ts"]}
