@@ -5,6 +5,10 @@
     <string name="notification_channel_reminders_desc">到点服药提醒（本地兜底，与服务端投递去重）</string>
     <string name="notification_generic_title">用药提醒</string>
     <string name="notification_generic_text">有一次用药提醒，点击查看</string>
+    <string name="notification_channel_guard">提醒守护</string>
+    <string name="notification_channel_guard_desc">提醒守护服务常驻通知（无声，仅表示守护运行中）</string>
+    <string name="notification_guard_title">药准时提醒守护中</string>
+    <string name="notification_guard_idle">守护运行中，暂无待服提醒</string>
 
     <!-- 底部导航 -->
     <string name="nav_today">今日</string>

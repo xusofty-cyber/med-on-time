@@ -86,6 +86,13 @@ object Routes {
 @Composable
 fun AppRoot(container: AppContainer) {
     val loggedIn by container.sessionStore.isLoggedInFlow.collectAsState(initial = null)
+    val rootContext = LocalContext.current
+    // 登出（会话失效）后停掉守护服务：未登录不保活、不挂常驻通知。
+    LaunchedEffect(loggedIn) {
+        if (loggedIn == false) {
+            com.medontime.app.reminder.ReminderGuardService.stop(rootContext)
+        }
+    }
     val careMode by container.sessionStore.careModeFlow.collectAsState(initial = false)
     val themeId by container.sessionStore.themeIdFlow.collectAsState(initial = "0")
 
@@ -129,6 +136,8 @@ private fun MainNav(container: AppContainer) {
         ) {
             permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
+        // 登录进主界面即拉起提醒守护前台服务（进程保活，到点通知/语音不依赖进程被唤醒）。
+        com.medontime.app.reminder.ReminderGuardService.start(context)
     }
 
     Scaffold(

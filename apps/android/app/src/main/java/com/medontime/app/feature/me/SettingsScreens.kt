@@ -304,6 +304,36 @@ fun SettingsScreen() {
             runCatching { context.startActivity(intent) }
         })
 
+        // 后台保障（2026-10-31 真机修复）：守护服务保活 + 电池豁免 + 自启动，三件齐了
+        // 国产 ROM 把 App 划掉/回收后到点通知与语音才不被厂商省电冻结。
+        val guardRunning = com.medontime.app.reminder.ReminderGuardService.running
+        Text(
+            if (guardRunning) "提醒守护：运行中（常驻保活，划掉后台也能准时提醒）" else "提醒守护：未运行，后台可能收不到提醒",
+            style = MaterialTheme.typography.bodyLarge,
+        )
+        if (!guardRunning) {
+            CareTextButton(text = "开启提醒守护", onClick = {
+                com.medontime.app.reminder.ReminderGuardService.start(context)
+            })
+        }
+        val powerManager = remember { context.getSystemService(android.os.PowerManager::class.java) }
+        val batteryExempt = powerManager?.isIgnoringBatteryOptimizations(context.packageName) == true
+        Text(
+            if (batteryExempt) "电池优化：已豁免，不会被系统省电冻结" else "电池优化：受限，进程被冻结时到点收不到通知",
+            style = MaterialTheme.typography.bodyLarge,
+        )
+        if (!batteryExempt) {
+            CareTextButton(text = "申请电池优化豁免", onClick = {
+                val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                    data = Uri.parse("package:${context.packageName}")
+                }
+                runCatching { context.startActivity(intent) }
+            })
+        }
+        CareTextButton(text = "去开启自启动（小米/华为/OPPO/vivo 等需手动允许）", onClick = {
+            com.medontime.app.reminder.AutostartHelper.open(context)
+        })
+
         SectionTitle("登录设备")
         if (state.sessions.isEmpty()) {
             Text("暂无设备记录", style = MaterialTheme.typography.bodyMedium)

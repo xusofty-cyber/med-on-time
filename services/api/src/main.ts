@@ -40,7 +40,7 @@ async function bootstrap(): Promise<void> {
     const swaggerConfig = new DocumentBuilder()
       .setTitle('药准时 MedOnTime API')
       .setDescription('全平台用药提醒系统后端接口契约')
-      .setVersion('0.3.4')
+      .setVersion('0.3.5')
       .addBearerAuth()
       .build();
     const document = SwaggerModule.createDocument(app, swaggerConfig);

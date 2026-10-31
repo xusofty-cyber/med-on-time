@@ -5,6 +5,10 @@
     <string name="notification_channel_reminders_desc">到點服藥提醒（本地兜底，與伺服端投遞去重）</string>
     <string name="notification_generic_title">用藥提醒</string>
     <string name="notification_generic_text">有一次用藥提醒，點按檢視</string>
+    <string name="notification_channel_guard">提醒守護</string>
+    <string name="notification_channel_guard_desc">提醒守護服務常駐通知（無聲，僅表示守護運行中）</string>
+    <string name="notification_guard_title">藥準時提醒守護中</string>
+    <string name="notification_guard_idle">守護運行中，暫無待服提醒</string>
 
     <string name="nav_today">今日</string>
     <string name="nav_plans">計畫</string>

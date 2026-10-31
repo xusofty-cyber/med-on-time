@@ -105,6 +105,8 @@ class ReminderScheduler(
         runCatching { store.saveScheduledInstanceIds(nextIds) }
         // 落盘全量载荷：精确闹钟到点后靠它离线接排下一条（见 scheduleNextExactFromStore）
         runCatching { store.saveScheduledPayloads(encodePayloads(payloads)) }
+        // 守护服务常驻通知同步下一剂信息（服务未运行时为空操作）。
+        ReminderGuardService.refresh(context)
     }
 
     /**
@@ -206,6 +208,23 @@ class ReminderScheduler(
         val manager = alarmManager ?: return
         val intent = alarmIntent(payload)
         val canExact = Build.VERSION.SDK_INT < Build.VERSION_CODES.S || manager.canScheduleExactAlarms()
+        // 首选闹钟级（setAlarmClock）：系统最高优先级，Doze 与多数厂商省电冻结都豁免，
+        // 且不依赖精确闹钟权限的单独授权状态（2026-10-31 真机「进程不在收不到」修复）。
+        // 抛异常（个别 ROM 限制）时逐级降级：精确闹钟 → 普通允许待机闹钟。
+        val clockSet = runCatching {
+            val showIntent = PendingIntent.getActivity(
+                context,
+                ALARM_CLOCK_SHOW_REQUEST,
+                Intent(context, com.medontime.app.MainActivity::class.java).apply {
+                    action = Intent.ACTION_VIEW
+                    data = android.net.Uri.parse("medontime://today")
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                },
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+            )
+            manager.setAlarmClock(AlarmManager.AlarmClockInfo(payload.triggerAtMillis, showIntent), intent)
+        }.isSuccess
+        if (clockSet) return
         runCatching {
             if (canExact) {
                 manager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, payload.triggerAtMillis, intent)
@@ -279,6 +298,7 @@ class ReminderScheduler(
 
     companion object {
         const val TAG_DOSE = "dose_reminder"
+        private const val ALARM_CLOCK_SHOW_REQUEST = 0xA10C
         private const val DUE_GRACE_MS = 60_000L
         private const val PERIODIC_NAME = "dose_timeline_periodic_sync"
 

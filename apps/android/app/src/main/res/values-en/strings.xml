@@ -5,6 +5,10 @@
     <string name="notification_channel_reminders_desc">Due-dose reminders (local fallback, deduplicated with server delivery)</string>
     <string name="notification_generic_title">Medication reminder</string>
     <string name="notification_generic_text">You have a medication reminder. Tap to view.</string>
+    <string name="notification_channel_guard">Reminder guard</string>
+    <string name="notification_channel_guard_desc">Persistent notification of the reminder guard service (silent, status only)</string>
+    <string name="notification_guard_title">MedOnTime reminder guard active</string>
+    <string name="notification_guard_idle">Guard active, no upcoming doses</string>
 
     <string name="nav_today">Today</string>
     <string name="nav_plans">Plans</string>

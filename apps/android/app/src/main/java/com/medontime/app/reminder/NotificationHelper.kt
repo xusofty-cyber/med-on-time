@@ -37,6 +37,7 @@ data class DosePayload(
  */
 object NotificationHelper {
     const val CHANNEL_ID = "dose_reminders"
+    const val GUARD_CHANNEL_ID = "reminder_guard"
 
     fun createChannels(context: Context) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -49,9 +50,44 @@ object NotificationHelper {
                 enableVibration(true)
                 lockscreenVisibility = android.app.Notification.VISIBILITY_PRIVATE
             }
+            // 守护服务常驻通道：低重要性、无声无震，仅作「守护中」可见凭证，不打扰。
+            val guardChannel = NotificationChannel(
+                GUARD_CHANNEL_ID,
+                context.getString(R.string.notification_channel_guard),
+                NotificationManager.IMPORTANCE_LOW,
+            ).apply {
+                description = context.getString(R.string.notification_channel_guard_desc)
+                enableVibration(false)
+                setSound(null, null)
+                lockscreenVisibility = android.app.Notification.VISIBILITY_PRIVATE
+            }
             val manager = context.getSystemService(NotificationManager::class.java)
             manager?.createNotificationChannel(channel)
+            manager?.createNotificationChannel(guardChannel)
         }
+    }
+
+    /** 守护服务常驻通知：标题恒定，正文为下一剂时间（无待服时显示守护中）。 */
+    fun buildGuardNotification(context: Context, nextText: String?): android.app.Notification {
+        val text = nextText ?: context.getString(R.string.notification_guard_idle)
+        return NotificationCompat.Builder(context, GUARD_CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setContentTitle(context.getString(R.string.notification_guard_title))
+            .setContentText(text)
+            .setContentIntent(contentIntent(context, "guard"))
+            .setOngoing(true)
+            .setAutoCancel(false)
+            .setCategory(NotificationCompat.CATEGORY_SERVICE)
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
+            .setPublicVersion(
+                NotificationCompat.Builder(context, GUARD_CHANNEL_ID)
+                    .setSmallIcon(R.drawable.ic_notification)
+                    .setContentTitle(context.getString(R.string.notification_guard_title))
+                    .setContentText(context.getString(R.string.notification_guard_idle))
+                    .build(),
+            )
+            .build()
     }
 
     fun notificationId(instanceId: String): Int = instanceId.hashCode()

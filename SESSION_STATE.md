@@ -316,3 +316,8 @@
 - 部署：develop@d12f02e（CI #21 Success）经 update.sh --no-pull 首次生产实跑上线（服务器先行 git pull 快进并核 HEAD）。前置：磁盘 86%→清 builder 缓存 9.7G 至 72%；deploy/.env 实查三密钥齐全两两不同、NODE_ENV=production（ADMIN_JWT_SECRET 前置已满足，零改动）。构建串行（COMPOSE_PARALLEL_LIMIT=1）；发布前备份通过；迁移应用 1 条（20261030090000_v17），migrate status 复核 up to date；滚动替换 api/web/admin，redis 与其他服务未动。
 - 踩点：首跑在备份关卡中止——deploy/scripts/*.sh 在 git 中为 100644，update.sh 直接 exec backup.sh 报 Permission denied（脚本按设计中止、线上未受影响）；服务器侧 chmod +x + git core.fileMode=false 后重跑成功；本提交同时把脚本可执行位修进 git 根除。
 - 部署后核验：容器 api(healthy)/web/admin 均新镜像 Up；公网烟测 mot 200、/api/ops/health 200（code:0）、/ready 200、admin 200、blog 200（未动）；部署后磁盘经二次清理（builder 5.8G）为 76%/剩 16G。
+
+## 2026-10-31 安卓真机修复 0.3.5：进程不在时收不到通知（用户真机反馈）
+- 现象与定因（云曦逐段拆链实查）：账面链路（精确闹钟+WorkManager 双通道、链式自排、开机重排、IMPORTANCE_HIGH 通道）完整，但全链以「进程能被唤醒」为前提；App 无前台服务、无电池豁免申请、无自启动引导，国产 ROM 划掉/回收进程后厂商省电冻结闹钟与接收器——进程不在时通知与语音全灭，进程活着时正常，与真机现象吻合。昨日云曦按代码账面答「照样响」属核验不到位（无真机证据），已向用户更正。
+- 修复（全在 apps/android）：①新增 ReminderGuardService 前台服务（specialUse 类型，登录后常驻、低重要性无声通道，通知正文报下一剂且遵守锁屏隐私口径；冷启动/登录进主界面/开机三处拉起，登出自停，每次启动自检 token 并自愈同步时间线）；②最近一剂闹钟升级 setAlarmClock（系统最高优先级、Doze 与多数厂商冻结豁免、不依赖精确闹钟授权状态，失败逐级降级回精确/普通闹钟）；③设置页「提醒权限」新增后台保障三项：守护运行状态与开启、电池优化豁免申请、自启动厂商页跳转（AutostartHelper 逐厂商试开+兜底应用详情）；④语音路径随进程常驻回暖（TTS 不再靠冷启现拉）。
+- 版本：0.3.4→0.3.5（sync-version 同步 9 文件），安卓 versionCode 4→5。验证口径：本地无安卓工具链，编译以 CI Release 安卓 job 为准；最终以用户真机复测（划掉后台→到点看通知栏+语音）为验收标准。

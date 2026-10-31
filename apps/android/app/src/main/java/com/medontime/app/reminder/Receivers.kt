@@ -87,6 +87,8 @@ class BootReceiver : BroadcastReceiver() {
             return
         }
         val app = context.applicationContext as? MedOnTimeApp ?: return
+        // 开机后同步拉起守护服务（BOOT_COMPLETED 在系统 FGS 后台启动豁免清单内）。
+        ReminderGuardService.start(context)
         val pending = goAsync()
         app.container.appScope.launch {
             try {
