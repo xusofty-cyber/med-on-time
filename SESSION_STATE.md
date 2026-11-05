@@ -322,3 +322,9 @@
 - 修复（全在 apps/android）：①新增 ReminderGuardService 前台服务（specialUse 类型，登录后常驻、低重要性无声通道，通知正文报下一剂且遵守锁屏隐私口径；冷启动/登录进主界面/开机三处拉起，登出自停，每次启动自检 token 并自愈同步时间线）；②最近一剂闹钟升级 setAlarmClock（系统最高优先级、Doze 与多数厂商冻结豁免、不依赖精确闹钟授权状态，失败逐级降级回精确/普通闹钟）；③设置页「提醒权限」新增后台保障三项：守护运行状态与开启、电池优化豁免申请、自启动厂商页跳转（AutostartHelper 逐厂商试开+兜底应用详情）；④语音路径随进程常驻回暖（TTS 不再靠冷启现拉）。
 - 版本：0.3.4→0.3.5（sync-version 同步 9 文件），安卓 versionCode 4→5。验证口径：本地无安卓工具链，编译以 CI Release 安卓 job 为准；最终以用户真机复测（划掉后台→到点看通知栏+语音）为验收标准。
 - 发布环节缺陷（2026-10-31 实测）：release.yml 的 publish 汇总 job 以 needs 依赖四端 job，targets 单选（如 android）时其余 job 被 skip、汇总被连带 skip，不生成草稿 Release——单端发版须手动建 Release（本次 v0.3.5 用 manual-31 手动发布）。修复方向（待排期）：publish job 改为 if: always() + 校验所需 job 结果，或按 targets 拆分发布 job。因 workflow 文件连接器不可写、git 直推可写未验，下次改时走 git 直推一并验证。
+
+## 2026-11-06 断点刷新（Harness Engineering 复盘驱动）
+- 现状一句话：三端续批与三批审查修复已于 2026-10-30 部署生产（develop@d12f02e）；安卓 0.3.5 已发布（manual-31）。此后至本条无新代码动作，主线转入 Harness 学习与 agent-harness 完善。
+- 本条新增两件仓内工件：根目录 `ARCHITECTURE.md`（顶层地图/路由，架构事实源仍为 docs/architecture/TECH_ARCHITECTURE.md V1.5 冻结版）与 `docs/tech-debt-tracker.md`（技术债总账，首批 11 条，含 0.3.5 真机复测、POC-2 冻结、release 汇总 job 缺陷、2FA 截止 2026-12-06 等）。
+- 未闭环事项以技术债总账为准，不再在本文件散记；本文件后续恢复「一页断点」纪律：只记当前断点与最近验证，长流水归 git 历史与总账。
+- 部署纪律不变：服务器磁盘部署前先查（2026-10-30 部署后 76%/剩 16G）、构建串行、不动既有服务。
